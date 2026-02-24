@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* ── Design tokens ──────────────────────────────── */
+:root {
+  --bg:          #ffffff;
+  --bg-subtle:   #f5f5f5;
+  --bg-card:     #fafafa;
+  --border:      rgba(0,0,0,0.08);
+  --text:        #111111;
+  --text-muted:  #6b7280;
+  --accent:      #7c3aed;
+  --accent-soft: rgba(124,58,237,0.10);
+  --glow-a:      rgba(124,58,237,0.15);
+  --glow-b:      rgba(59,130,246,0.12);
+}
+
+.dark {
+  --bg:          #0a0a0a;
+  --bg-subtle:   #141414;
+  --bg-card:     rgba(255,255,255,0.02);
+  --border:      rgba(255,255,255,0.07);
+  --text:        #f0f0f0;
+  --text-muted:  #9ca3af;
+  --accent:      #a78bfa;
+  --accent-soft: rgba(167,139,250,0.10);
+  --glow-a:      rgba(124,58,237,0.20);
+  --glow-b:      rgba(59,130,246,0.15);
+}
+
+@theme inline {
+  --color-bg:          var(--bg);
+  --color-bg-subtle:   var(--bg-subtle);
+  --color-bg-card:     var(--bg-card);
+  --color-border:      var(--border);
+  --color-text:        var(--text);
+  --color-text-muted:  var(--text-muted);
+  --color-accent:      var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans, Arial, sans-serif);
+  transition: background 0.2s, color 0.2s;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--accent-soft); }
