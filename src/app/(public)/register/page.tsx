@@ -28,6 +28,7 @@ const TIPO_OPTIONS: { value: Tipo; label: string; icon: string; desc: string }[]
 export default function RegisterPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
+  const resetVolunteerOnboarding = useAuthStore((s) => s.resetVolunteerOnboarding);
   const [tipo, setTipo] = useState<Tipo>("voluntario");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -44,6 +45,7 @@ export default function RegisterPage() {
 
       // Auto-login después del registro
       const { access_token } = await authApi.login({ email, password });
+      setAuthSessionCookie(access_token);
       useAuthStore.getState().setAuth(access_token, { id: "", email, nombre, is_active: true });
 
       // Cargar perfil completo (fallo tolerado — el token ya está en el store)
@@ -52,8 +54,10 @@ export default function RegisterPage() {
         setAuth(access_token, user);
       } catch { /* perfil se cargará en próxima navegación */ }
 
-      setAuthSessionCookie();
-      router.push(tipo === "organizador" ? "/onboarding" : "/dashboard");
+      if (tipo === "voluntario") {
+        resetVolunteerOnboarding();
+      }
+      router.push("/onboarding");
     } catch {
       setError("No se pudo crear tu cuenta. El email puede estar en uso.");
     } finally {

@@ -6,11 +6,15 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { apiClient } from "@/shared/api/client";
 import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Settings, Users, Building2, UserPlus, Trash2, Loader2, CheckCircle, Wrench, Globe, FileText, Camera, MapPin, Image, ExternalLink, Eye, Palette, Trophy, LogOut } from "lucide-react";
+import { Settings, Users, Building2, UserPlus, Trash2, Loader2, CheckCircle, Globe, FileText, Camera, Image, ExternalLink, Eye, Palette, Trophy, LogOut } from "lucide-react";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
 import { skillsApi } from "@/features/skills/api/skillsApi";
 import { organizationsApi, type OrgNormas, type Organization } from "@/features/organizations/api/organizationsApi";
+import { gamificationApi, type ConfigGamificacionOrg } from "@/features/gamification/api/gamificationApi";
 import Link from "next/link";
+import { VolunteerProfileBasicsCard } from "@/features/volunteers/ui/VolunteerProfileBasicsCard";
+import { VolunteerAvailabilitySelector } from "@/features/volunteers/ui/VolunteerAvailabilitySelector";
+import { VolunteerSkillsManager } from "@/features/volunteers/ui/VolunteerSkillsManager";
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const PRIVATE_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i;
@@ -96,17 +100,9 @@ function VolunteerProfile({
 }) {
   const { user } = useAuthStore();
   const qc = useQueryClient();
-  const [skillSearch, setSkillSearch] = useState("");
   const [disponibilidadEstado, setDisponibilidadEstado] = useState<"disponible" | "no_disponible" | "previo_consulta">(
     () => (user?.perfil_extra?.disponibilidad_estado as "disponible" | "no_disponible" | "previo_consulta") ?? "previo_consulta"
   );
-
-  useEffect(() => {
-    const est = user?.perfil_extra?.disponibilidad_estado;
-    if (est === "disponible" || est === "no_disponible" || est === "previo_consulta") {
-      setDisponibilidadEstado(est);
-    }
-  }, [user?.perfil_extra?.disponibilidad_estado]);
 
   const { data: userSkills = [], isLoading: loadingSkills } = useQuery({
     queryKey: ["userSkills", user?.id],
@@ -140,20 +136,6 @@ function VolunteerProfile({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["userSkills"] }),
   });
 
-  const availableSkills = allSkills.filter(
-    (s) => !userSkills.some((us) => us.habilidad_id === s.id || us.habilidad?.id === s.id)
-  );
-
-  const q = skillSearch.trim().toLowerCase();
-  const filteredAvailableSkills = q
-    ? availableSkills.filter(
-        (s) =>
-          s.nombre.toLowerCase().includes(q) ||
-          (s.categoria?.toLowerCase().includes(q) ?? false) ||
-          (s.tipo?.toLowerCase().includes(q) ?? false)
-      )
-    : availableSkills;
-
   const handleUsarMiUbicacion = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -168,13 +150,11 @@ function VolunteerProfile({
     );
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleAvatarChange = (file: File) => {
     if (!file || !file.type.startsWith("image/")) return;
     uploadImage(file)
       .then((res) => updateAvatar.mutate(res.url))
       .catch(() => {});
-    e.target.value = "";
   };
 
   return (
@@ -197,121 +177,29 @@ function VolunteerProfile({
           </div>
         </Link>
 
-        <Section title="Datos personales" icon={UserPlus}>
-          <div className="space-y-4">
-            {/* Avatar */}
-            <div className="flex items-center gap-4">
-              <div
-                className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden shrink-0"
-                style={{ background: "var(--bg-subtle)", border: "2px solid var(--border)" }}
-              >
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-2xl font-bold" style={{ color: "var(--text-muted)" }}>
-                    {(displayName || user?.nombre || "V")[0].toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div>
-                <label className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer w-fit"
-                  style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}>
-                  <Camera className="w-4 h-4" />
-                  {updateAvatar.isPending ? "Subiendo..." : "Cambiar foto"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    disabled={updateAvatar.isPending}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>JPG, PNG. Máx. 5 MB</p>
-              </div>
-            </div>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Nombre"
-              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
-              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-            />
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={4}
-              placeholder="Cuéntanos sobre ti"
-              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none resize-none"
-              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-            />
-            <button
-              onClick={() => updateProfile.mutate()}
-              disabled={!displayName.trim() || updateProfile.isPending}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-              style={{ background: "var(--text)", color: "var(--bg)" }}
-            >
-              {updateProfile.isPending ? "Guardando..." : "Guardar perfil"}
-            </button>
-          </div>
-        </Section>
+        <VolunteerProfileBasicsCard
+          user={user}
+          displayName={displayName}
+          setDisplayName={setDisplayName}
+          bio={bio}
+          setBio={setBio}
+          onSave={() => updateProfile.mutate()}
+          savePending={updateProfile.isPending}
+          onAvatarFile={handleAvatarChange}
+          avatarPending={updateAvatar.isPending}
+          onUseLocation={handleUsarMiUbicacion}
+          locationPending={updateUbicacion.isPending}
+          description="Completa tu presentación, sube una foto y guarda tu ubicación para recibir mejores recomendaciones."
+        />
 
-        <Section title="Ubicación" icon={MapPin}>
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            Guarda tu ubicación para que el sistema priorice asignarte tareas y eventos cercanos a ti.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleUsarMiUbicacion}
-              disabled={updateUbicacion.isPending}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
-              style={{ background: "var(--accent-soft)", border: "1px solid var(--border)", color: "var(--accent)" }}
-            >
-              <MapPin className="w-4 h-4" />
-              {updateUbicacion.isPending ? "Obteniendo..." : "Usar mi ubicación"}
-            </button>
-            {user?.ubicacion?.lat != null && (
-              <span className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--bg-subtle)", color: "var(--text-muted)" }}>
-                Guardada: {user.ubicacion.lat?.toFixed(4)}, {user.ubicacion.lon?.toFixed(4)}
-                {user.ubicacion.ciudad && ` · ${user.ubicacion.ciudad}`}
-              </span>
-            )}
-          </div>
-        </Section>
-
-        <Section title="Disponibilidad" icon={Globe}>
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            Indica tu estado de disponibilidad. Solo los miembros de tu organización podrán verlo al asignar tareas.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {(["disponible", "no_disponible", "previo_consulta"] as const).map((opt) => (
-              <label
-                key={opt}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium cursor-pointer"
-                style={{
-                  background: disponibilidadEstado === opt ? "var(--accent-soft)" : "var(--bg-subtle)",
-                  border: `1px solid ${disponibilidadEstado === opt ? "var(--accent)" : "var(--border)"}`,
-                  color: disponibilidadEstado === opt ? "var(--accent)" : "var(--text-muted)",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="disponibilidad"
-                  value={opt}
-                  checked={disponibilidadEstado === opt}
-                  onChange={() => {
-                    setDisponibilidadEstado(opt);
-                    updatePerfilExtra?.mutate?.({ disponibilidad_estado: opt });
-                  }}
-                  className="sr-only"
-                />
-                {opt === "disponible" && "Disponible"}
-                {opt === "no_disponible" && "No disponible"}
-                {opt === "previo_consulta" && "Previo a consulta"}
-              </label>
-            ))}
-          </div>
-        </Section>
+        <VolunteerAvailabilitySelector
+          value={disponibilidadEstado}
+          onChange={(value) => {
+            setDisponibilidadEstado(value);
+            updatePerfilExtra.mutate({ disponibilidad_estado: value });
+          }}
+          description="Solo los miembros de tu organización verán este estado al asignar tareas."
+        />
 
         <Section title="Mis organizaciones" icon={Building2}>
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
@@ -352,75 +240,17 @@ function VolunteerProfile({
           )}
         </Section>
 
-        <Section title="Habilidades" icon={Wrench}>
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            Gestiona tus habilidades (CU05). Los organizadores te asignarán tareas según tu perfil.
-          </p>
-          {loadingSkills ? (
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando...</p>
-          ) : (
-            <div className="space-y-4">
-              {userSkills.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Tus habilidades:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {userSkills.map((us) => (
-                      <span
-                        key={us.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm"
-                        style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
-                      >
-                        {us.habilidad?.nombre ?? us.habilidad_id}
-                        <button
-                          onClick={() => removeSkillMutation.mutate(us.habilidad_id)}
-                          disabled={removeSkillMutation.isPending}
-                          className="p-0.5 rounded opacity-60 hover:opacity-100"
-                          title="Quitar"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {allSkills.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Buscar y añadir:</p>
-                  <input
-                    type="text"
-                    placeholder="Buscar habilidades (por nombre o categoría)..."
-                    value={skillSearch}
-                    onChange={(e) => setSkillSearch(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none mb-3"
-                    style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-                  />
-                  <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
-                    {filteredAvailableSkills.map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => addSkillMutation.mutate(s.id)}
-                        disabled={addSkillMutation.isPending}
-                        className="px-3 py-1.5 rounded-full text-xs font-medium hover:opacity-80 shrink-0"
-                        style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                        title={s.descripcion}
-                      >
-                        + {s.nombre}
-                        {s.categoria && <span className="opacity-60 ml-0.5">({s.categoria})</span>}
-                      </button>
-                    ))}
-                  </div>
-                  {filteredAvailableSkills.length === 0 && availableSkills.length > 0 && (
-                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>No hay resultados para &quot;{skillSearch}&quot;</p>
-                  )}
-                </div>
-              )}
-              {userSkills.length === 0 && availableSkills.length === 0 && !loadingAllSkills && (
-                <p className="text-sm" style={{ color: "var(--text-muted)" }}>No hay habilidades en el catálogo.</p>
-              )}
-            </div>
-          )}
-        </Section>
+        <VolunteerSkillsManager
+          userSkills={userSkills}
+          allSkills={allSkills}
+          loadingSkills={loadingSkills}
+          loadingAllSkills={loadingAllSkills}
+          addPending={addSkillMutation.isPending}
+          removePending={removeSkillMutation.isPending}
+          onAddSkill={(skillId) => addSkillMutation.mutate(skillId)}
+          onRemoveSkill={(skillId) => removeSkillMutation.mutate(skillId)}
+          description="Gestiona tus habilidades para que las organizaciones te asignen mejores tareas."
+        />
       </div>
     </>
   );
@@ -516,6 +346,7 @@ function OrgPerfilPublicoSection({ activeOrgId }: { activeOrgId: string }) {
 
   useEffect(() => {
     if (org) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDescripcion(org.descripcion ?? "");
       setSitioWeb(org.sitio_web ?? "");
       setSlugInput(org.slug ?? "");
@@ -744,6 +575,7 @@ function OrgVisibilidadSection({ activeOrgId }: { activeOrgId: string }) {
   useEffect(() => {
     const v = org?.normas?.visibilidad as Record<string, boolean> | undefined;
     if (v && typeof v === "object") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setVis((prev) => ({
         mostrar_mision: v.mostrar_mision ?? prev.mostrar_mision,
         mostrar_vision: v.mostrar_vision ?? prev.mostrar_vision,
@@ -829,6 +661,7 @@ function OrgPersonalizacionSection({ activeOrgId }: { activeOrgId: string }) {
   useEffect(() => {
     const p = org?.normas?.personalizacion as Record<string, string> | undefined;
     if (p && typeof p === "object") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setColorPrimario(p.color_primario ?? "#3b82f6");
       setColorSecundario(p.color_secundario ?? "#1e40af");
       setBannerUrl(p.banner_url ?? "");
@@ -979,6 +812,7 @@ function OrgTerminosSection({ activeOrgId }: { activeOrgId: string }) {
 
   useEffect(() => {
     if (org?.normas) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTerminos(org.normas.terminos_servicio ?? "");
       setPoliticas(Array.isArray(org.normas.politicas) ? org.normas.politicas : []);
     }
@@ -1068,6 +902,80 @@ function OrgTerminosSection({ activeOrgId }: { activeOrgId: string }) {
 }
 
 /* ── Small helpers ────────────────────────────────────────── */
+/* ── Configuración de gamificación por organización ───────────── */
+function OrgGamificacionSection({ activeOrgId }: { activeOrgId: string }) {
+  const qc = useQueryClient();
+  const { data: config, isLoading } = useQuery({
+    queryKey: ["config-gamificacion", activeOrgId],
+    queryFn: () => gamificationApi.getConfigGamificacion(activeOrgId),
+    enabled: !!activeOrgId,
+  });
+  const [duracion, setDuracion] = useState(12);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (config) setDuracion(config.duracion_temporada_meses);
+  }, [config]);
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: Partial<ConfigGamificacionOrg>) =>
+      gamificationApi.updateConfigGamificacion(activeOrgId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["config-gamificacion", activeOrgId] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    },
+  });
+
+  const handleSave = () => {
+    updateMutation.mutate({ duracion_temporada_meses: duracion });
+  };
+
+  return (
+    <Section title="Gamificación" icon={Trophy}>
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        Configura temporadas, penalizaciones y reglas de ranking para tu organización.
+      </p>
+      {isLoading ? (
+        <div className="h-24 rounded-xl animate-pulse" style={{ background: "var(--bg-subtle)" }} />
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>
+              Duración de temporada (meses)
+            </label>
+            <div className="flex gap-2">
+              <select
+                value={duracion}
+                onChange={(e) => setDuracion(parseInt(e.target.value, 10))}
+                className="px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+              >
+                {[6, 12, 24].map((m) => (
+                  <option key={m} value={m}>{m} meses</option>
+                ))}
+              </select>
+              <button
+                onClick={handleSave}
+                disabled={updateMutation.isPending || duracion === config?.duracion_temporada_meses}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+                style={{ background: "var(--accent)", color: "white" }}
+              >
+                {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle className="w-4 h-4" /> : null}
+                {saved ? "Guardado" : "Guardar"}
+              </button>
+            </div>
+          </div>
+          {config && (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Reset ELO: {config.tipo_reset_elo} · Actividad mínima: {config.elo_min_actividad_temporada} tareas
+            </p>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function Section({ title, icon: Icon, children }: {
   title: string; icon: React.ElementType; children: React.ReactNode;
 }) {
@@ -1092,7 +1000,7 @@ export default function SettingsPage() {
   const [orgName, setOrgName]           = useState("");
   const [nameSuccess, setNameSuccess]   = useState(false);
   const [displayName, setDisplayName]   = useState(user?.nombre ?? "");
-  const [bio, setBio] = useState("");
+  const [bio, setBio] = useState(user?.bio ?? "");
 
   /* Invite member */
   const [inviteUserId, setInviteUserId] = useState("");
@@ -1144,7 +1052,7 @@ export default function SettingsPage() {
   const updateProfile = useMutation({
     mutationFn: async () => {
       const { data } = await apiClient.patch("/auth/me", { nombre: displayName, bio });
-      return data as { id: string; email: string; nombre: string; estado: boolean; tipo?: "voluntario" | "organizador"; is_super_admin?: boolean; avatar_url?: string };
+      return data as { id: string; email: string; nombre: string; estado: boolean; tipo?: "voluntario" | "organizador"; is_super_admin?: boolean; avatar_url?: string; bio?: string };
     },
     onSuccess: (data) => {
       if (token && user) {
@@ -1154,6 +1062,7 @@ export default function SettingsPage() {
           tipo: data.tipo ?? user.tipo,
           is_super_admin: data.is_super_admin ?? user.is_super_admin,
           avatar_url: data.avatar_url ?? user.avatar_url,
+          bio: data.bio ?? bio,
         });
       }
     },
@@ -1281,6 +1190,9 @@ export default function SettingsPage() {
 
         {/* Términos y políticas (aceptación obligatoria antes de unirse) */}
         <OrgTerminosSection activeOrgId={activeOrgId!} />
+
+        {/* Configuración de gamificación */}
+        <OrgGamificacionSection activeOrgId={activeOrgId!} />
 
         {/* Invite member */}
         <Section title="Invitar miembro" icon={UserPlus}>

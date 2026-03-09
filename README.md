@@ -32,6 +32,7 @@ Abre http://localhost:3001 (puerto por defecto del proyecto).
 | `npm run start` | Servidor de producción |
 | `npm run lint` | ESLint |
 | `npm run test:e2e` | Tests E2E con Playwright |
+| `npm run test:e2e:live` | Carril E2E real (sin mocks) para integración crítica |
 | `npm run test:e2e:ui` | Playwright en modo UI |
 | `npm run test:e2e:report` | Ver reporte de tests |
 
@@ -64,4 +65,26 @@ src/
 
 - Base URL: `NEXT_PUBLIC_API_URL` (default: `http://localhost:8000`)
 - Autenticación: JWT en header `Authorization: Bearer <token>`
+- Protección de rutas: cookie `auth-session` con el JWT real para `proxy.ts`
+- Persistencia cliente: `localStorage` (`auth-storage`) para mantener sesión entre pestañas
 - Header `X-Org-Id` para contexto de organización en endpoints multi-tenant
+
+## E2E real (local + staging)
+
+Para el carril live usa credenciales reales de un organizador con plan activo:
+
+```bash
+# PowerShell
+$env:E2E_MODE="real"
+$env:E2E_TARGET="local" # o staging
+$env:E2E_BASE_URL="http://localhost:3001" # o URL staging frontend
+$env:E2E_BACKEND_URL="http://localhost:8000" # o URL staging backend
+$env:LIVE_AGENT_EMAIL="organizer.live@lacausa.dev"
+$env:LIVE_AGENT_PASSWORD="***"
+$env:LIVE_AGENT_ORG_ID="uuid-org"
+npm run test:e2e:live
+```
+
+Notas:
+- En `E2E_TARGET=staging` Playwright no levanta `next dev`; usa la URL remota.
+- Este carril valida `login -> dashboard -> /dashboard/agent` contra backend y LLM reales, sin interceptores `page.route`.

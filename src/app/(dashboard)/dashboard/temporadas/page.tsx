@@ -1,16 +1,35 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { History, Calendar, Trophy, Lock } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { History, Calendar, Trophy, Lock, Clock, CheckCircle } from "lucide-react";
 import { gamificationApi, type Season, type HistoricalRankingEntry } from "@/features/gamification/api/gamificationApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
 import { EmptyState } from "@/shared/ui/EmptyState";
+import { SeasonCard, PodiumCard } from "@/shared/ui/gamification";
+import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import { toast } from "sonner";
 
 function formatDate(str: string) {
   return new Date(str).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function daysUntil(end: string): number {
+  const now = new Date();
+  const endDate = new Date(end);
+  const diff = endDate.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+function seasonProgress(season: Season): number {
+  const start = new Date(season.fecha_inicio).getTime();
+  const end = new Date(season.fecha_fin).getTime();
+  const now = Date.now();
+  if (now < start) return 0;
+  if (now > end) return 100;
+  return Math.round(((now - start) / (end - start)) * 100);
 }
 
 export default function TemporadasPage() {
@@ -47,12 +66,13 @@ export default function TemporadasPage() {
   }, [selectedSeasonId]);
 
   const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
+  const activeSeason = seasons.find((s) => s.activa);
 
   const handleCloseSeason = async (seasonId: string) => {
     setClosingId(seasonId);
     try {
       await gamificationApi.closeSeason(seasonId);
-      toast.success("Temporada cerrada. Ranking guardado, ELO reiniciado.");
+      toast.success("Temporada cerrada. Ranking guardado, ELO con reset suave.");
       refreshSeasons();
       if (selectedSeasonId === seasonId) setSelectedSeasonId(null);
     } catch {
@@ -66,15 +86,19 @@ export default function TemporadasPage() {
     <>
       <TopBar title="Temporadas" />
       <div className="flex-1 p-5 md:p-8 space-y-6" style={{ color: "var(--text)" }}>
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <History className="w-5 h-5" style={{ color: "var(--accent)" }} />
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={motionSpring.tab}
+        >
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <History className="w-6 h-6" style={{ color: "var(--g-progreso)" }} />
             Temporadas y ranking histórico
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Consulta el ranking histórico por temporada (CU27).
+            Consulta el ranking histórico por temporada. Las temporadas activas muestran progreso y countdown.
           </p>
-        </div>
+        </motion.div>
 
         {loading ? (
           <div className="flex justify-center py-20"><Spinner size="lg" /></div>
@@ -85,85 +109,192 @@ export default function TemporadasPage() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {seasons.map((s) => (
-                <div
-                  key={s.id}
-                  className="p-5 rounded-2xl text-left transition-all"
-                  style={{
-                    background: selectedSeasonId === s.id ? "var(--accent-soft)" : "var(--bg-card)",
-                    border: `1px solid ${selectedSeasonId === s.id ? "var(--accent)" : "var(--border)"}`,
-                  }}
-                >
-                  <button
-                    onClick={() => setSelectedSeasonId(s.id === selectedSeasonId ? null : s.id)}
-                    className="w-full text-left"
-                  >
+            {/* Active season hero */}
+            {activeSeason && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...motionSpring.tab, delay: 0.1 }}
+                className="g-season-card p-6"
+                style={{ boxShadow: "0 0 0 2px var(--g-progreso)", outline: "2px solid var(--bg)", outlineOffset: "2px" }}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <Calendar className="w-4 h-4" style={{ color: "var(--accent)" }} />
-                      <span className="font-semibold text-sm">{s.nombre}</span>
-                      {s.activa && (
-                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,.2)", color: "#22c55e" }}>
-                          Activa
-                        </span>
-                      )}
+                      <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: "var(--g-logro-soft)", color: "var(--g-logro)" }}>
+                        Activa
+                      </span>
+                      <span className="font-bold text-lg">{activeSeason.nombre}</span>
                     </div>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      {formatDate(s.fecha_inicio)} – {formatDate(s.fecha_fin)}
+                    <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                      {formatDate(activeSeason.fecha_inicio)} – {formatDate(activeSeason.fecha_fin)}
                     </p>
-                  </button>
-                  {s.activa && (
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                      <Clock className="w-4 h-4" style={{ color: "var(--g-progreso)" }} />
+                      <span className="text-sm font-semibold tabular-nums">
+                        {daysUntil(activeSeason.fecha_fin)} días restantes
+                      </span>
+                    </div>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="mt-3 w-full"
-                      loading={closingId === s.id}
-                      onClick={(e) => { e.stopPropagation(); handleCloseSeason(s.id); }}
+                      loading={closingId === activeSeason.id}
+                      onClick={() => handleCloseSeason(activeSeason.id)}
                     >
                       <Lock className="w-3 h-3 mr-1" /> Cerrar temporada
                     </Button>
-                  )}
+                  </div>
                 </div>
+                <div className="mt-4">
+                  <div className="flex justify-between text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+                    <span>Progreso de la temporada</span>
+                    <span className="font-medium tabular-nums">{seasonProgress(activeSeason)}%</span>
+                  </div>
+                  <motion.div
+                    className="h-2.5 rounded-full overflow-hidden"
+                    style={{ background: "var(--bg-subtle)" }}
+                    initial={{ width: "100%" }}
+                  >
+                    <motion.div
+                      className="h-full rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${seasonProgress(activeSeason)}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      style={{
+                        background: "linear-gradient(90deg, var(--g-progreso) 0%, var(--g-epic) 100%)",
+                      }}
+                    />
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Season cards timeline */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {seasons.map((s, i) => (
+                <motion.div
+                  key={s.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...motionSpring.tab, delay: staggerFast * (i + 2) }}
+                >
+                  <SeasonCard active={selectedSeasonId === s.id}>
+                    <button
+                      onClick={() => setSelectedSeasonId(s.id === selectedSeasonId ? null : s.id)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Calendar className="w-4 h-4" style={{ color: "var(--g-progreso)" }} />
+                        <span className="font-semibold text-sm">{s.nombre}</span>
+                        {s.activa && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--g-logro-soft)", color: "var(--g-logro)" }}>
+                            Activa
+                          </span>
+                        )}
+                        {!s.activa && (
+                          <CheckCircle className="w-4 h-4 ml-auto" style={{ color: "var(--text-muted)" }} />
+                        )}
+                      </div>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {formatDate(s.fecha_inicio)} – {formatDate(s.fecha_fin)}
+                      </p>
+                    </button>
+                    {s.activa && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-3 w-full"
+                        loading={closingId === s.id}
+                        onClick={(e) => { e.stopPropagation(); handleCloseSeason(s.id); }}
+                      >
+                        <Lock className="w-3 h-3 mr-1" /> Cerrar temporada
+                      </Button>
+                    )}
+                  </SeasonCard>
+                </motion.div>
               ))}
             </div>
 
-            {selectedSeasonId && (
-              <div className="rounded-2xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <Trophy className="w-4 h-4" style={{ color: "var(--accent)" }} />
-                  Ranking histórico – {selectedSeason?.nombre ?? "Temporada"}
-                </h3>
-                {loadingHistory ? (
-                  <div className="flex justify-center py-12"><Spinner /></div>
-                ) : historicalRanking.length === 0 ? (
-                  <EmptyState
-                    title="Sin datos"
-                    description="No hay registros de ranking para esta temporada."
-                  />
-                ) : (
-                  <ul className="divide-y" style={{ "--tw-divide-opacity": 1, borderColor: "var(--border)" } as React.CSSProperties}>
-                    {historicalRanking.map((entry) => (
-                      <li key={entry.id} className="flex items-center gap-4 py-3">
-                        <span
-                          className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
-                          style={{
-                            background: entry.posicion_final <= 3 ? "var(--accent)" : "var(--bg-subtle)",
-                            color: entry.posicion_final <= 3 ? "#fff" : "var(--text-muted)",
-                          }}
-                        >
-                          {entry.posicion_final}
-                        </span>
-                        <span className="text-sm tabular-nums">{entry.elo_final} ELO</span>
-                        <span className="text-sm tabular-nums">{entry.xp_acumulada} XP</span>
-                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                          {formatDate(entry.created_at)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+            {/* Historical ranking panel */}
+            <AnimatePresence>
+              {selectedSeasonId && (
+                <motion.div
+                  key={selectedSeasonId}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={motionSpring.tab}
+                  className="overflow-hidden"
+                >
+                  <div className="rounded-2xl p-5 mt-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <Trophy className="w-4 h-4" style={{ color: "var(--g-progreso)" }} />
+                      Ranking histórico – {selectedSeason?.nombre ?? "Temporada"}
+                    </h3>
+                    {loadingHistory ? (
+                      <div className="flex justify-center py-12"><Spinner /></div>
+                    ) : historicalRanking.length === 0 ? (
+                      <EmptyState
+                        title="Sin datos"
+                        description="No hay registros de ranking para esta temporada."
+                      />
+                    ) : (
+                      <div className="space-y-3">
+                        {historicalRanking.slice(0, 3).map((entry, i) => (
+                          <PodiumCard key={entry.id} position={(i + 1) as 1 | 2 | 3} delay={staggerFast * i}>
+                            <div className="flex items-center gap-4">
+                              <span className="text-2xl" aria-hidden>
+                                {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
+                              </span>
+                              <div className="flex-1">
+                                <p className="font-semibold">Puesto #{entry.posicion_final}</p>
+                                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                  {entry.elo_final} ELO · {entry.xp_acumulada} XP
+                                </p>
+                              </div>
+                              <span className="text-sm font-bold tabular-nums" style={{ color: "var(--g-energia)" }}>
+                                {entry.elo_final} ELO
+                              </span>
+                            </div>
+                          </PodiumCard>
+                        ))}
+                        {historicalRanking.length > 3 && (
+                          <ul className="divide-y mt-4" style={{ borderColor: "var(--border)" }}>
+                            {historicalRanking.slice(3).map((entry, i) => (
+                              <motion.li
+                                key={entry.id}
+                                initial={{ opacity: 0, x: -8 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: staggerFast * (i + 4) }}
+                                className="flex items-center gap-4 py-3"
+                                style={{ borderBottom: "1px solid var(--border)" }}
+                              >
+                                <span
+                                  className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
+                                  style={{
+                                    background: "var(--bg-subtle)",
+                                    color: "var(--text-muted)",
+                                  }}
+                                >
+                                  {entry.posicion_final}
+                                </span>
+                                <span className="text-sm tabular-nums">{entry.elo_final} ELO</span>
+                                <span className="text-sm tabular-nums">{entry.xp_acumulada} XP</span>
+                                <span className="text-xs ml-auto" style={{ color: "var(--text-muted)" }}>
+                                  {formatDate(entry.created_at)}
+                                </span>
+                              </motion.li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </div>

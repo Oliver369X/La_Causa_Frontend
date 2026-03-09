@@ -20,6 +20,12 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface AgentActionLog {
+  tool: string;
+  result: string;
+  timestamp?: string;
+}
+
 export interface ConfirmationPayload {
   confirmation_id: string;
   accion: string;
@@ -30,13 +36,32 @@ export interface ConfirmationPayload {
 export interface ChatResponse {
   session_id: string;
   reply: string;
-  actions_taken: string[];
+  tipo: string;
+  actions_taken: AgentActionLog[];
   pending_confirmation: ConfirmationPayload | null;
 }
 
 export interface AgentAccessResponse {
   can_use: boolean;
   reason?: "voluntario" | "sin_plan_pago" | "sin_organizacion";
+}
+
+export interface ConversationSummary {
+  session_id: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface ConversationMessageOut {
+  role: string;
+  content: string;
+  actions?: AgentActionLog[];
+}
+
+export interface ConversationMessagesResponse {
+  session_id: string;
+  messages: ConversationMessageOut[];
 }
 
 export const agentApi = {
@@ -60,6 +85,24 @@ export const agentApi = {
       confirmed: confirmed ?? false,
       confirmation_id: confirmationId ?? null,
     });
+    return data;
+  },
+
+  listConversations: async (orgId: string | null): Promise<ConversationSummary[]> => {
+    const params = orgId ? { org_id: orgId } : {};
+    const { data } = await agentClient.get<ConversationSummary[]>("/conversations", { params });
+    return data;
+  },
+
+  getConversationMessages: async (
+    sessionId: string,
+    orgId: string | null
+  ): Promise<ConversationMessagesResponse> => {
+    const params = orgId ? { org_id: orgId } : {};
+    const { data } = await agentClient.get<ConversationMessagesResponse>(
+      `/conversations/${encodeURIComponent(sessionId)}/messages`,
+      { params }
+    );
     return data;
   },
 };

@@ -3,8 +3,14 @@
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
+import { useCelebrationStore } from "@/shared/store/celebrationStore";
 import { tasksApi, type Task } from "@/features/tasks/api/tasksApi";
-import { assignmentsApi, type Assignment, type Delivery } from "@/features/assignments/api/assignmentsApi";
+import {
+  assignmentsApi,
+  type Assignment,
+  type Delivery,
+  type DeliveryReviewResponse,
+} from "@/features/assignments/api/assignmentsApi";
 import { eventsApi } from "@/features/events/api/eventsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
@@ -185,7 +191,7 @@ export default function TaskDetailPage() {
             <h3 className="font-semibold mb-4">Asignaciones</h3>
             <div className="space-y-4">
               {assignments.map((a) => (
-                <AssignmentCard key={a.id} assignment={a} taskId={taskId} />
+                <AssignmentCard key={a.id} assignment={a} taskId={taskId} taskTitulo={task.titulo} />
               ))}
             </div>
           </div>
@@ -224,7 +230,15 @@ export default function TaskDetailPage() {
   );
 }
 
-function AssignmentCard({ assignment, taskId }: { assignment: Assignment; taskId: string }) {
+function AssignmentCard({
+  assignment,
+  taskId,
+  taskTitulo,
+}: {
+  assignment: Assignment;
+  taskId: string;
+  taskTitulo: string;
+}) {
   const qc = useQueryClient();
   const { data: deliveries = [] } = useQuery({
     queryKey: ["deliveries", assignment.id],
@@ -269,7 +283,12 @@ function AssignmentCard({ assignment, taskId }: { assignment: Assignment; taskId
       {deliveries.length > 0 && (
         <div className="mt-2 space-y-2">
           {deliveries.map((d) => (
-            <DeliveryItem key={d.id} delivery={d} assignmentId={assignment.id} />
+            <DeliveryItem
+              key={d.id}
+              delivery={d}
+              assignmentId={assignment.id}
+              tareaTitulo={taskTitulo}
+            />
           ))}
         </div>
       )}
@@ -289,12 +308,15 @@ function AssignmentCard({ assignment, taskId }: { assignment: Assignment; taskId
 function DeliveryItem({
   delivery,
   assignmentId,
+  tareaTitulo,
 }: {
   delivery: Delivery;
   assignmentId: string;
+  tareaTitulo: string;
 }) {
   const [showReview, setShowReview] = useState(false);
   const qc = useQueryClient();
+  const showCelebration = useCelebrationStore((s) => s.show);
   const [rating, setRating] = useState(5);
   const [feedback, setFeedback] = useState("");
 
@@ -305,10 +327,25 @@ function DeliveryItem({
         feedback,
         rating: estado === "aprobada" ? rating : undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (data: DeliveryReviewResponse, estado) => {
       qc.invalidateQueries({ queryKey: ["deliveries", assignmentId] });
       qc.invalidateQueries({ queryKey: ["task-assignments"] });
       setShowReview(false);
+      if (
+        estado === "aprobada" &&
+        (data.delta_xp != null || data.delta_elo != null || data.subio_nivel || (data.nuevas_insignias?.length ?? 0) > 0)
+      ) {
+        showCelebration({
+          tarea_titulo: tareaTitulo,
+          delta_elo: data.delta_elo,
+          delta_xp: data.delta_xp,
+          nuevas_insignias: data.nuevas_insignias,
+          subio_nivel: data.subio_nivel,
+          nivel_actual: data.nivel_actual,
+          xp_en_nivel: data.xp_en_nivel,
+          xp_para_siguiente_nivel: data.xp_para_siguiente_nivel,
+        });
+      }
     },
   });
 

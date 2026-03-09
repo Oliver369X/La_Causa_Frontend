@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { Award, Plus, Sparkles, Tag, ShieldCheck } from "lucide-react";
 import { useAuthStore } from "@/shared/store/authStore";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
@@ -345,12 +346,14 @@ export default function BadgesPage() {
           description="Crea medallas para reconocer a tus voluntarios."
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {badges.map((b) => (
-            <div
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {badges.map((b, i) => (
+            <motion.div
               key={b.id}
-              className="rounded-2xl p-4 flex flex-col gap-2"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 * i, duration: 0.3 }}
+              className="rounded-2xl p-4 flex flex-col gap-2 g-reward-card"
             >
               <div className="flex items-start gap-3">
                 <div
@@ -378,7 +381,7 @@ export default function BadgesPage() {
                   )}
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}

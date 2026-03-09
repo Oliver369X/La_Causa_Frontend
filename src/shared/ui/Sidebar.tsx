@@ -15,34 +15,67 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useTheme } from "@/shared/store/themeStore";
 import { cn } from "@/shared/utils/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { clearAuthSessionCookie } from "@/shared/auth/sessionCookie";
 import { NotificationBell } from "@/features/communications/components/NotificationBell";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
-const organizerNavItemsBase = [
-  // ── Core ─────────────────────────────────────────────────────────────
-  { href: "/dashboard",                  icon: LayoutDashboard, label: "Dashboard"       },
-  { href: "/dashboard/events",           icon: Calendar,        label: "Eventos"         },
-  { href: "/dashboard/tasks",            icon: CheckSquare,     label: "Tareas"          },
-  { href: "/dashboard/volunteers",       icon: Users,           label: "Voluntarios"     },
-  // ── People ───────────────────────────────────────────────────────────
-  { href: "/dashboard/roles",            icon: Shield,          label: "Roles", superAdminOnly: true },
-  { href: "/dashboard/teams",            icon: Users2,          label: "Equipos"         },
-  { href: "/dashboard/staff",            icon: UserCheck,       label: "Staff"           },
-  // ── Engagement ───────────────────────────────────────────────────────
-  { href: "/dashboard/gamification",     icon: Trophy,          label: "Gamificación"    },
-  { href: "/dashboard/certificates",     icon: Award,           label: "Certificados"    },
-  { href: "/dashboard/badges",           icon: Medal,          label: "Medallas"        },
-  // ── Intelligence ─────────────────────────────────────────────────────
-  { href: "/dashboard/reportes-dinamicos", icon: FileText,       label: "Reporte Dinámico" },
-  { href: "/dashboard/ml-lab",            icon: Wrench,         label: "ML Lab"          },
-  { href: "/dashboard/retrospectives",   icon: RotateCcw,       label: "Retroalimentac." },
-  { href: "/dashboard/incidents",        icon: AlertTriangle,   label: "Incidentes"      },
-  // ── Platform ─────────────────────────────────────────────────────────
-  { href: "/dashboard/subscriptions",    icon: CreditCard,      label: "Suscripción"     },
-  { href: "/dashboard/audit",            icon: ShieldCheck,     label: "Auditoría"       },
-  { href: "/dashboard/agent",            icon: Sparkles,        label: "Agente IA", paidOnly: true },
-  { href: "/dashboard/settings",         icon: Settings,        label: "Configuración"   },
+const organizerSections = [
+  {
+    key: "principal",
+    label: "Principal",
+    icon: LayoutDashboard,
+    items: [
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    ],
+  },
+  {
+    key: "operaciones",
+    label: "Operaciones",
+    icon: CheckSquare,
+    items: [
+      { href: "/dashboard/events", icon: Calendar, label: "Eventos" },
+      { href: "/dashboard/tasks", icon: CheckSquare, label: "Tareas" },
+      { href: "/dashboard/volunteers", icon: Users, label: "Voluntarios" },
+      { href: "/dashboard/roles", icon: Shield, label: "Roles", permissionAction: "manageRoles" as const },
+      { href: "/dashboard/teams", icon: Users2, label: "Equipos" },
+      { href: "/dashboard/staff", icon: UserCheck, label: "Staff" },
+    ],
+  },
+  {
+    key: "gamificacion",
+    label: "Gamificación",
+    icon: Trophy,
+    items: [
+      { href: "/dashboard/gamification", icon: Trophy, label: "Gamificación" },
+      { href: "/dashboard/temporadas", icon: History, label: "Temporadas" },
+      { href: "/dashboard/badges", icon: Medal, label: "Medallas" },
+      { href: "/dashboard/certificates", icon: Award, label: "Certificados" },
+      { href: "/dashboard/gamification-lab", icon: Sparkles, label: "Lab visual" },
+    ],
+  },
+  {
+    key: "inteligencia",
+    label: "Inteligencia",
+    icon: FileText,
+    items: [
+      { href: "/dashboard/reportes-dinamicos", icon: FileText, label: "Reporte Dinámico" },
+      { href: "/dashboard/ml-lab", icon: Wrench, label: "ML Lab" },
+      { href: "/dashboard/retrospectives", icon: RotateCcw, label: "Retroalimentac." },
+      { href: "/dashboard/incidents", icon: AlertTriangle, label: "Incidentes" },
+    ],
+  },
+  {
+    key: "administracion",
+    label: "Administración",
+    icon: ShieldCheck,
+    items: [
+      { href: "/dashboard/subscriptions", icon: CreditCard, label: "Suscripción" },
+      { href: "/dashboard/audit", icon: ShieldCheck, label: "Auditoría" },
+      { href: "/dashboard/agent", icon: Sparkles, label: "Agente IA", paidOnly: true },
+      { href: "/dashboard/settings", icon: Settings, label: "Configuración" },
+    ],
+  },
 ];
 
 const volunteerNavItems = [
@@ -51,9 +84,9 @@ const volunteerNavItems = [
   { href: "/dashboard/events",        icon: Calendar,        label: "Eventos"       },
   { href: "/dashboard/tasks",         icon: CheckSquare,     label: "Mis Tareas"    },
   { href: "/dashboard/gamification",  icon: Trophy,          label: "Gamificación"   },
-  { href: "/dashboard/temporadas",   icon: History,         label: "Temporadas"     },
+  { href: "/dashboard/temporadas",     icon: History,         label: "Temporadas"    },
   { href: "/dashboard/certificates",  icon: Award,           label: "Certificados"  },
-  // Agente IA solo para organizaciones con plan de pago — no para voluntarios
+  { href: "/dashboard/gamification-lab", icon: Sparkles,    label: "Lab visual"    },
   { href: "/dashboard/settings",     icon: Settings,        label: "Mi Perfil"     },
 ];
 
@@ -63,6 +96,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const router   = useRouter();
   const { theme, toggle } = useTheme();
   const { user, logout, activeOrgId, setActiveOrg } = useAuthStore();
+  const { can } = usePermissions();
   const isVolunteer = user?.tipo === "voluntario";
   const canSeeGlobalAdmin = Boolean(user?.is_super_admin);
 
@@ -73,27 +107,42 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   });
   const agentCanUse = agentAccess?.can_use ?? false;
 
-  const organizerNavFiltered = organizerNavItemsBase.filter((item) => {
-    const i = item as { superAdminOnly?: boolean; paidOnly?: boolean };
-    if (i.superAdminOnly && !canSeeGlobalAdmin) return false;
-    if (i.paidOnly && !agentCanUse) return false;
-    return true;
-  });
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (key: string) => setCollapsedSections((s) => ({ ...s, [key]: !s[key] }));
 
-  const navBase = isVolunteer ? volunteerNavItems : organizerNavFiltered;
+  const filterOrganizerItems = (items: typeof organizerSections[0]["items"]) =>
+    items.filter((item) => {
+      const i = item as { superAdminOnly?: boolean; paidOnly?: boolean; permissionAction?: "manageRoles" };
+      if (i.superAdminOnly && !canSeeGlobalAdmin) return false;
+      if (i.paidOnly && !agentCanUse) return false;
+      if (i.permissionAction && !can(i.permissionAction)) return false;
+      return true;
+    });
+
+  const navBase = isVolunteer ? volunteerNavItems : null;
   const showAgentQuickAccess = !isVolunteer && agentCanUse;
-  const navItemsResolved = canSeeGlobalAdmin
-    ? [...navBase, { href: "/dashboard/admin", icon: ShieldCheck, label: "Admin SaaS" }]
-    : navBase;
 
   const { data: volunteerOrgs = [] } = useQuery({
     queryKey: ["orgs"],
     queryFn: () => organizationsApi.list(),
     enabled: !!user?.id && isVolunteer,
   });
+  const { data: managedOrgs = [] } = useQuery({
+    queryKey: ["orgs-managed"],
+    queryFn: () => organizationsApi.list(),
+    enabled: !!user?.id && !isVolunteer,
+  });
 
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
-  const selectedOrg = volunteerOrgs.find((o) => o.id === activeOrgId);
+  const selectedOrg = (isVolunteer ? volunteerOrgs : managedOrgs).find((o) => o.id === activeOrgId);
+
+  useEffect(() => {
+    if (activeOrgId || !user?.id) return;
+    const fallbackOrg = isVolunteer ? volunteerOrgs[0] : managedOrgs[0];
+    if (fallbackOrg) {
+      setActiveOrg(fallbackOrg.id);
+    }
+  }, [activeOrgId, isVolunteer, managedOrgs, setActiveOrg, user?.id, volunteerOrgs]);
 
   const handleLogout = () => {
     logout();
@@ -194,30 +243,90 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 p-4 overflow-y-auto space-y-0.5">
-        {navItemsResolved.map((item) => {
-          const exact    = item.href === "/dashboard";
-          const isActive = exact
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all")}
-              style={{
-                background: isActive ? "var(--bg-card)"  : "transparent",
-                color:      isActive ? "var(--text)"     : "var(--text-muted)",
-                border:     isActive ? "1px solid var(--border)" : "1px solid transparent",
-              }}
-            >
-              <item.icon className="w-4 h-4 shrink-0"
-                style={{ color: isActive ? "var(--accent)" : "var(--text-muted)" }} />
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 p-4 overflow-y-auto space-y-1">
+        {isVolunteer ? (
+          <>
+            {navBase?.map((item) => {
+              const exact = item.href === "/dashboard";
+              const isActive = exact ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
+              return (
+                <Link key={item.href} href={item.href} onClick={onClose}
+                  className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all")}
+                  style={{
+                    background: isActive ? "var(--bg-card)" : "transparent",
+                    color: isActive ? "var(--text)" : "var(--text-muted)",
+                    border: isActive ? "1px solid var(--border)" : "1px solid transparent",
+                  }}>
+                  <item.icon className="w-4 h-4 shrink-0" style={{ color: isActive ? "var(--accent)" : "var(--text-muted)" }} />
+                  {item.label}
+                </Link>
+              );
+            })}
+            {canSeeGlobalAdmin && (
+              <Link href="/dashboard/admin" onClick={onClose}
+                className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mt-2")}
+                style={{ color: "var(--text-muted)", border: "1px solid transparent" }}>
+                <ShieldCheck className="w-4 h-4 shrink-0" /> Admin SaaS
+              </Link>
+            )}
+          </>
+        ) : (
+          <>
+            {organizerSections.map((section) => {
+              const items = filterOrganizerItems(section.items);
+              if (items.length === 0) return null;
+              const isCollapsed = collapsedSections[section.key];
+              const SectionIcon = section.icon;
+              const hasActive = items.some((it) => {
+                const exact = it.href === "/dashboard";
+                return exact ? pathname === it.href : pathname === it.href || pathname.startsWith(it.href + "/");
+              });
+              return (
+                <div key={section.key} className="space-y-0.5">
+                  <button
+                    onClick={() => toggleSection(section.key)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                      hasActive && "opacity-100"
+                    )}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    <SectionIcon className="w-4 h-4 shrink-0" />
+                    <span className="flex-1 text-left">{section.label}</span>
+                    <ChevronDown className={cn("w-4 h-4 shrink-0 transition-transform", isCollapsed && "rotate-[-90deg]")} />
+                  </button>
+                  {!isCollapsed && (
+                    <div className="ml-4 pl-2 space-y-0.5" style={{ borderLeft: "1px solid var(--border)" }}>
+                      {items.map((item) => {
+                        const exact = item.href === "/dashboard";
+                        const isActive = exact ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
+                        return (
+                          <Link key={item.href} href={item.href} onClick={onClose}
+                            className={cn("flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all")}
+                            style={{
+                              background: isActive ? "var(--bg-card)" : "transparent",
+                              color: isActive ? "var(--text)" : "var(--text-muted)",
+                              border: isActive ? "1px solid var(--border)" : "1px solid transparent",
+                            }}>
+                            <item.icon className="w-3.5 h-3.5 shrink-0" style={{ color: isActive ? "var(--accent)" : "var(--text-muted)" }} />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {canSeeGlobalAdmin && (
+              <Link href="/dashboard/admin" onClick={onClose}
+                className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mt-2")}
+                style={{ color: "var(--text-muted)", border: "1px solid transparent" }}>
+                <ShieldCheck className="w-4 h-4 shrink-0" /> Admin SaaS
+              </Link>
+            )}
+          </>
+        )}
       </nav>
 
       {/* Agent quick-access — solo para organizadores (no voluntarios) */}

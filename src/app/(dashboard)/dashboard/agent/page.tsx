@@ -2,17 +2,19 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { agentApi, type ChatMessage, type ChatResponse } from "@/features/agent/api/agentApi";
+import { agentApi, type AgentActionLog, type ChatResponse } from "@/features/agent/api/agentApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Send, Bot, User2, Loader2, AlertTriangle, CheckCircle, CreditCard, ThumbsUp } from "lucide-react";
+import { Send, Bot, User2, Loader2, AlertTriangle, CheckCircle, CreditCard, ThumbsUp, MessageSquarePlus } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { AgentFeedbackModal } from "@/features/agent/components/AgentFeedbackModal";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   pending?: ChatResponse["pending_confirmation"];
-  actions?: string[];
+  actions?: AgentActionLog[];
 }
 
 function Bubble({
@@ -37,14 +39,39 @@ function Bubble({
       </div>
       <div className={`max-w-[75%] space-y-2 ${isUser ? "items-end" : "items-start"} flex flex-col`}>
         <div
-          className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
+          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${isUser ? "" : "agent-markdown"}`}
           style={{
             background: isUser ? "var(--accent)" : "var(--bg-card)",
             color: isUser ? "white" : "var(--text)",
             border: isUser ? "none" : "1px solid var(--border)",
           }}
         >
-          {msg.content}
+          {isUser ? (
+            msg.content
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                li: ({ children }) => <li className="ml-2">{children}</li>,
+                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                code: ({ children }) => (
+                  <code className="px-1.5 py-0.5 rounded text-xs" style={{ background: "var(--bg-subtle)" }}>
+                    {children}
+                  </code>
+                ),
+                pre: ({ children }) => (
+                  <pre className="overflow-x-auto p-3 rounded-lg text-xs my-2" style={{ background: "var(--bg-subtle)" }}>
+                    {children}
+                  </pre>
+                ),
+              }}
+            >
+              {msg.content}
+            </ReactMarkdown>
+          )}
         </div>
 
         {/* Actions taken */}
@@ -54,7 +81,7 @@ function Bubble({
               <span key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
                     style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
                 <CheckCircle className="w-3 h-3" />
-                {a}
+                {a.tool}: {a.result}
               </span>
             ))}
           </div>
@@ -113,11 +140,44 @@ export default function AgentPage() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [feedbackModal, setFeedbackModal] = useState<{ input: string; output: string } | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const sessionStorageKey = `agent-session:${activeOrgId ?? "no-org"}`;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedSession = window.localStorage.getItem(sessionStorageKey);
+    if (savedSession) {
+      setSessionId(savedSession);
+    }
+  }, [sessionStorageKey]);
+
+  // Cargar mensajes persistidos al montar (si hay sessionId y acceso)
+  useEffect(() => {
+    if (!access?.can_use || !sessionId || !activeOrgId) return;
+    setLoadingHistory(true);
+    agentApi
+      .getConversationMessages(sessionId, activeOrgId)
+      .then((res) => {
+        if (res.messages.length > 0) {
+          setMessages(
+            res.messages.map((m) => ({
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              actions: m.actions,
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        // 404 o error: mantener mensaje inicial
+      })
+      .finally(() => setLoadingHistory(false));
+  }, [access?.can_use, sessionId, activeOrgId]);
 
   useEffect(() => {
     agentApi.getAccess(activeOrgId ?? null)
@@ -135,6 +195,9 @@ export default function AgentPage() {
     try {
       const res = await agentApi.chat(text, sessionId, activeOrgId ?? null, confirmed, confirmationId);
       setSessionId(res.session_id);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(sessionStorageKey, res.session_id);
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -159,8 +222,21 @@ export default function AgentPage() {
     sendMessage("Confirmado", true, confirmationId);
   };
 
-  // Cargando verificación de acceso
-  if (access === null) {
+  const startNewConversation = () => {
+    setSessionId(null);
+    setMessages([
+      {
+        role: "assistant",
+        content: "¡Hola! Soy el Agente IA. Puedo ayudarte a gestionar tu organización: crear eventos, asignar tareas, buscar voluntarios y más. ¿En qué te puedo ayudar?",
+      },
+    ]);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(sessionStorageKey);
+    }
+  };
+
+  // Cargando verificación de acceso o historial
+  if (access === null || (sessionId && loadingHistory)) {
     return (
       <>
         <TopBar title="Agente IA" />
@@ -221,6 +297,17 @@ export default function AgentPage() {
     <>
       <TopBar title="Agente IA" />
       <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
+        <div className="flex items-center justify-end px-4 sm:px-8 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
+          <button
+            type="button"
+            onClick={startNewConversation}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:opacity-90"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            <MessageSquarePlus className="w-4 h-4" />
+            Nueva conversación
+          </button>
+        </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">

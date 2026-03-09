@@ -74,6 +74,9 @@ export interface DeliveryReviewResponse extends Delivery {
   delta_xp?: number;
   nuevas_insignias?: Array<{ id: UUID; nombre: string; imagen_url?: string }>;
   subio_nivel?: boolean;
+  nivel_actual?: number;
+  xp_en_nivel?: number;
+  xp_para_siguiente_nivel?: number;
 }
 
 export interface Team {

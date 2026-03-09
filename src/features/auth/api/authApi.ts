@@ -25,6 +25,29 @@ export interface UserProfile {
   is_active: boolean;
   tipo?: "voluntario" | "organizador";
   is_super_admin?: boolean;
+  avatar_url?: string;
+  bio?: string;
+  ubicacion?: {
+    lat?: number;
+    lon?: number;
+    ciudad?: string;
+  };
+  perfil_extra?: {
+    disponibilidad_estado?: "disponible" | "no_disponible" | "previo_consulta";
+    preferencias?: string[];
+    organizer_onboarding_v1?: {
+      started_at?: string;
+      completed_at?: string;
+      steps?: {
+        welcome_seen?: boolean;
+        profile_seen?: boolean;
+        team_seen?: boolean;
+        event_seen?: boolean;
+        task_seen?: boolean;
+      };
+    };
+    [key: string]: unknown;
+  };
 }
 
 interface BackendUserResponse {
@@ -34,6 +57,29 @@ interface BackendUserResponse {
   estado: boolean;
   tipo?: string;
   is_super_admin?: boolean;
+  avatar_url?: string | null;
+  bio?: string | null;
+  ubicacion?: {
+    lat?: number;
+    lon?: number;
+    ciudad?: string;
+  } | null;
+  perfil_extra?: {
+    disponibilidad_estado?: "disponible" | "no_disponible" | "previo_consulta";
+    preferencias?: string[];
+    organizer_onboarding_v1?: {
+      started_at?: string;
+      completed_at?: string;
+      steps?: {
+        welcome_seen?: boolean;
+        profile_seen?: boolean;
+        team_seen?: boolean;
+        event_seen?: boolean;
+        task_seen?: boolean;
+      };
+    };
+    [key: string]: unknown;
+  } | null;
 }
 
 function toUserProfile(user: BackendUserResponse): UserProfile {
@@ -44,6 +90,10 @@ function toUserProfile(user: BackendUserResponse): UserProfile {
     is_active: user.estado,
     tipo: user.tipo as "voluntario" | "organizador" | undefined,
     is_super_admin: user.is_super_admin ?? false,
+    avatar_url: user.avatar_url ?? undefined,
+    bio: user.bio ?? undefined,
+    ubicacion: user.ubicacion ?? undefined,
+    perfil_extra: user.perfil_extra ?? undefined,
   };
 }
 

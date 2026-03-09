@@ -17,7 +17,7 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
 
 // ─── Configuración ────────────────────────────────────────────────────────────
 
-const BACKEND = "http://localhost:8000";
+const BACKEND = process.env.E2E_BACKEND_URL || "http://localhost:8000";
 
 // Usuario temporal creado en cada suite (se genera con timestamp para evitar conflictos)
 const TS   = Date.now();

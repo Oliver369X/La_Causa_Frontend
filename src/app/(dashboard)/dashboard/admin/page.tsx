@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   adminApi,
   type AdminOrganization,
@@ -59,27 +60,51 @@ export default function AdminSaaSPage() {
       <div className="flex-1 p-5 md:p-8">
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2" style={{ borderBottom: "1px solid var(--border)" }}>
           {TABS.map((t) => (
-            <button
+            <motion.button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all shrink-0"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors shrink-0"
               style={{
                 background: tab === t.id ? "var(--bg-card)" : "transparent",
                 color: tab === t.id ? "var(--text)" : "var(--text-muted)",
                 border: tab === t.id ? "1px solid var(--border)" : "1px solid transparent",
               }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
               <t.icon className="w-4 h-4" />
               {t.label}
-            </button>
+            </motion.button>
           ))}
         </div>
 
-        {tab === "dashboard" && <AdminDashboardTab />}
-        {tab === "orgs" && <AdminOrgsTab />}
-        {tab === "users" && <AdminUsersTab />}
-        {tab === "audit" && <AdminAuditTab />}
-        {tab === "plans" && <AdminPlansTab />}
+        <AnimatePresence mode="wait">
+          {tab === "dashboard" && (
+            <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <AdminDashboardTab />
+            </motion.div>
+          )}
+          {tab === "orgs" && (
+            <motion.div key="orgs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <AdminOrgsTab />
+            </motion.div>
+          )}
+          {tab === "users" && (
+            <motion.div key="users" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <AdminUsersTab />
+            </motion.div>
+          )}
+          {tab === "audit" && (
+            <motion.div key="audit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <AdminAuditTab />
+            </motion.div>
+          )}
+          {tab === "plans" && (
+            <motion.div key="plans" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <AdminPlansTab />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
@@ -112,12 +137,19 @@ function AdminDashboardTab() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {stats.map((s) => (
-          <Card key={s.label} className="p-4">
-            <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>{s.label}</p>
-            <p className="text-xl font-bold mt-1">{s.value}</p>
-            {s.sub && <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{s.sub}</p>}
-          </Card>
+        {stats.map((s, i) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 * i, duration: 0.25 }}
+          >
+            <Card className="p-4 g-progress-card">
+              <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>{s.label}</p>
+              <p className="text-xl font-bold mt-1">{s.value}</p>
+              {s.sub && <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{s.sub}</p>}
+            </Card>
+          </motion.div>
         ))}
       </div>
       {Object.keys(data.suscripciones_por_plan).length > 0 && (

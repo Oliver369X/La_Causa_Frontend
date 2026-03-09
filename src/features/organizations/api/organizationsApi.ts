@@ -13,6 +13,13 @@ export interface Organization {
   normas?: OrgNormas;
 }
 
+export interface MembershipRequest {
+  id: string;
+  organizacion_id: string;
+  estado: string;
+  mensaje?: string;
+}
+
 /** Config dinámica de la org: perfil público, términos, políticas (JSON flexible). */
 export interface OrgNormas {
   terminos_servicio?: string;
@@ -96,6 +103,11 @@ export const organizationsApi = {
 
   list: async (): Promise<Organization[]> => {
     const { data } = await apiClient.get<Organization[]>("/organizaciones");
+    return data;
+  },
+
+  listMySolicitudes: async (): Promise<MembershipRequest[]> => {
+    const { data } = await apiClient.get<MembershipRequest[]>(EP.SOLICITUDES_MIS);
     return data;
   },
 

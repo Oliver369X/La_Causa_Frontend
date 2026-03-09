@@ -76,6 +76,7 @@ export const EP = {
   CERTIFICATE_VERIFY:  (code: string) => `/certificados/validar/${code}`,
   CERTIFICATE_SHARE:   (id: string) => `/certificados/${id}/compartir`,
   PLANTILLAS_CERT:     (orgId: string) => `/organizaciones/${orgId}/plantillas-certificado`,
+  CONFIG_GAMIFICACION: (orgId: string) => `/organizaciones/${orgId}/config-gamificacion`,
   PLANTILLA_CERT:      (id: string) => `/plantillas-certificado/${id}`,
   PLANTILLA_PREVIEW:   (id: string) => `/plantillas-certificado/${id}/preview`,
   BADGE_SHARE:         (perfilInsigniaId: string) => `/perfil-insignia/${perfilInsigniaId}/compartir`,

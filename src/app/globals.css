@@ -12,6 +12,36 @@
   --accent-soft: rgba(124,58,237,0.10);
   --glow-a:      rgba(124,58,237,0.15);
   --glow-b:      rgba(59,130,246,0.12);
+
+  /* Gamification tokens */
+  --g-energia:     #f59e0b;
+  --g-energia-soft: rgba(245,158,11,0.15);
+  --g-logro:       #22c55e;
+  --g-logro-soft:  rgba(34,197,94,0.12);
+  --g-progreso:    #7c3aed;
+  --g-progreso-soft: rgba(124,58,237,0.12);
+  --g-streak:      #ef4444;
+  --g-streak-soft: rgba(239,68,68,0.15);
+  --g-advertencia: #f97316;
+  --g-advertencia-soft: rgba(249,115,22,0.12);
+  /* Rareza */
+  --g-common:      #94a3b8;
+  --g-common-soft: rgba(148,163,184,0.15);
+  --g-uncommon:   #3b82f6;
+  --g-uncommon-soft: rgba(59,130,246,0.15);
+  --g-rare:       #22c55e;
+  --g-rare-soft:  rgba(34,197,94,0.15);
+  --g-epic:       #a855f7;
+  --g-epic-soft:  rgba(168,85,247,0.18);
+  --g-legendary:  #f59e0b;
+  --g-legendary-soft: rgba(245,158,11,0.2);
+  /* Motion */
+  --m-micro: 150ms;
+  --m-tab: 250ms;
+  --m-progress: 750ms;
+  --m-reorder: 550ms;
+  --m-modal: 350ms;
+  --m-celebration: 1200ms;
 }
 
 .dark {
@@ -25,6 +55,27 @@
   --accent-soft: rgba(167,139,250,0.10);
   --glow-a:      rgba(124,58,237,0.20);
   --glow-b:      rgba(59,130,246,0.15);
+
+  --g-energia:     #fbbf24;
+  --g-energia-soft: rgba(251,191,36,0.12);
+  --g-logro:       #34d399;
+  --g-logro-soft:  rgba(52,211,153,0.12);
+  --g-progreso:    #a78bfa;
+  --g-progreso-soft: rgba(167,139,250,0.12);
+  --g-streak:      #f87171;
+  --g-streak-soft: rgba(248,113,113,0.15);
+  --g-advertencia: #fb923c;
+  --g-advertencia-soft: rgba(251,146,60,0.12);
+  --g-common:      #64748b;
+  --g-common-soft: rgba(100,116,139,0.15);
+  --g-uncommon:   #60a5fa;
+  --g-uncommon-soft: rgba(96,165,250,0.15);
+  --g-rare:       #34d399;
+  --g-rare-soft:  rgba(52,211,153,0.15);
+  --g-epic:       #c084fc;
+  --g-epic-soft:  rgba(192,132,252,0.18);
+  --g-legendary:  #fbbf24;
+  --g-legendary-soft: rgba(251,191,36,0.2);
 }
 
 @theme inline {
@@ -37,6 +88,411 @@
   --color-accent:      var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Gamification surfaces */
+.g-reward-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition: box-shadow var(--m-micro) ease, transform var(--m-micro) ease;
+}
+.g-reward-card:hover {
+  box-shadow: 0 4px 20px var(--glow-a);
+}
+
+.g-progress-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-subtle) 100%);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.g-season-card {
+  background: var(--bg-card);
+  border: 1px solid var(--g-progreso-soft);
+  border-radius: 1rem;
+  box-shadow: 0 0 0 1px var(--g-progreso-soft) inset;
+}
+
+.g-podium-card {
+  background: linear-gradient(180deg, var(--g-progreso-soft) 0%, var(--bg-card) 40%);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.g-locked-state {
+  opacity: 0.6;
+  filter: grayscale(0.4);
+  pointer-events: none;
+}
+
+.g-streak-state {
+  background: linear-gradient(135deg, var(--g-streak-soft) 0%, var(--bg-card) 100%);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 1rem;
+}
+
+.g-hero-mesh {
+  background:
+    radial-gradient(1200px 350px at 5% -10%, var(--g-epic-soft), transparent 60%),
+    radial-gradient(900px 300px at 95% 0%, var(--g-progreso-soft), transparent 65%),
+    linear-gradient(180deg, var(--bg-card), var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.g-glow-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(18px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.g-path-node {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.g-path-node--done {
+  background: linear-gradient(135deg, var(--g-logro), var(--g-rare));
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--g-logro-soft);
+}
+
+.g-path-node--active {
+  background: linear-gradient(135deg, var(--g-progreso), var(--g-epic));
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--g-progreso-soft);
+}
+
+.g-path-link {
+  height: 3px;
+  flex: 1;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.g-path-link--done {
+  background: linear-gradient(90deg, var(--g-logro), var(--g-progreso));
+}
+
+/* ── Lab V4 Keyframes ──────────────────────────── */
+@keyframes g-float {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: var(--p-opacity, 0.4); }
+  25% { transform: translateY(-30px) translateX(8px); opacity: calc(var(--p-opacity, 0.4) * 1.4); }
+  50% { transform: translateY(-15px) translateX(-6px); opacity: var(--p-opacity, 0.4); }
+  75% { transform: translateY(-40px) translateX(4px); opacity: calc(var(--p-opacity, 0.4) * 0.7); }
+}
+
+@keyframes g-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes g-dash-flow {
+  0% { stroke-dashoffset: 24; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes g-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-color, var(--g-progreso-soft)); }
+  50% { box-shadow: 0 0 24px var(--glow-color, var(--g-progreso-soft)), 0 0 48px var(--glow-color, var(--g-progreso-soft)); }
+}
+
+@keyframes g-neon-flicker {
+  0%, 100% { opacity: 1; }
+  5% { opacity: 0.8; }
+  10% { opacity: 1; }
+  50% { opacity: 0.95; }
+  55% { opacity: 0.7; }
+  60% { opacity: 1; }
+}
+
+@keyframes g-fire-dance {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  25% { transform: scaleY(1.15) scaleX(0.92); }
+  50% { transform: scaleY(0.95) scaleX(1.05); }
+  75% { transform: scaleY(1.1) scaleX(0.95); }
+}
+
+@keyframes g-orbit {
+  0% { transform: rotate(0deg) translateX(6px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(6px) rotate(-360deg); }
+}
+
+@keyframes g-flash {
+  0% { opacity: 0; }
+  15% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+/* ── Lab Particle ──────────────────────────────── */
+.g-particle {
+  position: absolute;
+  pointer-events: none;
+  animation: g-float var(--p-dur, 8s) var(--p-delay, 0s) ease-in-out infinite;
+}
+
+/* ── XP Bar Shimmer ────────────────────────────── */
+.g-xp-bar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.g-xp-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
+  animation: g-shimmer 2s ease-in-out infinite;
+}
+
+/* ── Path energy flow ──────────────────────────── */
+.g-path-svg-link {
+  stroke-dasharray: 8 4;
+  animation: g-dash-flow 1.2s linear infinite;
+}
+
+/* ── Glow pulse utility ────────────────────────── */
+.g-pulse-glow {
+  animation: g-glow-pulse 2s ease-in-out infinite;
+}
+
+/* ── Flash overlay ─────────────────────────────── */
+.g-flash-overlay {
+  animation: g-flash 0.4s ease-out forwards;
+}
+
+/* ── Fire effect for streak ────────────────────── */
+.g-fire-anim {
+  animation: g-fire-dance 0.6s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+/* ══════════════════════════════════════════════════
+   THEME: ARCADE — dark neon grid, saturated glows
+   ══════════════════════════════════════════════════ */
+.g-lab-theme-arcade {
+  --lab-bg: #0c0c1a;
+  --lab-card-bg: rgba(15, 15, 40, 0.85);
+  --lab-card-border: rgba(139, 92, 246, 0.35);
+  --lab-text: #e8e8ff;
+  --lab-text-muted: #8b8bbb;
+  --lab-neon-1: #a855f7;
+  --lab-neon-2: #22d3ee;
+  --lab-neon-3: #f43f5e;
+  --lab-glow: 0 0 12px var(--lab-neon-1), 0 0 30px rgba(168,85,247,0.15);
+  --lab-radius: 1rem;
+  color: var(--lab-text);
+}
+.g-lab-theme-arcade .g-hero-mesh {
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(139,92,246,0.08) 39px, rgba(139,92,246,0.08) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(139,92,246,0.08) 39px, rgba(139,92,246,0.08) 40px),
+    radial-gradient(ellipse at 20% 0%, rgba(168,85,247,0.25), transparent 50%),
+    radial-gradient(ellipse at 80% 0%, rgba(34,211,238,0.2), transparent 50%),
+    var(--lab-bg);
+  border-color: var(--lab-card-border);
+}
+.g-lab-theme-arcade .g-progress-card,
+.g-lab-theme-arcade .g-reward-card,
+.g-lab-theme-arcade .g-season-card {
+  background: var(--lab-card-bg);
+  border-color: var(--lab-card-border);
+  box-shadow: var(--lab-glow);
+  animation: g-neon-flicker 4s ease-in-out infinite;
+}
+.g-lab-theme-arcade .g-glow-orb {
+  filter: blur(25px);
+  opacity: 0.6;
+}
+.g-lab-theme-arcade .g-path-node {
+  border-color: var(--lab-neon-1);
+  background: var(--lab-bg);
+  color: var(--lab-text);
+  box-shadow: 0 0 8px rgba(168,85,247,0.3);
+}
+.g-lab-theme-arcade .g-path-node--done {
+  background: linear-gradient(135deg, #22d3ee, #a855f7);
+  box-shadow: 0 0 12px rgba(34,211,238,0.5), 0 0 24px rgba(168,85,247,0.3);
+}
+.g-lab-theme-arcade .g-path-node--active {
+  background: linear-gradient(135deg, #f43f5e, #a855f7);
+  box-shadow: 0 0 16px rgba(244,63,94,0.6), 0 0 32px rgba(168,85,247,0.3);
+}
+.g-lab-theme-arcade .g-streak-state {
+  background: linear-gradient(135deg, rgba(244,63,94,0.2), var(--lab-card-bg));
+  border-color: rgba(244,63,94,0.4);
+}
+.g-lab-theme-arcade .g-xp-bar::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(168,85,247,0.5) 50%, transparent 100%);
+}
+
+/* ══════════════════════════════════════════════════
+   THEME: NEO — glassmorphism, cyan/violet/pink
+   ══════════════════════════════════════════════════ */
+.g-lab-theme-neo {
+  --lab-bg: #0f0f23;
+  --lab-card-bg: rgba(255, 255, 255, 0.04);
+  --lab-card-border: rgba(6, 182, 212, 0.2);
+  --lab-text: #e0f2fe;
+  --lab-text-muted: #7dd3fc;
+  --lab-neon-1: #06b6d4;
+  --lab-neon-2: #8b5cf6;
+  --lab-neon-3: #ec4899;
+  --lab-radius: 1.25rem;
+  color: var(--lab-text);
+}
+.g-lab-theme-neo .g-hero-mesh {
+  background:
+    radial-gradient(ellipse 800px 400px at 10% -20%, rgba(6,182,212,0.3), transparent),
+    radial-gradient(ellipse 600px 300px at 90% 10%, rgba(139,92,246,0.25), transparent),
+    radial-gradient(ellipse 400px 400px at 50% 80%, rgba(236,72,153,0.15), transparent),
+    var(--lab-bg);
+  border-color: var(--lab-card-border);
+}
+.g-lab-theme-neo .g-progress-card,
+.g-lab-theme-neo .g-reward-card,
+.g-lab-theme-neo .g-season-card {
+  background: var(--lab-card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  border-radius: var(--lab-radius);
+}
+.g-lab-theme-neo .g-glow-orb {
+  filter: blur(30px);
+  opacity: 0.5;
+}
+.g-lab-theme-neo .g-path-node {
+  border-color: rgba(6,182,212,0.3);
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(8px);
+  color: var(--lab-text);
+}
+.g-lab-theme-neo .g-path-node--done {
+  background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+  border-color: transparent;
+  box-shadow: 0 0 16px rgba(6,182,212,0.4);
+}
+.g-lab-theme-neo .g-path-node--active {
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  border-color: transparent;
+  box-shadow: 0 0 20px rgba(236,72,153,0.5);
+}
+.g-lab-theme-neo .g-streak-state {
+  background: rgba(244,63,94,0.08);
+  backdrop-filter: blur(12px);
+  border-color: rgba(244,63,94,0.2);
+}
+.g-lab-theme-neo .g-xp-bar::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.4) 50%, transparent 100%);
+}
+
+/* ══════════════════════════════════════════════════
+   THEME: MINIMAL PRO — clean white, no glow
+   ══════════════════════════════════════════════════ */
+.g-lab-theme-minimal {
+  --lab-bg: #fafafa;
+  --lab-card-bg: #ffffff;
+  --lab-card-border: #e5e7eb;
+  --lab-text: #111827;
+  --lab-text-muted: #6b7280;
+  --lab-accent: #2563eb;
+  --lab-radius: 0.75rem;
+  color: var(--lab-text);
+}
+.g-lab-theme-minimal .g-hero-mesh {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border-radius: var(--lab-radius);
+}
+.g-lab-theme-minimal .g-progress-card,
+.g-lab-theme-minimal .g-reward-card,
+.g-lab-theme-minimal .g-season-card {
+  background: var(--lab-card-bg);
+  border: 1px solid var(--lab-card-border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  border-radius: var(--lab-radius);
+}
+.g-lab-theme-minimal .g-progress-card:hover,
+.g-lab-theme-minimal .g-reward-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.g-lab-theme-minimal .g-glow-orb {
+  display: none;
+}
+.g-lab-theme-minimal .g-particle {
+  display: none;
+}
+.g-lab-theme-minimal .g-xp-bar::after {
+  display: none;
+}
+.g-lab-theme-minimal .g-path-node {
+  border: 2px solid #e5e7eb;
+  background: #ffffff;
+  color: var(--lab-text);
+  font-weight: 600;
+}
+.g-lab-theme-minimal .g-path-node--done {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+  box-shadow: none;
+}
+.g-lab-theme-minimal .g-path-node--active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: none;
+}
+.g-lab-theme-minimal .g-streak-state {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+/* ── Lab Toolbar (floating bottom bar) ─────────── */
+.g-lab-toolbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  padding: 0.625rem 1rem;
+}
+.g-lab-theme-arcade .g-lab-toolbar {
+  background: rgba(12,12,26,0.92);
+  border-color: rgba(168,85,247,0.25);
+  box-shadow: 0 -4px 20px rgba(168,85,247,0.1);
+}
+.g-lab-theme-neo .g-lab-toolbar {
+  background: rgba(15,15,35,0.88);
+  border-color: rgba(6,182,212,0.15);
+  box-shadow: 0 -4px 20px rgba(6,182,212,0.08);
+}
+.g-lab-theme-minimal .g-lab-toolbar {
+  background: rgba(255,255,255,0.95);
+  border-color: #e5e7eb;
+  box-shadow: 0 -1px 3px rgba(0,0,0,0.04);
+}
+
+/* ── Podium bars ───────────────────────────────── */
+.g-podium-bar {
+  border-radius: 0.5rem 0.5rem 0 0;
+  transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 * { box-sizing: border-box; }
@@ -52,3 +508,9 @@ body {
 }
 
 ::selection { background: var(--accent-soft); }
+
+/* ── Agent chat Markdown ───────────────────────── */
+.agent-markdown ul { list-style-type: disc; }
+.agent-markdown ol { list-style-type: decimal; }
+.agent-markdown li { margin-left: 0.5rem; }
+.agent-markdown p + p { margin-top: 0.5rem; }

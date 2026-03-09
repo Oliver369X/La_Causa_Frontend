@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const baseURL = process.env.E2E_BASE_URL || "http://localhost:3001";
+const runAgainstStaging = process.env.E2E_TARGET === "staging";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -13,7 +16,7 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: "http://localhost:3001",
+    baseURL,
 
     // ── Video & evidencia visual ───────────────────────────────────────
     // Graba video de TODOS los tests para dejar evidencia clara
@@ -45,10 +48,12 @@ export default defineConfig({
   ],
 
   // Levanta Next.js antes de los tests
-  webServer: {
-    command: "npm run dev -- --port 3001",
-    url: "http://localhost:3001",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: runAgainstStaging
+    ? undefined
+    : {
+        command: "npm run dev -- --port 3001",
+        url: "http://localhost:3001",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 });

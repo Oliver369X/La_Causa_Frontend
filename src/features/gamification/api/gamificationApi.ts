@@ -58,6 +58,7 @@ export interface RankingEntry {
 
 export interface Season {
   id: UUID;
+  organizacion_id?: string | null;
   nombre: string;
   fecha_inicio: string;
   fecha_fin: string;
@@ -81,6 +82,32 @@ export interface HistoricalRankingEntry {
   elo_final: number;
   xp_acumulada: number;
   created_at: string;
+}
+
+export interface ConfigGamificacionOrg {
+  id: string;
+  organizacion_id: string;
+  duracion_temporada_meses: number;
+  tipo_reset_elo: string;
+  factor_reset_elo: number;
+  xp_base_tarea: number;
+  xp_curve_mode: string;
+  elo_min_actividad_temporada: number;
+  permite_ranking_por_categoria: boolean;
+  penalizaciones: Record<string, { impacto_xp?: boolean; impacto_elo?: boolean; valor?: number; tolerancia_minutos?: number }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConfigGamificacionOrgUpdate {
+  duracion_temporada_meses?: number;
+  tipo_reset_elo?: string;
+  factor_reset_elo?: number;
+  xp_base_tarea?: number;
+  xp_curve_mode?: string;
+  elo_min_actividad_temporada?: number;
+  permite_ranking_por_categoria?: boolean;
+  penalizaciones?: Record<string, { impacto_xp?: boolean; impacto_elo?: boolean; valor?: number; tolerancia_minutos?: number }>;
 }
 
 // ─ API ────────────────────────────────────────────────────────────────────
@@ -134,14 +161,31 @@ export const gamificationApi = {
     return data;
   },
 
-  getSeasons: async (): Promise<Season[]> => {
-    const { data } = await apiClient.get<Season[]>(EP.SEASONS);
+  getSeasons: async (organizacionId?: string): Promise<Season[]> => {
+    const params = organizacionId ? { organizacion_id: organizacionId } : {};
+    const { data } = await apiClient.get<Season[]>(EP.SEASONS, { params });
     return data;
   },
 
-  /** Cerrar temporada: snapshot ranking, reset ELO a 1000. */
+  /** Cerrar temporada: snapshot ranking, soft reset ELO. */
   closeSeason: async (seasonId: UUID): Promise<Season> => {
     const { data } = await apiClient.patch<Season>(EP.SEASON_CLOSE(seasonId));
+    return data;
+  },
+
+  getConfigGamificacion: async (organizacionId: string): Promise<ConfigGamificacionOrg> => {
+    const { data } = await apiClient.get<ConfigGamificacionOrg>(EP.CONFIG_GAMIFICACION(organizacionId));
+    return data;
+  },
+
+  updateConfigGamificacion: async (
+    organizacionId: string,
+    payload: Partial<ConfigGamificacionOrgUpdate>
+  ): Promise<ConfigGamificacionOrg> => {
+    const { data } = await apiClient.patch<ConfigGamificacionOrg>(
+      EP.CONFIG_GAMIFICACION(organizacionId),
+      payload
+    );
     return data;
   },
 
