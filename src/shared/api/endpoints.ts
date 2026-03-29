@@ -36,6 +36,8 @@ export const EP = {
   PLANS:               "/planes",
   SUBSCRIPTIONS:       "/suscripciones",
   STRIPE_CHECKOUT:     "/stripe/checkout",
+  STRIPE_SYNC_CHECKOUT:  "/stripe/sync-checkout",
+  STRIPE_PUBLISHABLE_KEY: "/stripe/publishable-key",
 
   // ── Uploads ─────────────────────────────────────────────────────────
   UPLOAD_IMAGE:        "/uploads/imagen",

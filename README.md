@@ -33,6 +33,8 @@ Abre http://localhost:3001 (puerto por defecto del proyecto).
 | `npm run lint` | ESLint |
 | `npm run test:e2e` | Tests E2E con Playwright |
 | `npm run test:e2e:live` | Carril E2E real (sin mocks) para integración crítica |
+| `npm run test:e2e:stripe` | Humo: login + redirect suscripciones + API `publishable-key` (vídeo con contenido) |
+| `npm run test:e2e:stripe:full` | Checkout Stripe real con tarjeta 4242… (`E2E_STRIPE=1` + `LIVE_AGENT_*`) |
 | `npm run test:e2e:ui` | Playwright en modo UI |
 | `npm run test:e2e:report` | Ver reporte de tests |
 
@@ -88,3 +90,17 @@ npm run test:e2e:live
 Notas:
 - En `E2E_TARGET=staging` Playwright no levanta `next dev`; usa la URL remota.
 - Este carril valida `login -> dashboard -> /dashboard/agent` contra backend y LLM reales, sin interceptores `page.route`.
+
+### E2E Stripe
+
+**Humo (siempre):** backend en `:8000`, luego `npm run test:e2e:stripe` — abre `/login` y `/dashboard/subscriptions` (sin credenciales). Si el `.webm` se ve “vacío”, sube la cadencia: `$env:E2E_SLOW_MO="450"` y `$env:E2E_VIDEO_PAUSE_MS="5000"` (pausa final antes de cerrar el navegador).
+
+**Checkout completo:** `backend/STRIPE_LOCAL_TEST.md` §6. Requiere variables y `npm run test:e2e:stripe:full`:
+
+```powershell
+$env:E2E_STRIPE="1"
+$env:LIVE_AGENT_EMAIL="..."
+$env:LIVE_AGENT_PASSWORD="..."
+$env:LIVE_AGENT_ORG_ID="uuid-org"
+npm run test:e2e:stripe:full
+```

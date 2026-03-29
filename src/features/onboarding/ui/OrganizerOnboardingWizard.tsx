@@ -43,7 +43,7 @@ const STEP_TARGETS: Record<
   },
   team: {
     href: "/dashboard/staff",
-    label: "Ir a Staff",
+    label: "Ir a Miembros",
     helper: "Invita al menos un miembro adicional para completar este paso.",
   },
   event: {

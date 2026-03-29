@@ -17,10 +17,25 @@ export interface Subscription {
   id: UUID;
   organizacion_id: UUID;
   plan_id: UUID;
-  estado: "activa" | "cancelada" | "periodo_prueba" | "suspendida";
+  estado: "activa" | "cancelada" | "periodo_prueba" | "suspendida" | "pendiente_pago" | "vencida";
   fecha_inicio: string;
   fecha_fin?: string;
   auto_renovar: boolean;
+  /** URL al comprobante en Stripe (hosted invoice) si existe */
+  ultima_factura_url?: string | null;
+}
+
+export interface SyncCheckoutPayload {
+  session_id: string;
+  organizacion_id: UUID;
+}
+
+export interface SyncCheckoutResult {
+  ok: boolean;
+  mensaje: string;
+  subscription: Subscription | null;
+  factura_url: string | null;
+  ya_procesado: boolean;
 }
 
 export interface CreateSubscriptionData {
@@ -86,6 +101,12 @@ export const subscriptionsApi = {
    */
   createCheckoutSession: async (payload: CheckoutRequest): Promise<CheckoutResponse> => {
     const { data } = await apiClient.post<CheckoutResponse>(EP.STRIPE_CHECKOUT, payload);
+    return data;
+  },
+
+  /** Tras volver de Stripe con ?session_id=cs_... (webhook ausente en local). */
+  syncCheckoutSession: async (payload: SyncCheckoutPayload): Promise<SyncCheckoutResult> => {
+    const { data } = await apiClient.post<SyncCheckoutResult>(EP.STRIPE_SYNC_CHECKOUT, payload);
     return data;
   },
 };

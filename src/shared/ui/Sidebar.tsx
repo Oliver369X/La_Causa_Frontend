@@ -39,7 +39,7 @@ const organizerSections = [
       { href: "/dashboard/volunteers", icon: Users, label: "Voluntarios" },
       { href: "/dashboard/roles", icon: Shield, label: "Roles", permissionAction: "manageRoles" as const },
       { href: "/dashboard/teams", icon: Users2, label: "Equipos" },
-      { href: "/dashboard/staff", icon: UserCheck, label: "Staff" },
+      { href: "/dashboard/staff", icon: UserCheck, label: "Miembros", permissionAction: "viewMembers" as const },
     ],
   },
   {
@@ -112,7 +112,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
   const filterOrganizerItems = (items: typeof organizerSections[0]["items"]) =>
     items.filter((item) => {
-      const i = item as { superAdminOnly?: boolean; paidOnly?: boolean; permissionAction?: "manageRoles" };
+      const i = item as { superAdminOnly?: boolean; paidOnly?: boolean; permissionAction?: "manageRoles" | "viewMembers" };
       if (i.superAdminOnly && !canSeeGlobalAdmin) return false;
       if (i.paidOnly && !agentCanUse) return false;
       if (i.permissionAction && !can(i.permissionAction)) return false;

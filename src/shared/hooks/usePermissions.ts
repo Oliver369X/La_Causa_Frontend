@@ -15,6 +15,8 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
 const ACTION_TO_PERM: Record<PermissionAction, string[]> = {
   manageRoles:   ["manage_roles"],
   manageMembers: ["manage_members"],
+  /** Ver listado de miembros (directiva, coordinación, etc.); invitar sigue siendo manageMembers */
+  viewMembers:   ["view_members", "manage_members"],
   editOrg:       ["edit_org"],
   viewAudit:     ["view_audit"],
   createEvents:  ["create_events"],
@@ -27,6 +29,7 @@ const ACTION_TO_PERM: Record<PermissionAction, string[]> = {
 const PERMISSION_MAP: Record<PermissionAction, (r: UserRole) => boolean> = {
   manageRoles:    (r) => r === "owner" || r === "admin",
   manageMembers:  (r) => r === "owner" || r === "admin",
+  viewMembers:    (r) => r !== "volunteer",
   editOrg:        (r) => r === "owner",
   viewAudit:      (r) => r === "owner" || r === "admin",
   createEvents:   (r) => r !== "volunteer",
@@ -39,6 +42,7 @@ const PERMISSION_MAP: Record<PermissionAction, (r: UserRole) => boolean> = {
 type PermissionAction =
   | "manageRoles"
   | "manageMembers"
+  | "viewMembers"
   | "editOrg"
   | "viewAudit"
   | "createEvents"

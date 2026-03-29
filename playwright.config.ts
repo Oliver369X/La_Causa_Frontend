@@ -20,6 +20,7 @@ export default defineConfig({
 
     // ── Video & evidencia visual ───────────────────────────────────────
     // Graba video de TODOS los tests para dejar evidencia clara
+    // Tamaño = viewport (si no coincide, a veces el .webm sale raro o en blanco)
     video: { mode: "on", size: { width: 1280, height: 800 } },
     // Captura screenshot al inicio y al final de cada test
     screenshot: "on",
@@ -31,8 +32,9 @@ export default defineConfig({
     actionTimeout: 15_000,
     navigationTimeout: 20_000,
 
-    // ── Viewport ──────────────────────────────────────────────────────
+    // ── Viewport / tema ────────────────────────────────────────────────
     viewport: { width: 1280, height: 800 },
+    colorScheme: "light",
   },
 
   projects: [
@@ -41,8 +43,8 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },
-        // slowMo hace que cada click/tipo sea visible en el video
-        launchOptions: { slowMo: 120 },
+        // slowMo: más alto = login/pago se ven claros en el .webm (E2E_SLOW_MO para ajustar)
+        launchOptions: { slowMo: Number(process.env.E2E_SLOW_MO) || 320 },
       },
     },
   ],

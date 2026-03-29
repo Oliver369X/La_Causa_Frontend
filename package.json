@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test:e2e": "playwright test",
     "test:e2e:live": "playwright test tests/e2e/live.critical.spec.ts tests/e2e/agent.live.spec.ts",
+    "test:e2e:stripe": "playwright test tests/e2e/stripe.smoke.spec.ts",
+    "test:e2e:stripe:full": "playwright test tests/e2e/stripe.checkout.live.spec.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report"
   },

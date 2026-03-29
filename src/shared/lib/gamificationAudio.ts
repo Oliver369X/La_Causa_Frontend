@@ -224,6 +224,81 @@ const VARIANT_TIMBRES: Record<EffectVariant, OscillatorType> = {
   c: "sawtooth",
 };
 
+/**
+ * Manifiesto de samples en `/public/audio/gamification/`.
+ * Prefijo `EN-USO_` + `effect-*` + `variante-*` para ver en disco qué está cableado al motor.
+ * Variantes sin entrada usan solo síntesis.
+ */
+const SAMPLE_FILES: Record<EffectId, Partial<Record<EffectVariant, string>>> = {
+  click: {
+    a: "EN-USO_effect-click_variant-a_mixkit-select-click.wav",
+  },
+  xp_gain: {
+    a: "EN-USO_effect-xp_gain_variant-a_level-up-5.mp3",
+    b: "EN-USO_effect-xp_gain_variant-b_level-up-1.mp3",
+    c: "EN-USO_effect-xp_gain_variant-c_mixkit-quick-win.wav",
+  },
+  rank_shift: {
+    a: "EN-USO_effect-rank_shift_variant-a_mixkit-arcade-score.wav",
+    b: "EN-USO_effect-rank_shift_variant-b_whoosh-coin-ding.mp3",
+    c: "EN-USO_effect-rank_shift_variant-c_mixkit-wind-swoosh.wav",
+  },
+  badge_unlock: {
+    a: "EN-USO_effect-badge_unlock_variant-a_mixkit-ethereal-win.wav",
+    b: "EN-USO_effect-badge_unlock_variant-b_freesound-tadaa.mp3",
+    c: "EN-USO_effect-badge_unlock_variant-c_freesound-trumpet-fanfare.mp3",
+  },
+  season_finale: {
+    a: "EN-USO_effect-season_finale_variant-a_jimscott-super-fanfare.mp3",
+    b: "EN-USO_effect-season_finale_variant-b_mufp2-fanfare.mp3",
+    c: "EN-USO_effect-season_finale_variant-c_freesound-fasching-fanfare.mp3",
+  },
+};
+
+const sampleBufferCache = new Map<string, AudioBuffer>();
+
+async function loadDecodedSample(url: string, context: AudioContext): Promise<AudioBuffer | null> {
+  const cached = sampleBufferCache.get(url);
+  if (cached) return cached;
+  try {
+    const res = await fetch(url, { cache: "force-cache" });
+    if (!res.ok) return null;
+    const arr = await res.arrayBuffer();
+    const buf = await context.decodeAudioData(arr.slice(0));
+    sampleBufferCache.set(url, buf);
+    return buf;
+  } catch {
+    return null;
+  }
+}
+
+/** Reproduce un sample del CDN estático si existe; si no, el caller usa síntesis. */
+async function tryPlaySampleFile(
+  effectId: EffectId,
+  variant: EffectVariant,
+  masterVol: number
+): Promise<boolean> {
+  const file = SAMPLE_FILES[effectId]?.[variant];
+  const c = ctx();
+  if (!c || !file) return false;
+  const vol = Math.min(1, Math.max(0, masterVol)) * 0.85;
+  const url = `/audio/gamification/${file}`;
+  const buffer = await loadDecodedSample(url, c);
+  if (!buffer) return false;
+  try {
+    const src = c.createBufferSource();
+    const gain = c.createGain();
+    gain.gain.value = vol;
+    src.buffer = buffer;
+    src.connect(gain);
+    gain.connect(c.destination);
+    src.start(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Preferences persistence ──
 let prefs: AudioPrefs = { ...DEFAULT_PREFS };
 let prefsLoaded = false;
@@ -272,9 +347,14 @@ export function play(effectId: EffectId): void {
     ensurePrefsLoaded();
     if (!prefs.enabled || prefs.volume <= 0) return;
     const variant = prefs.variants[effectId] ?? "a";
-    const timbre = VARIANT_TIMBRES[variant];
-    const melody = MELODIES[effectId]?.[variant];
-    if (!melody) return;
-    playSequence(melody(timbre), prefs.volume);
+    const volume = prefs.volume;
+    void (async () => {
+      const usedFile = await tryPlaySampleFile(effectId, variant, volume);
+      if (usedFile) return;
+      const timbre = VARIANT_TIMBRES[variant];
+      const melody = MELODIES[effectId]?.[variant];
+      if (!melody) return;
+      playSequence(melody(timbre), volume);
+    })();
   } catch { /* never break UI */ }
 }

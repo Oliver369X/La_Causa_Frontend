@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { subscriptionsApi, type Plan, type Subscription } from "@/features/subscriptions/api/subscriptionsApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
@@ -36,6 +37,45 @@ export default function SubscriptionsPage() {
   }, [activeOrgId]);
 
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const stripeReturnSynced = useRef(false);
+
+  // Vuelta desde Stripe: ?session_id=cs_... (si no hubo webhook, el backend sincroniza aquí)
+  useEffect(() => {
+    if (typeof window === "undefined" || !activeOrgId || stripeReturnSynced.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    if (!sessionId) return;
+    stripeReturnSynced.current = true;
+
+    (async () => {
+      try {
+        const res = await subscriptionsApi.syncCheckoutSession({
+          session_id: sessionId,
+          organizacion_id: activeOrgId,
+        });
+        toast.success(res.mensaje);
+        if (res.factura_url) {
+          toast.message("Factura / comprobante", {
+            description: "Abre el enlace oficial de Stripe para descargar o imprimir.",
+            action: {
+              label: "Abrir",
+              onClick: () => window.open(res.factura_url!, "_blank", "noopener,noreferrer"),
+            },
+          });
+        }
+        const sub = await subscriptionsApi.getOrgSubscription(activeOrgId);
+        setSubscription(sub);
+      } catch (err: unknown) {
+        const detail =
+          err && typeof err === "object" && "response" in err
+            ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+            : null;
+        toast.error(typeof detail === "string" ? detail : "No se pudo confirmar el pago. ¿Webhook o sync falló?");
+      } finally {
+        window.history.replaceState({}, "", "/dashboard/subscriptions");
+      }
+    })();
+  }, [activeOrgId]);
 
   const handleSubscribe = async (plan: Plan) => {
     if (!activeOrgId) return;
@@ -115,6 +155,17 @@ export default function SubscriptionsPage() {
               &nbsp;·&nbsp;Desde {new Date(subscription.fecha_inicio).toLocaleDateString("es-ES")}
               {subscription.fecha_fin && ` · Hasta ${new Date(subscription.fecha_fin).toLocaleDateString("es-ES")}`}
             </p>
+            {subscription.ultima_factura_url && (
+              <a
+                href={subscription.ultima_factura_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium mt-2 inline-block underline"
+                style={{ color: "var(--accent)" }}
+              >
+                Ver factura / comprobante en Stripe →
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -178,6 +229,11 @@ export default function SubscriptionsPage() {
                     size="sm"
                     className="w-full"
                     loading={subscribing === plan.id}
+                    data-testid={
+                      Number(plan.precio_mensual) > 0
+                        ? `stripe-subscribe-${plan.slug}`
+                        : `free-subscribe-${plan.slug}`
+                    }
                     onClick={() => handleSubscribe(plan)}
                   >
                     {Number(plan.precio_mensual) <= 0 ? "Activar plan gratuito" : "Elegir plan"}

@@ -67,7 +67,7 @@ export default function StaffPage() {
     admin:       "Admin",
     coordinador: "Coordinador",
     organizador: "Organizador",
-    staff:       "Staff",
+    staff:       "Colaborador",
     volunteer:   "Voluntario",
   };
 
@@ -77,10 +77,10 @@ export default function StaffPage() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <UserCheck className="w-5 h-5" style={{ color: "var(--accent)" }} />
-            Staff / Coordinadores
+            Miembros de la organización
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Organizadores y coordinadores que pueden gestionar eventos, tareas y solicitudes.
+            Quién participa en la gestión y con qué rol (organizador, coordinador, admin…). Las invitaciones dependen de tus permisos.
           </p>
         </div>
         {canManage && (
@@ -91,7 +91,7 @@ export default function StaffPage() {
       </div>
 
       {!activeOrgId ? (
-        <EmptyState title="Sin organización" description="Selecciona una organización para ver el staff." />
+        <EmptyState title="Sin organización" description="Selecciona una organización para ver a los miembros." />
       ) : loading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : members.length === 0 ? (
