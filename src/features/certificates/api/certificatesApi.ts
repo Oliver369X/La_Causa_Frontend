@@ -2,6 +2,15 @@ import { apiClient } from "@/shared/api/client";
 import { EP } from "@/shared/api/endpoints";
 import type { UUID } from "@/shared/types";
 
+/** Payload para emisión masiva (cierre de gestión) — coincide con EmitirCertificadosRequest del backend */
+export interface EmitirCertificadosPayload {
+  plantilla_id: UUID;
+  temporada_id: UUID | null;
+  gestion_periodo: string;
+  usuario_ids: UUID[];
+  titulo_base: string;
+}
+
 // ─ Types ──────────────────────────────────────────────────────────────────
 
 export interface PlantillaCertificado {
@@ -111,6 +120,12 @@ export const certificatesApi = {
 
   verify: async (code: string): Promise<Certificate> => {
     const { data } = await apiClient.get<Certificate>(EP.CERTIFICATE_VERIFY(code));
+    return data;
+  },
+
+  /** Emite certificados a un lote de voluntarios (organizador). Omite duplicados ya existentes. */
+  emitirPorGestion: async (organizacionId: UUID, payload: EmitirCertificadosPayload): Promise<Certificate[]> => {
+    const { data } = await apiClient.post<Certificate[]>(EP.EMITIR_CERTIFICADOS(organizacionId), payload);
     return data;
   },
 

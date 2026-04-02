@@ -2,10 +2,26 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { agentApi, type AgentActionLog, type ChatResponse } from "@/features/agent/api/agentApi";
+import {
+  agentApi,
+  type AgentActionLog,
+  type ChatResponse,
+  type QuickReplyItem,
+} from "@/features/agent/api/agentApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Send, Bot, User2, Loader2, AlertTriangle, CheckCircle, CreditCard, ThumbsUp, MessageSquarePlus } from "lucide-react";
+import {
+  Send,
+  Bot,
+  User2,
+  Loader2,
+  AlertTriangle,
+  CheckCircle,
+  CreditCard,
+  ThumbsUp,
+  MessageSquarePlus,
+  Sparkles,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentFeedbackModal } from "@/features/agent/components/AgentFeedbackModal";
@@ -15,17 +31,36 @@ interface Message {
   content: string;
   pending?: ChatResponse["pending_confirmation"];
   actions?: AgentActionLog[];
+  quick_replies?: QuickReplyItem[];
+  trace_id?: string;
+  model_provider?: string;
+  model_name?: string;
 }
+
+const STARTER_PROMPTS = [
+  "Quiero crear un evento de voluntariado para el próximo fin de semana",
+  "Muéstrame las tareas pendientes de revisión",
+  "Busca voluntarios en mi organización para una jornada de unas 4 horas",
+  "Ayúdame a preparar la revisión de entregas con evidencia",
+] as const;
 
 function Bubble({
   msg,
   onConfirm,
   onFeedback,
+  onQuickReply,
   inferenceInput,
 }: {
   msg: Message;
   onConfirm?: (id: string) => void;
-  onFeedback?: (input: string, output: string) => void;
+  onFeedback?: (payload: {
+    input: string;
+    output: string;
+    traceId?: string;
+    modelProvider?: string;
+    modelName?: string;
+  }) => void;
+  onQuickReply?: (sendText: string) => void;
   inferenceInput?: string;
 }) {
   const isUser = msg.role === "user";
@@ -74,6 +109,27 @@ function Bubble({
           )}
         </div>
 
+        {/* Respuestas rápidas (desde tool_offer_quick_replies) */}
+        {!isUser && msg.quick_replies && msg.quick_replies.length > 0 && onQuickReply && (
+          <div className="flex flex-wrap gap-2 mt-1 max-w-full">
+            {msg.quick_replies.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => onQuickReply(q.send_text)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--accent)",
+                  color: "var(--accent)",
+                }}
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Actions taken */}
         {msg.actions && msg.actions.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -114,7 +170,15 @@ function Bubble({
         {/* Feedback CTA — solo en respuestas del asistente */}
         {!isUser && onFeedback && inferenceInput && (
           <button
-            onClick={() => onFeedback(inferenceInput, msg.content)}
+            onClick={() =>
+              onFeedback({
+                input: inferenceInput,
+                output: msg.content,
+                traceId: msg.trace_id,
+                modelProvider: msg.model_provider,
+                modelName: msg.model_name,
+              })
+            }
             className="flex items-center gap-1.5 mt-2 text-xs font-medium opacity-70 hover:opacity-100 transition-opacity"
             style={{ color: "var(--text-muted)" }}
           >
@@ -133,13 +197,20 @@ export default function AgentPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "¡Hola! Soy el Agente IA. Puedo ayudarte a gestionar tu organización: crear eventos, asignar tareas, buscar voluntarios y más. ¿En qué te puedo ayudar?",
+      content:
+        "¡Hola! Soy tu **asistente ejecutivo**: diseño contigo eventos completos (fechas, cupo, tareas y publicación), reviso entregas con contexto y coordino voluntarios. Si falta un dato, te haré preguntas concretas y podrás elegir opciones con un clic. ¿Por dónde empezamos?",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [feedbackModal, setFeedbackModal] = useState<{ input: string; output: string } | null>(null);
+  const [feedbackModal, setFeedbackModal] = useState<{
+    input: string;
+    output: string;
+    traceId?: string;
+    modelProvider?: string;
+    modelName?: string;
+  } | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const sessionStorageKey = `agent-session:${activeOrgId ?? "no-org"}`;
@@ -169,6 +240,7 @@ export default function AgentPage() {
               role: m.role as "user" | "assistant",
               content: m.content,
               actions: m.actions,
+              quick_replies: m.quick_replies,
             }))
           );
         }
@@ -205,6 +277,10 @@ export default function AgentPage() {
           content: res.reply,
           pending: res.pending_confirmation ?? undefined,
           actions: res.actions_taken,
+          quick_replies: res.quick_replies?.length ? res.quick_replies : undefined,
+          trace_id: res.trace_id,
+          model_provider: res.model_provider,
+          model_name: res.model_name,
         },
       ]);
     } catch {
@@ -227,7 +303,8 @@ export default function AgentPage() {
     setMessages([
       {
         role: "assistant",
-        content: "¡Hola! Soy el Agente IA. Puedo ayudarte a gestionar tu organización: crear eventos, asignar tareas, buscar voluntarios y más. ¿En qué te puedo ayudar?",
+        content:
+          "¡Hola! Soy tu **asistente ejecutivo**: diseño contigo eventos completos (fechas, cupo, tareas y publicación), reviso entregas con contexto y coordino voluntarios. Si falta un dato, te haré preguntas concretas y podrás elegir opciones con un clic. ¿Por dónde empezamos?",
       },
     ]);
     if (typeof window !== "undefined") {
@@ -311,6 +388,52 @@ export default function AgentPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
+          {messages.length === 1 && messages[0]?.role === "assistant" && (
+            <div
+              className="rounded-2xl p-4 sm:p-5 mb-2"
+              style={{
+                background: "linear-gradient(135deg, var(--accent-soft) 0%, var(--bg-card) 100%)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "var(--accent)", color: "white" }}
+                >
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                    Plan Pro — Agente IA
+                  </p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    Ahorra tiempo con conversaciones guiadas: el agente pregunta lo que falta, propone horarios y
+                    siguientes pasos (tareas, publicación, notificaciones). Prueba una idea rápida:
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {STARTER_PROMPTS.map((text) => (
+                      <button
+                        key={text}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => sendMessage(text)}
+                        className="px-3 py-1.5 rounded-full text-xs font-medium text-left transition-opacity hover:opacity-90 disabled:opacity-50"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text)",
+                          maxWidth: "100%",
+                        }}
+                      >
+                        {text}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {messages.map((msg, i) => {
             const prevUserMsg = [...messages.slice(0, i)].reverse().find((m) => m.role === "user");
             return (
@@ -318,7 +441,19 @@ export default function AgentPage() {
                 key={i}
                 msg={msg}
                 onConfirm={msg.pending ? handleConfirm : undefined}
-                onFeedback={msg.role === "assistant" ? (input, output) => setFeedbackModal({ input, output }) : undefined}
+                onQuickReply={(sendText) => sendMessage(sendText)}
+                onFeedback={
+                  msg.role === "assistant"
+                    ? (p) =>
+                        setFeedbackModal({
+                          input: p.input,
+                          output: p.output,
+                          traceId: p.traceId,
+                          modelProvider: p.modelProvider,
+                          modelName: p.modelName,
+                        })
+                    : undefined
+                }
                 inferenceInput={msg.role === "assistant" ? prevUserMsg?.content : undefined}
               />
             );
@@ -372,6 +507,9 @@ export default function AgentPage() {
         inferenceOutput={feedbackModal?.output ?? ""}
         sessionId={sessionId}
         orgId={activeOrgId ?? null}
+        traceId={feedbackModal?.traceId}
+        modelProvider={feedbackModal?.modelProvider}
+        modelName={feedbackModal?.modelName}
       />
     </>
   );

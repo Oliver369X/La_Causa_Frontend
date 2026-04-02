@@ -7,6 +7,7 @@ import { ProfileBanner } from "@/features/gamification/ui/ProfileBanner";
 import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
 import { skillsApi } from "@/features/skills/api/skillsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
+import { useAuthStore } from "@/shared/store/authStore";
 import { ArrowLeft, Calendar } from "lucide-react";
 import { Spinner } from "@/shared/ui/Spinner";
 import type { Badge } from "@/features/gamification/api/gamificationApi";
@@ -17,6 +18,7 @@ export default function PerfilPublicoPage() {
   const searchParams = useSearchParams();
   const userId = params.userId as string;
   const orgId = searchParams.get("org");
+  const { user } = useAuthStore();
 
   const { data: profile, isLoading, error } = useQuery({
     queryKey: ["profile", userId],
@@ -39,7 +41,7 @@ export default function PerfilPublicoPage() {
   const { data: disponibilidad } = useQuery({
     queryKey: ["disponibilidad", userId, orgId],
     queryFn: () => gamificationApi.getDisponibilidad(userId, orgId!),
-    enabled: !!userId && !!orgId,
+    enabled: !!userId && !!orgId && !!user?.id,
   });
 
   const badgesForGrid: Badge[] = badges.map((b) => ({
@@ -86,7 +88,7 @@ export default function PerfilPublicoPage() {
     rango: profile.rango ?? "Principiante",
     puntos_elo: profile.puntos_elo ?? profile.elo_score ?? 0,
     nivel: profile.nivel ?? 1,
-    racha_dias: profile.racha_dias ?? 0,
+    racha_entregas: profile.racha_entregas ?? 0,
     insignias_total: profile.insignias_total ?? badges.length,
     eventos_completados: profile.eventos_completados ?? 0,
     tareas_completadas: profile.tareas_completadas ?? 0,

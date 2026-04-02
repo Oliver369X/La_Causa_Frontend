@@ -9,10 +9,14 @@ export interface CompetitiveProfile {
   nombre?: string;
   avatar_url?: string;
   bio?: string;
+  /** Frase corta bajo el nombre (perfil público) */
+  titulo_publico?: string | null;
+  enlaces_publicos?: Record<string, string> | null;
   puntos_elo?: number;
   rango?: string;
   nivel?: number;
-  racha_dias: number;
+  /** Entregas consecutivas aprobadas a tiempo y con buena calificación (≥3) */
+  racha_entregas: number;
   eventos_completados?: number;
   tareas_completadas: number;
   insignias_total?: number;
@@ -20,6 +24,17 @@ export interface CompetitiveProfile {
   /** Backend raw fields */
   elo_score?: number;
   xp_total?: number;
+}
+
+export interface PerformanceMetrics {
+  usuario_id: UUID;
+  tareas_completadas: number;
+  tareas_aprobadas: number;
+  tareas_rechazadas: number;
+  promedio_calificacion: number | null;
+  horas_totales: number;
+  xp_total: number;
+  elo_score: number;
 }
 
 export interface Badge {
@@ -41,6 +56,26 @@ export interface Medal {
   imagen_url?: string;
   puntos: number;
   activa: boolean;
+}
+
+/** Respuesta de GET /medallas?organizacion_id= (catálogo de la org). */
+export interface OrgBadgeCatalogItem {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  url_imagen: string;
+  rareza: string;
+  tipo: string;
+  puntos_bonus: number;
+  da_xp: boolean;
+  requisitos?: Record<string, unknown> | null;
+  categoria?: string | null;
+  mensaje_personalizado?: string | null;
+  regla_asignacion?: string | null;
+  regla_config?: Record<string, unknown> | null;
+  /** Si false, no aparece en página pública ni en «Logros»; solo gestión admin y al otorgarla. */
+  visible_en_catalogo?: boolean;
+  created_at?: string;
 }
 
 export interface RankingEntry {
@@ -112,6 +147,11 @@ export interface ConfigGamificacionOrgUpdate {
 
 // ─ API ────────────────────────────────────────────────────────────────────
 export const gamificationApi = {
+  getPerformanceMetrics: async (userId: UUID): Promise<PerformanceMetrics> => {
+    const { data } = await apiClient.get<PerformanceMetrics>(EP.PROFILE_METRICS(userId));
+    return data;
+  },
+
   getProfile: async (userId: UUID): Promise<CompetitiveProfile> => {
     const { data } = await apiClient.get(EP.PROFILE_COMPETITIVE(userId));
     const raw = data as Record<string, unknown>;
@@ -123,7 +163,7 @@ export const gamificationApi = {
       puntos_elo: (raw.puntos_elo ?? raw.elo_score ?? 0) as number,
       rango: (raw.rango ?? "Principiante") as string,
       nivel: (raw.nivel ?? Math.floor(((raw.xp_total as number) ?? 0) / 100) + 1) as number,
-      racha_dias: (raw.racha_dias ?? 0) as number,
+      racha_entregas: (raw.racha_entregas ?? raw.racha_dias ?? 0) as number,
       eventos_completados: (raw.eventos_completados ?? 0) as number,
       tareas_completadas: (raw.tareas_completadas ?? 0) as number,
       insignias_total: (raw.insignias_total ?? 0) as number,
@@ -146,6 +186,21 @@ export const gamificationApi = {
   listMedals: async (organizacionId?: string): Promise<Medal[]> => {
     const params = organizacionId ? { organizacion_id: organizacionId } : {};
     const { data } = await apiClient.get<Medal[]>(EP.MEDALS, { params });
+    return data;
+  },
+
+  /** Catálogo para voluntarios / página pública: solo medallas visibles. Admin usa sin filtro. */
+  listOrgBadgeCatalog: async (
+    organizacionId: string,
+    opts?: { soloVisiblesCatalogo?: boolean },
+  ): Promise<OrgBadgeCatalogItem[]> => {
+    const solo = opts?.soloVisiblesCatalogo !== false;
+    const { data } = await apiClient.get<OrgBadgeCatalogItem[]>(EP.MEDALS, {
+      params: {
+        organizacion_id: organizacionId,
+        ...(solo ? { solo_visibles_catalogo: true } : {}),
+      },
+    });
     return data;
   },
 

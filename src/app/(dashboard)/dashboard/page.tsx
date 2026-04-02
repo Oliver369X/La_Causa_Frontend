@@ -5,7 +5,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { analyticsApi } from "@/features/analytics/api/analyticsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { GamificationPanel, ReporteDinamicoWidget, TaskAssignmentWidget } from "@/widgets";
-import { BarChart3, CheckSquare, Calendar, Users, Compass, Sparkles } from "lucide-react";
+import { BarChart3, CheckSquare, Calendar, Users, Compass, Sparkles, Building2 } from "lucide-react";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { skillsApi } from "@/features/skills/api/skillsApi";
 import { buildVolunteerOnboardingProgress } from "@/features/onboarding/lib/volunteerOnboarding";
@@ -91,6 +91,12 @@ export default function DashboardPage() {
   });
   const showOrganizerOnboardingCard = shouldShowOrganizerOnboarding(user, organizerOrgs);
 
+  const topBarTitle = isVolunteer
+    ? "Inicio · Voluntario"
+    : isOrganizer
+      ? "Inicio · Organización"
+      : "Dashboard";
+
   const statCards = [
     { label: "Voluntarios", value: stats?.total_volunteers ?? 0, icon: Users, color: "text-blue-400" },
     { label: "Eventos", value: stats?.total_events ?? 0, icon: Calendar, color: "text-purple-400" },
@@ -100,10 +106,21 @@ export default function DashboardPage() {
 
   return (
     <>
-      <TopBar title="Dashboard" />
+      <TopBar title={topBarTitle} />
       <div className="flex-1 p-8">
         {isVolunteer ? (
           <div className="space-y-6">
+            <header className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "var(--accent)" }}>
+                Cuenta de voluntario
+              </p>
+              <h1 className="text-xl sm:text-2xl font-semibold">
+                Hola{user?.nombre ? `, ${user.nombre}` : ""} — tu panel personal
+              </h1>
+              <p className="text-sm mt-2 max-w-2xl" style={{ color: "var(--text-muted)" }}>
+                Aquí ves onboarding, gamificación y tareas vinculadas a tu perfil. Las métricas de organización (voluntarios, eventos agregados) están en la vista de organizador.
+              </p>
+            </header>
             {!volunteerProgress.isComplete && (
               <div
                 className="p-6 rounded-2xl"
@@ -199,6 +216,25 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
+            <header className="rounded-2xl p-5 sm:p-6 mb-8" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--accent-soft)" }}>
+                  <Building2 className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "var(--accent)" }}>
+                    Panel de organización
+                  </p>
+                  <h1 className="text-xl sm:text-2xl font-semibold">
+                    {organizerOrg?.nombre ?? "Resumen operativo"}
+                  </h1>
+                  <p className="text-sm mt-2 max-w-2xl" style={{ color: "var(--text-muted)" }}>
+                    Métricas de tu equipo, tareas y reportes de la organización activa. Los voluntarios ven un inicio distinto, centrado en su perfil y causas.
+                  </p>
+                </div>
+              </div>
+            </header>
+
             {showOrganizerOnboardingCard && (
               <div
                 className="p-6 rounded-2xl mb-8"

@@ -90,6 +90,13 @@ export default function GamificationPage() {
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Tu nivel, XP, medallas e insignias. Certificados por temporada. Ranking global.
           </p>
+          <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+            Para ver <strong style={{ color: "var(--text)" }}>todas las medallas que podés ganar en cada organización</strong>, entrá a{" "}
+            <Link href="/dashboard/organizaciones" className="font-medium underline-offset-2 hover:underline" style={{ color: "var(--accent)" }}>
+              Mis organizaciones
+            </Link>{" "}
+            y elegí una org.
+          </p>
         </div>
         {activeSeason && (
           <Link
@@ -230,27 +237,33 @@ export default function GamificationPage() {
                             initial={{ opacity: 0, x: -8 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: staggerFast * i }}
-                            className="flex items-center gap-4 px-0 py-3 first:pt-0"
+                            className="first:pt-0"
                             style={{ borderBottom: i < ranking.length - 1 ? "1px solid var(--border)" : undefined }}
                           >
-                            <span
-                              className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
-                              style={{
-                                background: entry.posicion <= 3 ? "var(--g-progreso)" : "var(--bg-subtle)",
-                                color: entry.posicion <= 3 ? "#fff" : "var(--text-muted)",
-                              }}
+                            <Link
+                              href={`/voluntario/${entry.usuario_id}?returnTo=${encodeURIComponent("/dashboard/gamification")}`}
+                              className="flex items-center gap-4 px-0 py-3 w-full hover:opacity-90 transition-opacity"
+                              style={{ color: "var(--text)" }}
                             >
-                              {entry.posicion}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{entry.nombre}</p>
-                              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                                {entry.tareas_completadas ?? 0} tareas
-                              </p>
-                            </div>
-                            <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--g-energia)" }}>
-                              {entry.puntos_elo ?? entry.elo_score ?? 0} ELO
-                            </span>
+                              <span
+                                className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
+                                style={{
+                                  background: entry.posicion <= 3 ? "var(--g-progreso)" : "var(--bg-subtle)",
+                                  color: entry.posicion <= 3 ? "#fff" : "var(--text-muted)",
+                                }}
+                              >
+                                {entry.posicion}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{entry.nombre}</p>
+                                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                  {entry.tareas_completadas ?? 0} tareas
+                                </p>
+                              </div>
+                              <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--g-energia)" }}>
+                                {entry.puntos_elo ?? entry.elo_score ?? 0} ELO
+                              </span>
+                            </Link>
                           </motion.li>
                         ))}
                       </ul>

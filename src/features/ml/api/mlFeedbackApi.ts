@@ -11,6 +11,9 @@ export interface AgentFeedbackInferencePayload {
   session_id?: string;
   org_id?: UUID;
   user_id?: UUID;
+  trace_id?: string;
+  provider?: string;
+  model_name?: string;
   inference_input: string;
   inference_output: string;
   helpful: boolean;

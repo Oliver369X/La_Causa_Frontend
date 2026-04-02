@@ -5,11 +5,13 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { organizationsApi, type Organization } from "@/features/organizations/api/organizationsApi";
+import { gamificationApi } from "@/features/gamification/api/gamificationApi";
 import { eventsApi } from "@/features/events/api/eventsApi";
 import { apiClient } from "@/shared/api/client";
 import { EP } from "@/shared/api/endpoints";
 import { useAuthStore } from "@/shared/store/authStore";
-import { Building2, ExternalLink, UserPlus, ArrowLeft, X, Facebook, Instagram, Twitter, Linkedin, Calendar } from "lucide-react";
+import { Building2, ExternalLink, UserPlus, ArrowLeft, X, Facebook, Instagram, Twitter, Linkedin, Calendar, Trophy } from "lucide-react";
+import { OrgBadgeCatalogSection } from "@/features/badges/ui/OrgBadgeCatalogSection";
 
 const PRIVATE_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i;
 
@@ -66,6 +68,12 @@ export default function OrgPublicPage() {
     enabled: !!org?.id && (org.normas?.visibilidad?.mostrar_eventos !== false),
   });
 
+  const { data: ranking = [], isLoading: loadingRanking } = useQuery({
+    queryKey: ["ranking-public", org?.id],
+    queryFn: () => gamificationApi.getRanking(org!.id),
+    enabled: !!org?.id && org.normas?.visibilidad?.mostrar_ranking !== false,
+  });
+
   const unirseMutation = useMutation({
     mutationFn: (orgId: string) =>
       organizationsApi.solicitarUnirse(orgId, aceptoTerminos, mensaje.trim() || undefined),
@@ -120,6 +128,7 @@ export default function OrgPublicPage() {
   const mostrarMision = org.normas?.visibilidad?.mostrar_mision !== false;
   const mostrarVision = org.normas?.visibilidad?.mostrar_vision !== false;
   const mostrarObjetivos = org.normas?.visibilidad?.mostrar_objetivos !== false;
+  const mostrarRanking = org.normas?.visibilidad?.mostrar_ranking !== false;
   const objetivos = Array.isArray(org.normas?.perfil_publico?.objetivos)
     ? (org.normas?.perfil_publico?.objetivos as string[]).filter(Boolean)
     : [];
@@ -259,6 +268,81 @@ export default function OrgPublicPage() {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        <OrgBadgeCatalogSection
+          organizacionId={org.id}
+          userId={user?.id ?? null}
+          title="Reconocimientos a los que podés aspirar"
+          subtitle="Unite como voluntario y participá en tareas y eventos para desbloquear estas medallas. Si iniciás sesión, verás cuáles ya conseguiste."
+          accentColor={colorPrimario}
+          variant="public"
+        />
+
+        {/* Ranking de voluntarios (misma API que el detalle privado de org: filtrado por organización) */}
+        {mostrarRanking && (
+          <section
+            className="rounded-2xl p-6 mb-8"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+              <Trophy className="w-5 h-5" style={{ color: colorPrimario }} />
+              Ranking de voluntarios
+            </h2>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+              Posiciones según ELO en esta organización. Toca un nombre para ver el perfil público.
+            </p>
+            {loadingRanking ? (
+              <p className="text-sm py-6 text-center" style={{ color: "var(--text-muted)" }}>
+                Cargando ranking…
+              </p>
+            ) : ranking.length === 0 ? (
+              <p className="text-sm py-4" style={{ color: "var(--text-muted)" }}>
+                Aún no hay voluntarios con actividad suficiente en el ranking.
+              </p>
+            ) : (
+              <ul className="divide-y rounded-xl overflow-hidden" style={{ borderColor: "var(--border)", border: "1px solid var(--border)" }}>
+                {ranking.slice(0, 20).map((entry) => (
+                  <li key={entry.usuario_id}>
+                    <Link
+                      href={`/voluntario/${entry.usuario_id}?org=${org.id}&returnTo=${encodeURIComponent(`/org/${slug}`)}`}
+                      className="flex items-center gap-4 px-4 py-3 hover:opacity-90 transition-opacity"
+                      style={{ color: "var(--text)" }}
+                    >
+                      <span
+                        className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
+                        style={{
+                          background: entry.posicion <= 3 ? colorPrimario : "var(--bg-subtle)",
+                          color: entry.posicion <= 3 ? "#fff" : "var(--text-muted)",
+                        }}
+                      >
+                        {entry.posicion <= 3 ? ["🥇", "🥈", "🥉"][entry.posicion - 1] : entry.posicion}
+                      </span>
+                      {entry.avatar_url ? (
+                        <img src={entry.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+                          style={{ background: "var(--accent-soft)", color: colorPrimario }}
+                        >
+                          {entry.nombre[0]?.toUpperCase() ?? "?"}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{entry.nombre}</p>
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          {entry.tareas_completadas ?? 0} tareas · {entry.rango ?? "—"}
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums shrink-0" style={{ color: colorPrimario }}>
+                        {entry.puntos_elo ?? entry.elo_score ?? 0} ELO
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 

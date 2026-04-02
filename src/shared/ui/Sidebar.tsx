@@ -3,11 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Calendar, CheckSquare, Users, Users2,
-  ShieldCheck, Settings, LogOut, Building2, Sparkles, X,
-  Sun, Moon, Menu, Trophy, Award, Medal, Shield, CreditCard,
-  UserCheck, RotateCcw, AlertTriangle, History, Wrench, ChevronDown,
-  FileText,
+  LayoutDashboard,
+  Calendar,
+  CheckSquare,
+  LogOut,
+  Building2,
+  Sparkles,
+  X,
+  Sun,
+  Moon,
+  Menu,
+  ShieldCheck,
+  ChevronDown,
+  Trophy,
+  Award,
+  History,
+  Settings,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
@@ -18,65 +29,8 @@ import { cn } from "@/shared/utils/utils";
 import { useEffect, useState } from "react";
 import { clearAuthSessionCookie } from "@/shared/auth/sessionCookie";
 import { NotificationBell } from "@/features/communications/components/NotificationBell";
-import { usePermissions } from "@/shared/hooks/usePermissions";
-
-const organizerSections = [
-  {
-    key: "principal",
-    label: "Principal",
-    icon: LayoutDashboard,
-    items: [
-      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    ],
-  },
-  {
-    key: "operaciones",
-    label: "Operaciones",
-    icon: CheckSquare,
-    items: [
-      { href: "/dashboard/events", icon: Calendar, label: "Eventos" },
-      { href: "/dashboard/tasks", icon: CheckSquare, label: "Tareas" },
-      { href: "/dashboard/volunteers", icon: Users, label: "Voluntarios" },
-      { href: "/dashboard/roles", icon: Shield, label: "Roles", permissionAction: "manageRoles" as const },
-      { href: "/dashboard/teams", icon: Users2, label: "Equipos" },
-      { href: "/dashboard/staff", icon: UserCheck, label: "Miembros", permissionAction: "viewMembers" as const },
-    ],
-  },
-  {
-    key: "gamificacion",
-    label: "Gamificación",
-    icon: Trophy,
-    items: [
-      { href: "/dashboard/gamification", icon: Trophy, label: "Gamificación" },
-      { href: "/dashboard/temporadas", icon: History, label: "Temporadas" },
-      { href: "/dashboard/badges", icon: Medal, label: "Medallas" },
-      { href: "/dashboard/certificates", icon: Award, label: "Certificados" },
-      { href: "/dashboard/gamification-lab", icon: Sparkles, label: "Lab visual" },
-    ],
-  },
-  {
-    key: "inteligencia",
-    label: "Inteligencia",
-    icon: FileText,
-    items: [
-      { href: "/dashboard/reportes-dinamicos", icon: FileText, label: "Reporte Dinámico" },
-      { href: "/dashboard/ml-lab", icon: Wrench, label: "ML Lab" },
-      { href: "/dashboard/retrospectives", icon: RotateCcw, label: "Retroalimentac." },
-      { href: "/dashboard/incidents", icon: AlertTriangle, label: "Incidentes" },
-    ],
-  },
-  {
-    key: "administracion",
-    label: "Administración",
-    icon: ShieldCheck,
-    items: [
-      { href: "/dashboard/subscriptions", icon: CreditCard, label: "Suscripción" },
-      { href: "/dashboard/audit", icon: ShieldCheck, label: "Auditoría" },
-      { href: "/dashboard/agent", icon: Sparkles, label: "Agente IA", paidOnly: true },
-      { href: "/dashboard/settings", icon: Settings, label: "Configuración" },
-    ],
-  },
-];
+import { usePermissions, type PermissionAction } from "@/shared/hooks/usePermissions";
+import { ORGANIZER_NAV_SECTIONS } from "@/shared/config/organizerNavConfig";
 
 const volunteerNavItems = [
   { href: "/dashboard",                icon: LayoutDashboard, label: "Dashboard"      },
@@ -110,9 +64,9 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const toggleSection = (key: string) => setCollapsedSections((s) => ({ ...s, [key]: !s[key] }));
 
-  const filterOrganizerItems = (items: typeof organizerSections[0]["items"]) =>
+  const filterOrganizerItems = (items: (typeof ORGANIZER_NAV_SECTIONS)[0]["items"]) =>
     items.filter((item) => {
-      const i = item as { superAdminOnly?: boolean; paidOnly?: boolean; permissionAction?: "manageRoles" | "viewMembers" };
+      const i = item as { superAdminOnly?: boolean; paidOnly?: boolean; permissionAction?: PermissionAction };
       if (i.superAdminOnly && !canSeeGlobalAdmin) return false;
       if (i.paidOnly && !agentCanUse) return false;
       if (i.permissionAction && !can(i.permissionAction)) return false;
@@ -272,7 +226,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           </>
         ) : (
           <>
-            {organizerSections.map((section) => {
+            {ORGANIZER_NAV_SECTIONS.map((section) => {
               const items = filterOrganizerItems(section.items);
               if (items.length === 0) return null;
               const isCollapsed = collapsedSections[section.key];

@@ -68,6 +68,7 @@ export const EP = {
 
   // ── Gamification ────────────────────────────────────────────────────
   PROFILE_COMPETITIVE: (userId: string) => `/perfil/${userId}/competitivo`,
+  PROFILE_METRICS:     (userId: string) => `/perfil/${userId}/metricas`,
   PROFILE_BADGES:      (userId: string) => `/perfil/${userId}/insignias`,
   PROFILE_DISPONIBILIDAD: (userId: string, orgId: string) => `/perfil/${userId}/disponibilidad?organizacion_id=${orgId}`,
   MEDALS:              "/medallas",
@@ -81,6 +82,7 @@ export const EP = {
   CONFIG_GAMIFICACION: (orgId: string) => `/organizaciones/${orgId}/config-gamificacion`,
   PLANTILLA_CERT:      (id: string) => `/plantillas-certificado/${id}`,
   PLANTILLA_PREVIEW:   (id: string) => `/plantillas-certificado/${id}/preview`,
+  EMITIR_CERTIFICADOS: (orgId: string) => `/organizaciones/${orgId}/emitir-certificados`,
   BADGE_SHARE:         (perfilInsigniaId: string) => `/perfil-insignia/${perfilInsigniaId}/compartir`,
   PROFILE_SHARE:       (userId: string) => `/perfil/${userId}/compartir`,
   SEASONS:             "/temporadas",

@@ -3,10 +3,11 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
-import { gamificationApi, type RankingEntry } from "@/features/gamification/api/gamificationApi";
+import { gamificationApi } from "@/features/gamification/api/gamificationApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Building2, Trophy, ExternalLink, ArrowLeft, LogOut } from "lucide-react";
+import { OrgBadgeCatalogSection } from "@/features/badges/ui/OrgBadgeCatalogSection";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { Spinner } from "@/shared/ui/Spinner";
 import Link from "next/link";
@@ -133,6 +134,15 @@ export default function OrganizacionDetallePage() {
           </div>
         </div>
 
+        <OrgBadgeCatalogSection
+          organizacionId={orgId}
+          userId={user?.id ?? null}
+          title="Logros que podés conseguir"
+          subtitle="Solo se listan medallas que la organización dejó visibles en catálogo; las «sorpresa» aparecen cuando se otorgan."
+          variant="dashboard"
+          anchorId="logros-org"
+        />
+
         {/* Ranking */}
         <div className="mb-2 flex items-center gap-2">
           <Trophy className="w-5 h-5" style={{ color: "var(--accent)" }} />
@@ -156,7 +166,7 @@ export default function OrganizacionDetallePage() {
             {ranking.map((entry) => (
               <li key={entry.usuario_id}>
                 <Link
-                  href={`/dashboard/perfil/${entry.usuario_id}`}
+                  href={`/voluntario/${entry.usuario_id}?org=${orgId}&returnTo=${encodeURIComponent(`/dashboard/organizaciones/${orgId}`)}`}
                   className="flex items-center gap-4 px-5 py-4 hover:opacity-90 transition-opacity"
                   style={{ color: "var(--text)" }}
                 >
@@ -169,9 +179,13 @@ export default function OrganizacionDetallePage() {
                   >
                     {entry.posicion <= 3 ? ["🥇", "🥈", "🥉"][entry.posicion - 1] : entry.posicion}
                   </span>
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
-                    {entry.nombre[0]?.toUpperCase() ?? "?"}
-                  </div>
+                  {entry.avatar_url ? (
+                    <img src={entry.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
+                      {entry.nombre[0]?.toUpperCase() ?? "?"}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{entry.nombre}</p>
                     <p className="text-xs" style={{ color: "var(--text-muted)" }}>

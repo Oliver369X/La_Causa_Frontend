@@ -122,7 +122,7 @@ async function mockBackendApis(page: Page) {
           xp_total:            4_200,
           elo_score:           1_420,
           promedio_calificacion: 4.6,
-          racha_dias:          14,
+          racha_entregas:      14,
         },
       });
 
@@ -134,7 +134,7 @@ async function mockBackendApis(page: Page) {
           puntos_elo:          1_420,
           rango:               "Oro",
           nivel:               7,
-          racha_dias:          14,
+          racha_entregas:      14,
           eventos_completados: 8,
           tareas_completadas:  31,
           insignias_total:     5,

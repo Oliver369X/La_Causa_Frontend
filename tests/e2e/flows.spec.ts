@@ -77,7 +77,7 @@ async function mockBackendApis(page: Page) {
       return route.fulfill({
         json: {
           usuario_id: MOCK_USER.id, nombre: MOCK_USER.nombre,
-          puntos_elo: 1420, rango: "Oro", nivel: 7, racha_dias: 14,
+          puntos_elo: 1420, rango: "Oro", nivel: 7, racha_entregas: 14,
           eventos_completados: 8, tareas_completadas: 31, insignias_total: 5,
         },
       });

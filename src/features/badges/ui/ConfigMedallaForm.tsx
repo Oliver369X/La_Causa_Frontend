@@ -1,5 +1,7 @@
 "use client";
 
+import { PillNumberPresets, PillSelect } from "@/features/badges/ui/BadgeFormPills";
+
 export type ReglaAsignacion = "manual" | "gestion_completada" | "horas_minimas" | "tareas_completadas";
 
 export interface ReglaConfigValues {
@@ -51,20 +53,18 @@ export function ConfigMedallaForm({
   return (
     <div className="space-y-4">
       {/* Regla de asignación */}
-      <div>
-        <label className="block text-sm font-medium mb-1.5">Regla de asignación</label>
-        <select
-          value={regla}
-          onChange={(e) => handleReglaChange(e.target.value as ReglaAsignacion)}
-          className="w-full h-9 px-3 rounded-lg text-sm outline-none"
-          style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-        >
-          <option value="manual">Manual (un admin la otorga)</option>
-          <option value="gestion_completada">Gestión completada</option>
-          <option value="horas_minimas">Horas mínimas</option>
-          <option value="tareas_completadas">Tareas completadas</option>
-        </select>
-      </div>
+      <PillSelect<ReglaAsignacion>
+        label="Regla de asignación"
+        hint="Una sola: cómo se define que el voluntario puede recibirla."
+        value={regla}
+        onChange={handleReglaChange}
+        options={[
+          { value: "manual", label: "Manual (admin)" },
+          { value: "gestion_completada", label: "Gestión completada" },
+          { value: "horas_minimas", label: "Horas mínimas" },
+          { value: "tareas_completadas", label: "Tareas completadas" },
+        ]}
+      />
 
       {/* Config según regla */}
       {regla === "manual" && (
@@ -137,23 +137,22 @@ export function ConfigMedallaForm({
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Período</label>
-            <select
+          <div className="min-w-0">
+            <PillSelect<"anual" | "semestral" | "mensual">
+              label="Período"
               value={(reglaConfig as ReglaConfigValues["horas_minimas"]).periodo}
-              onChange={(e) =>
+              onChange={(periodo) =>
                 onReglaConfigChange({
                   ...(reglaConfig as ReglaConfigValues["horas_minimas"]),
-                  periodo: e.target.value as "anual" | "semestral" | "mensual",
+                  periodo,
                 })
               }
-              className="w-full h-9 px-3 rounded-lg text-sm outline-none"
-              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-            >
-              <option value="anual">Anual</option>
-              <option value="semestral">Semestral</option>
-              <option value="mensual">Mensual</option>
-            </select>
+              options={[
+                { value: "anual", label: "Anual" },
+                { value: "semestral", label: "Semestral" },
+                { value: "mensual", label: "Mensual" },
+              ]}
+            />
           </div>
         </div>
       )}
@@ -176,22 +175,21 @@ export function ConfigMedallaForm({
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Estado requerido</label>
-            <select
+          <div className="min-w-0">
+            <PillSelect<string>
+              label="Estado de tarea"
               value={(reglaConfig as ReglaConfigValues["tareas_completadas"]).estado}
-              onChange={(e) =>
+              onChange={(estado) =>
                 onReglaConfigChange({
                   ...(reglaConfig as ReglaConfigValues["tareas_completadas"]),
-                  estado: e.target.value,
+                  estado,
                 })
               }
-              className="w-full h-9 px-3 rounded-lg text-sm outline-none"
-              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-            >
-              <option value="completada">Completada</option>
-              <option value="aprobada">Aprobada</option>
-            </select>
+              options={[
+                { value: "completada", label: "Completada" },
+                { value: "aprobada", label: "Aprobada" },
+              ]}
+            />
           </div>
         </div>
       )}
@@ -208,17 +206,15 @@ export function ConfigMedallaForm({
             />
             <span className="text-sm">Requiere evidencia al solicitar</span>
           </label>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Nivel mínimo (opcional)</label>
-            <input
-              type="number"
-              min={0}
+          <div className="min-w-0">
+            <PillNumberPresets
+              label="Nivel mínimo del voluntario"
+              hint="Solo cuenta si es mayor que 1. Elige un valor rápido o escribe otro."
               value={requisitos.nivel_minimo}
-              onChange={(e) =>
-                onRequisitosChange({ ...requisitos, nivel_minimo: parseInt(e.target.value, 10) || 0 })
-              }
-              className="w-full h-9 px-3 rounded-lg text-sm outline-none"
-              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+              onChange={(n) => onRequisitosChange({ ...requisitos, nivel_minimo: n })}
+              presets={[1, 3, 5, 10, 15, 20]}
+              min={0}
+              max={999}
             />
           </div>
         </div>

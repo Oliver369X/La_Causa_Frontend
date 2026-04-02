@@ -33,12 +33,22 @@ export interface ConfirmationPayload {
   impacto: string[];
 }
 
+export interface QuickReplyItem {
+  id: string;
+  label: string;
+  send_text: string;
+}
+
 export interface ChatResponse {
   session_id: string;
   reply: string;
   tipo: string;
   actions_taken: AgentActionLog[];
   pending_confirmation: ConfirmationPayload | null;
+  quick_replies: QuickReplyItem[];
+  trace_id?: string;
+  model_provider?: string;
+  model_name?: string;
 }
 
 export interface AgentAccessResponse {
@@ -57,6 +67,7 @@ export interface ConversationMessageOut {
   role: string;
   content: string;
   actions?: AgentActionLog[];
+  quick_replies?: QuickReplyItem[];
 }
 
 export interface ConversationMessagesResponse {

@@ -15,6 +15,10 @@ interface AgentFeedbackModalProps {
   inferenceOutput: string;
   sessionId: string | null;
   orgId: string | null;
+  /** Turno del backend — vincula con observabilidad / futuro fine-tuning */
+  traceId?: string | null;
+  modelProvider?: string | null;
+  modelName?: string | null;
 }
 
 const ERROR_TYPES = [
@@ -32,6 +36,9 @@ export function AgentFeedbackModal({
   inferenceOutput,
   sessionId,
   orgId,
+  traceId,
+  modelProvider,
+  modelName,
 }: AgentFeedbackModalProps) {
   const { user } = useAuthStore();
   const [helpful, setHelpful] = useState<boolean | null>(null);
@@ -54,6 +61,9 @@ export function AgentFeedbackModal({
         session_id: sessionId ?? undefined,
         org_id: orgId ?? undefined,
         user_id: user?.id,
+        trace_id: traceId ?? undefined,
+        provider: modelProvider ?? undefined,
+        model_name: modelName ?? undefined,
         inference_input: inferenceInput,
         inference_output: inferenceOutput,
         helpful,

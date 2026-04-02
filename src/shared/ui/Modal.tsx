@@ -11,12 +11,12 @@ interface ModalProps {
   description?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
   /** Si true, el cuerpo del modal hace scroll cuando el contenido es largo */
   scrollable?: boolean;
 }
 
-const SIZE_MAP = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-3xl" };
+const SIZE_MAP = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-3xl", "2xl": "max-w-4xl" };
 
 export function Modal({ open, onClose, title, description, children, footer, size = "md", scrollable = false }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -48,22 +48,41 @@ export function Modal({ open, onClose, title, description, children, footer, siz
       {/* Panel */}
       <div
         ref={ref}
-        className={cn("relative z-10 w-full rounded-2xl p-6 shadow-2xl", SIZE_MAP[size])}
+        className={cn("relative z-10 w-full min-w-0 max-w-[calc(100vw-2rem)] rounded-2xl p-6 shadow-2xl", SIZE_MAP[size])}
         style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
       >
         {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            {title && <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>{title}</h2>}
-            {description && <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{description}</p>}
+        <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
+          <div className="min-w-0 flex-1 pr-2">
+            {title && (
+              <h2 className="text-base font-semibold break-words" style={{ color: "var(--text)" }}>
+                {title}
+              </h2>
+            )}
+            {description && (
+              <p className="text-xs mt-1 break-words leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                {description}
+              </p>
+            )}
           </div>
-          <button onClick={onClose} className="ml-4 p-1.5 rounded-lg hover:opacity-70 transition-opacity shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:opacity-70 transition-opacity shrink-0"
+            aria-label="Cerrar"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className={cn(scrollable && "max-h-[min(85vh,640px)] overflow-y-auto overflow-x-hidden pr-1 -mr-1")}>
+        {/* Body: min-w-0 evita que el texto se comprima a 1 carácter por línea (flex + overflow) */}
+        <div
+          className={cn(
+            scrollable && "max-h-[min(85vh,640px)] overflow-y-auto overflow-x-hidden",
+            "min-w-0 w-full",
+          )}
+          style={scrollable ? { scrollbarGutter: "stable" } : undefined}
+        >
           {children}
         </div>
 

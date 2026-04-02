@@ -12,6 +12,16 @@ export type DisponibilidadEstado = "disponible" | "no_disponible" | "previo_cons
 export interface UserPerfilExtra {
   /** Estado de disponibilidad (solo visible para miembros de organización) */
   disponibilidad_estado?: DisponibilidadEstado;
+  /** Frase corta en perfil público (bajo el nombre) */
+  titulo_publico?: string;
+  /** URLs mostradas en el perfil público */
+  enlaces_publicos?: {
+    linkedin?: string;
+    web?: string;
+    github?: string;
+    instagram?: string;
+    twitter?: string;
+  };
   preferencias?: string[];
   organizer_onboarding_v1?: {
     started_at?: string;
@@ -38,6 +48,7 @@ export interface User {
   id: string;
   email: string;
   nombre: string;
+  apellido?: string | null;
   is_active: boolean;
   rol?: "owner" | "admin" | "staff" | "volunteer";
   tipo?: "voluntario" | "organizador";

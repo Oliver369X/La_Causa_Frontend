@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import DOMPurify from "dompurify";
-import { FileText, Plus, ArrowLeft, Edit2, Trash2 } from "lucide-react";
+import {
+  FileText,
+  Plus,
+  ArrowLeft,
+  Edit2,
+  Trash2,
+  ChevronDown,
+  RectangleVertical,
+  RectangleHorizontal,
+} from "lucide-react";
 import { useAuthStore } from "@/shared/store/authStore";
 import { plantillasCertificadoApi, type PlantillaCertificado } from "@/features/certificates/api/certificatesApi";
 import {
@@ -12,6 +20,13 @@ import {
   configToJson,
   type ConfigPlantillaValues,
 } from "@/features/certificates/ui/ConfigPlantillaForm";
+import { buildCertificatePreviewHtml } from "@/features/certificates/lib/certificatePreview";
+import { sanitizeCertificatePreviewHtml } from "@/features/certificates/lib/sanitizeCertificatePreview";
+import {
+  CERT_PREVIEW_SHORT_EDGE_PX,
+  certPreviewFrameStyle,
+} from "@/features/certificates/ui/certificateUiConstants";
+import { cn } from "@/shared/utils/utils";
 import { Button } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
 import { Spinner } from "@/shared/ui/Spinner";
@@ -38,6 +53,8 @@ const PLANTILLA_BASE = `<!DOCTYPE html>
 </body>
 </html>`;
 
+const PREVIEW_DEBOUNCE_MS = 320;
+
 export default function CertificatesTemplatesPage() {
   const { activeOrgId } = useAuthStore();
   const [plantillas, setPlantillas] = useState<PlantillaCertificado[]>([]);
@@ -49,11 +66,16 @@ export default function CertificatesTemplatesPage() {
   const [formHtml, setFormHtml] = useState(PLANTILLA_BASE);
   const [formConfig, setFormConfig] = useState<ConfigPlantillaValues>(parseConfigPlantilla(null));
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewNonce, setPreviewNonce] = useState(0);
+  const [previewError, setPreviewError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [configVisualOpen, setConfigVisualOpen] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!activeOrgId) return;
-    plantillasCertificadoApi.list(activeOrgId)
+    plantillasCertificadoApi
+      .list(activeOrgId)
       .then(setPlantillas)
       .catch(() => toast.error("Error al cargar plantillas"))
       .finally(() => setLoading(false));
@@ -66,59 +88,46 @@ export default function CertificatesTemplatesPage() {
     setFormHtml(p.html_template);
     setFormConfig(parseConfigPlantilla(p.configuracion as Record<string, unknown>));
     setPreviewHtml(null);
+    setPreviewError(false);
   };
 
-  const GOOGLE_FONTS = ["Playfair Display", "Merriweather", "Libre Baskerville", "Cinzel", "Open Sans", "Lato", "Roboto", "Source Sans Pro", "PT Sans"];
-  const buildPreviewHtml = (html: string, cfg: ConfigPlantillaValues) => {
-    const datos = {
-      nombre: "Juan Pérez",
-      horas: "120",
-      gestion: "2024",
-      fecha_emision: new Date().toLocaleDateString("es-ES"),
-      organizacion: "Mi Organización",
+  const showEditor = showCreate || editingId;
+
+  /** Vista previa automática al cambiar HTML o configuración */
+  useEffect(() => {
+    if (!showEditor) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      try {
+        const html = buildCertificatePreviewHtml(formHtml, formConfig);
+        setPreviewHtml(html);
+        setPreviewError(false);
+        setPreviewNonce((n) => n + 1);
+      } catch {
+        setPreviewError(true);
+        try {
+          const fallback = buildCertificatePreviewHtml(PLANTILLA_BASE, formConfig);
+          setPreviewHtml(fallback);
+          setPreviewNonce((n) => n + 1);
+        } catch {
+          setPreviewHtml(null);
+        }
+      }
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-    let out = html
-      .replace(/\{\{\s*nombre\s*\}\}/g, datos.nombre)
-      .replace(/\{\{\s*horas\s*\}\}/g, datos.horas)
-      .replace(/\{\{\s*gestion\s*\}\}/g, datos.gestion)
-      .replace(/\{\{\s*fecha_emision\s*\}\}/g, datos.fecha_emision)
-      .replace(/\{\{\s*organizacion\s*\}\}/g, datos.organizacion);
-    const fontsToLoad = [cfg.tipografia.titulo, cfg.tipografia.cuerpo]
-      .filter((f) => GOOGLE_FONTS.includes(f))
-      .filter((f, i, a) => a.indexOf(f) === i);
-    const fontsLink =
-      fontsToLoad.length > 0
-        ? `<link href="https://fonts.googleapis.com/css2?${fontsToLoad.map((f) => `family=${encodeURIComponent(f).replace(/%20/g, "+")}:wght@400;600;700`).join("&")}&display=swap" rel="stylesheet" />`
-        : "";
-    const styleOverrides = `
-      .titulo { font-family: ${cfg.tipografia.titulo}, serif !important; color: ${cfg.colores.titulo} !important; }
-      .nombre, .mensaje, .firma { font-family: ${cfg.tipografia.cuerpo}, sans-serif !important; color: ${cfg.colores.texto} !important; }
-      body { border: 2px solid ${cfg.colores.borde}; padding: ${cfg.margenes.superior}px ${cfg.margenes.derecho}px ${cfg.margenes.inferior}px ${cfg.margenes.izquierdo}px; }
-    `;
-    if (out.includes("</head>")) {
-      out = out.replace("</head>", `${fontsLink}<style>${styleOverrides}</style></head>`);
-    } else if (out.includes("<head>")) {
-      out = out.replace("<head>", `<head>${fontsLink}<style>${styleOverrides}</style>`);
-    }
-    if (cfg.logo_url && out.includes("<body>")) {
-      out = out.replace("<body>", `<body><div style="text-align:center;margin-bottom:16px"><img src="${cfg.logo_url}" alt="Logo" style="max-height:60px;object-fit:contain" /></div>`);
-    }
-    const extras: string[] = [];
-    if (cfg.firma_url) extras.push(`<img src="${cfg.firma_url}" alt="Firma" style="max-height:50px;object-fit:contain" />`);
-    if (cfg.sello_url) extras.push(`<img src="${cfg.sello_url}" alt="Sello" style="max-height:48px;object-fit:contain" />`);
-    if (extras.length && out.includes("</body>")) {
-      out = out.replace("</body>", `<div style="margin-top:24px;display:flex;gap:16px;justify-content:center;align-items:center">${extras.join("")}</div></body>`);
-    }
-    return out;
-  };
+  }, [formHtml, formConfig, showEditor]);
 
-  const handlePreview = () => {
+  const safePreviewSrcDoc = useMemo(() => {
+    if (!previewHtml) return "";
     try {
-      setPreviewHtml(buildPreviewHtml(formHtml, formConfig));
+      return sanitizeCertificatePreviewHtml(previewHtml);
     } catch {
-      setPreviewHtml(formHtml);
+      return previewHtml;
     }
-  };
+  }, [previewHtml]);
 
   const handleSave = async () => {
     if (!formNombre.trim() || !formHtml.trim()) {
@@ -156,6 +165,7 @@ export default function CertificatesTemplatesPage() {
       setFormHtml(PLANTILLA_BASE);
       setFormConfig(parseConfigPlantilla(null));
       setPreviewHtml(null);
+      setPreviewError(false);
       plantillasCertificadoApi.list(activeOrgId).then(setPlantillas);
     } catch {
       toast.error("Error al guardar");
@@ -176,13 +186,19 @@ export default function CertificatesTemplatesPage() {
         setFormDesc("");
         setFormHtml(PLANTILLA_BASE);
         setFormConfig(parseConfigPlantilla(null));
+        setPreviewHtml(null);
       }
     } catch {
       toast.error("Error al eliminar");
     }
   };
 
-  const showEditor = showCreate || editingId;
+  const closeEditor = () => {
+    setShowCreate(false);
+    setEditingId(null);
+    setPreviewHtml(null);
+    setPreviewError(false);
+  };
 
   if (!activeOrgId) {
     return (
@@ -211,7 +227,17 @@ export default function CertificatesTemplatesPage() {
           </h1>
         </div>
         {!showEditor && (
-          <Button onClick={() => { setShowCreate(true); setFormHtml(PLANTILLA_BASE); setFormNombre(""); setFormDesc(""); setFormConfig(parseConfigPlantilla(null)); }}>
+          <Button
+            onClick={() => {
+              setShowCreate(true);
+              setFormHtml(PLANTILLA_BASE);
+              setFormNombre("");
+              setFormDesc("");
+              setFormConfig(parseConfigPlantilla(null));
+              setPreviewHtml(null);
+              setPreviewError(false);
+            }}
+          >
             <Plus className="w-4 h-4" /> Nueva plantilla
           </Button>
         )}
@@ -240,48 +266,138 @@ export default function CertificatesTemplatesPage() {
                 style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Plantilla HTML (variables: {"{{ nombre }}"}, {"{{ horas }}"}, {"{{ gestion }}"}, {"{{ fecha_emision }}"}, {"{{ organizacion }}"}
-              </label>
-              <textarea
-                value={formHtml}
-                onChange={(e) => setFormHtml(e.target.value)}
-                rows={14}
-                className="w-full px-3 py-2 rounded-lg text-sm font-mono outline-none resize-y"
-                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-              />
+
+            <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Plantilla HTML (variables: {"{{ nombre }}"}, {"{{ horas }}"}, {"{{ gestion }}"},{" "}
+                  {"{{ fecha_emision }}"}, {"{{ organizacion }}"})
+                </label>
+                <textarea
+                  value={formHtml}
+                  onChange={(e) => setFormHtml(e.target.value)}
+                  rows={16}
+                  className="w-full px-3 py-2 rounded-lg text-sm font-mono outline-none resize-y min-h-[240px]"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+              </div>
+              <div className="space-y-2 xl:sticky xl:top-4 w-full max-w-full">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Vista previa</p>
+                  <div
+                    className="inline-flex rounded-lg p-0.5 gap-0.5 shrink-0"
+                    style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+                    role="group"
+                    aria-label="Orientación A4"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setFormConfig((c) => ({ ...c, orientacion: "vertical" }))}
+                      className={cn(
+                        "inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors",
+                        formConfig.orientacion === "vertical" ? "shadow-sm" : "opacity-70 hover:opacity-100"
+                      )}
+                      style={{
+                        background: formConfig.orientacion === "vertical" ? "var(--bg-card)" : "transparent",
+                        color: "var(--text)",
+                        border:
+                          formConfig.orientacion === "vertical" ? "1px solid var(--border)" : "1px solid transparent",
+                      }}
+                    >
+                      <RectangleVertical className="w-3.5 h-3.5" />
+                      Vertical
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormConfig((c) => ({ ...c, orientacion: "horizontal" }))}
+                      className={cn(
+                        "inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors",
+                        formConfig.orientacion === "horizontal" ? "shadow-sm" : "opacity-70 hover:opacity-100"
+                      )}
+                      style={{
+                        background: formConfig.orientacion === "horizontal" ? "var(--bg-card)" : "transparent",
+                        color: "var(--text)",
+                        border:
+                          formConfig.orientacion === "horizontal" ? "1px solid var(--border)" : "1px solid transparent",
+                      }}
+                    >
+                      <RectangleHorizontal className="w-3.5 h-3.5" />
+                      Horizontal
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {`Vista previa A4 ${formConfig.orientacion === "horizontal" ? "apaisado" : "retrato"} (borde corto ~${CERT_PREVIEW_SHORT_EDGE_PX}px). Actualización automática (~${PREVIEW_DEBOUNCE_MS / 1000}s).`}
+                </p>
+                {previewError && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Hubo un error en el HTML; se muestra la plantilla base de respaldo.
+                  </p>
+                )}
+                <div
+                  className="relative rounded-xl border overflow-hidden bg-zinc-100 dark:bg-zinc-900/40 mx-auto w-full"
+                  style={{
+                    borderColor: "var(--border)",
+                    ...certPreviewFrameStyle(formConfig.orientacion),
+                  }}
+                >
+                  {safePreviewSrcDoc ? (
+                    <iframe
+                      key={previewNonce}
+                      title="Vista previa del certificado"
+                      className="absolute inset-0 min-h-0 w-full h-full border-0 bg-white"
+                      sandbox="allow-same-origin"
+                      srcDoc={safePreviewSrcDoc}
+                    />
+                  ) : (
+                    <div
+                      className="flex items-center justify-center gap-2 py-16 text-sm"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <span style={{ color: "var(--accent)" }}>
+                        <Spinner size="md" className="shrink-0" />
+                      </span>
+                      Generando vista previa…
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Configuración visual (logo, firma, sello, tipografía, colores)
-              </label>
-              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-                Sube logo, firma digital y sello. Se guardan en Cloudinary. Elige tipografías y colores.
-              </p>
-              <ConfigPlantillaForm value={formConfig} onChange={setFormConfig} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handlePreview} variant="outline" size="sm">Vista previa</Button>
-              <Button onClick={handleSave} loading={submitting} size="sm">Guardar</Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setShowCreate(false); setEditingId(null); setPreviewHtml(null); }}
+
+            <details
+              className="group rounded-xl border overflow-hidden"
+              style={{ borderColor: "var(--border)" }}
+              open={configVisualOpen}
+              onToggle={(e) => setConfigVisualOpen(e.currentTarget.open)}
+            >
+              <summary
+                className={cn(
+                  "flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium select-none",
+                  "[&::-webkit-details-marker]:hidden"
+                )}
+                style={{ background: "var(--bg-subtle)" }}
               >
+                <ChevronDown
+                  className={cn("w-4 h-4 shrink-0 transition-transform", configVisualOpen && "rotate-180")}
+                  style={{ color: "var(--text-muted)" }}
+                />
+                <span>Configuración visual</span>
+                <span className="text-[11px] font-normal ml-auto" style={{ color: "var(--text-muted)" }}>
+                  logos · tipografía · colores
+                </span>
+              </summary>
+              <div className="p-3 border-t" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+                <ConfigPlantillaForm value={formConfig} onChange={setFormConfig} />
+              </div>
+            </details>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button onClick={handleSave} loading={submitting} size="sm">
+                Guardar
+              </Button>
+              <Button variant="ghost" size="sm" onClick={closeEditor}>
                 Cancelar
               </Button>
             </div>
-            {previewHtml && (
-              <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
-                <p className="text-sm font-medium mb-2">Vista previa</p>
-                <div
-                  className="rounded-xl p-6 border overflow-auto max-h-96"
-                  style={{ background: "#fff", borderColor: "var(--border)", color: "#333" }}
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
-                />
-              </div>
-            )}
           </div>
         </Card>
       ) : null}
@@ -289,7 +405,9 @@ export default function CertificatesTemplatesPage() {
       <div>
         <h2 className="font-semibold text-sm mb-3">Plantillas existentes</h2>
         {loading ? (
-          <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+          <div className="flex justify-center py-16">
+            <Spinner size="lg" />
+          </div>
         ) : plantillas.length === 0 ? (
           <EmptyState
             title="Sin plantillas"
@@ -305,7 +423,9 @@ export default function CertificatesTemplatesPage() {
               >
                 <p className="text-sm font-semibold">{p.nombre}</p>
                 {p.descripcion && (
-                  <p className="text-xs line-clamp-2" style={{ color: "var(--text-muted)" }}>{p.descripcion}</p>
+                  <p className="text-xs line-clamp-2" style={{ color: "var(--text-muted)" }}>
+                    {p.descripcion}
+                  </p>
                 )}
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   v{p.version} · {p.estado}

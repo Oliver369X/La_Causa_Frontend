@@ -7,6 +7,8 @@ interface VolunteerProfileBasicsCardProps {
   user: User | null;
   displayName: string;
   setDisplayName: (value: string) => void;
+  apellido: string;
+  setApellido: (value: string) => void;
   bio: string;
   setBio: (value: string) => void;
   onSave: () => void;
@@ -24,6 +26,8 @@ export function VolunteerProfileBasicsCard({
   user,
   displayName,
   setDisplayName,
+  apellido,
+  setApellido,
   bio,
   setBio,
   onSave,
@@ -56,7 +60,7 @@ export function VolunteerProfileBasicsCard({
               <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
               <span className="text-2xl font-bold" style={{ color: "var(--text-muted)" }}>
-                {(displayName || user?.nombre || "V")[0].toUpperCase()}
+                {(displayName || user?.nombre || "V")[0]?.toUpperCase() ?? "V"}
               </span>
             )}
           </div>
@@ -86,14 +90,34 @@ export function VolunteerProfileBasicsCard({
           </div>
         </div>
 
-        <input
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Nombre"
-          className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
-          style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-muted)" }}>
+              Nombre
+            </label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Nombre"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-muted)" }}>
+              Apellido(s) <span className="font-normal opacity-80">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              value={apellido}
+              onChange={(e) => setApellido(e.target.value)}
+              placeholder="Apellidos"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+            />
+          </div>
+        </div>
 
         <textarea
           value={bio}

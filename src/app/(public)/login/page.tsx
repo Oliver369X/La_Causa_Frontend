@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authApi } from "@/features/auth/api/authApi";
@@ -11,7 +11,7 @@ import { setAuthSessionCookie } from "@/shared/auth/sessionCookie";
 import { skillsApi } from "@/features/skills/api/skillsApi";
 import { buildVolunteerOnboardingProgress, shouldAutoStartVolunteerOnboarding } from "@/features/onboarding/lib/volunteerOnboarding";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -131,5 +131,21 @@ export default function LoginPage() {
         <SubmitBtn data-testid="submit-login" loading={loading} label="Iniciar Sesión" loadingLabel="Entrando…" />
       </form>
     </AuthCard>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthCard title="Iniciar Sesión" subtitle="Cargando…" footer={null}>
+          <p className="text-sm text-center" style={{ color: "var(--text-muted)" }}>
+            Preparando el formulario…
+          </p>
+        </AuthCard>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

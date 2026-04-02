@@ -1,18 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { apiClient } from "@/shared/api/client";
 import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Settings, Users, Building2, UserPlus, Trash2, Loader2, CheckCircle, Globe, FileText, Camera, Image, ExternalLink, Eye, Palette, Trophy, LogOut } from "lucide-react";
+import {
+  Settings,
+  Users,
+  Building2,
+  UserPlus,
+  Trash2,
+  Loader2,
+  CheckCircle,
+  Globe,
+  FileText,
+  Camera,
+  Image,
+  ExternalLink,
+  Eye,
+  Palette,
+  Trophy,
+  LogOut,
+  Copy,
+  LayoutList,
+  Sparkles,
+  Hash,
+  History,
+} from "lucide-react";
+import { toast } from "sonner";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
 import { skillsApi } from "@/features/skills/api/skillsApi";
 import { organizationsApi, type OrgNormas, type Organization } from "@/features/organizations/api/organizationsApi";
 import { gamificationApi, type ConfigGamificacionOrg } from "@/features/gamification/api/gamificationApi";
 import Link from "next/link";
 import { VolunteerProfileBasicsCard } from "@/features/volunteers/ui/VolunteerProfileBasicsCard";
+import { VolunteerPersonalizationCard } from "@/features/volunteers/ui/VolunteerPersonalizationCard";
 import { VolunteerAvailabilitySelector } from "@/features/volunteers/ui/VolunteerAvailabilitySelector";
 import { VolunteerSkillsManager } from "@/features/volunteers/ui/VolunteerSkillsManager";
 
@@ -65,6 +89,96 @@ function normalizeSocialUrl(
   return maybeUrl;
 }
 
+function copyTextToClipboard(text: string, successMessage = "Copiado al portapapeles") {
+  void navigator.clipboard.writeText(text).then(
+    () => toast.success(successMessage),
+    () => toast.error("No se pudo copiar. Copia manualmente.")
+  );
+}
+
+/** ID y URL pública de la org (soporte / integraciones) */
+function OrgTechnicalIds({ activeOrgId }: { activeOrgId: string }) {
+  const { data: org } = useQuery({
+    queryKey: ["org", activeOrgId],
+    queryFn: () => organizationsApi.get(activeOrgId),
+    enabled: !!activeOrgId,
+  });
+  if (!org) return null;
+  return (
+    <div className="mt-5 pt-5 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
+      <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Referencia técnica</p>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => copyTextToClipboard(org.id, "ID de organización copiado")}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono w-full sm:w-auto justify-start text-left"
+          style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+        >
+          <Hash className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{org.id.slice(0, 8)}… · Copiar ID completo</span>
+        </button>
+        {org.slug ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window === "undefined") return;
+              copyTextToClipboard(`${window.location.origin}/org/${org.slug}`);
+            }}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs w-full sm:w-auto justify-start text-left"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">/org/{org.slug} · Copiar URL pública</span>
+          </button>
+        ) : null}
+      </div>
+      <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+        El ID puede pedirlo soporte o integraciones. La URL pública requiere guardar el subenlace en «Perfil público».
+      </p>
+    </div>
+  );
+}
+
+function VolunteerSettingsNav() {
+  const items = [
+    { href: "#settings-public-vol", label: "Enlace público" },
+    { href: "#settings-profile-core", label: "Datos" },
+    { href: "#settings-orgs", label: "Organizaciones" },
+    { href: "#settings-skills", label: "Habilidades" },
+    { href: "/dashboard/settings/ajustes", label: "Ajustes" },
+  ];
+  return (
+    <nav
+      className="sticky top-14 md:top-0 z-[5] -mx-5 sm:-mx-8 px-5 sm:px-8 py-3 mb-4 rounded-xl border"
+      style={{
+        background: "color-mix(in oklab, var(--bg-card) 88%, transparent)",
+        borderColor: "var(--border)",
+        backdropFilter: "blur(10px)",
+      }}
+      aria-label="Secciones de tu perfil"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <LayoutList className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />
+        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          Ir a
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            className="text-xs px-3 py-1.5 rounded-full font-medium transition-opacity hover:opacity-90"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            {item.label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 function slugifyOrgInput(value: string): string {
   return value
     .trim()
@@ -82,8 +196,20 @@ function slugifyOrgInput(value: string): string {
 function VolunteerProfile({
   displayName,
   setDisplayName,
+  apellido,
+  setApellido,
   bio,
   setBio,
+  tituloPublico,
+  setTituloPublico,
+  linkedin,
+  setLinkedin,
+  web,
+  setWeb,
+  github,
+  setGithub,
+  savePersonalization,
+  savePersonalizationPending,
   updateProfile,
   updateAvatar,
   updateUbicacion,
@@ -91,12 +217,32 @@ function VolunteerProfile({
 }: {
   displayName: string;
   setDisplayName: (v: string) => void;
+  apellido: string;
+  setApellido: (v: string) => void;
   bio: string;
   setBio: (v: string) => void;
+  tituloPublico: string;
+  setTituloPublico: (v: string) => void;
+  linkedin: string;
+  setLinkedin: (v: string) => void;
+  web: string;
+  setWeb: (v: string) => void;
+  github: string;
+  setGithub: (v: string) => void;
+  savePersonalization: () => Promise<void>;
+  savePersonalizationPending: boolean;
   updateProfile: { mutate: () => void; isPending: boolean };
   updateAvatar: { mutate: (url: string) => void; isPending: boolean };
   updateUbicacion: { mutate: (ubicacion: { lat: number; lon: number; ciudad?: string }) => void; isPending: boolean };
-  updatePerfilExtra: { mutate: (perfil_extra: { disponibilidad_estado?: "disponible" | "no_disponible" | "previo_consulta"; preferencias?: string[] }) => void; isPending: boolean };
+  updatePerfilExtra: {
+    mutate: (perfil_extra: {
+      disponibilidad_estado?: "disponible" | "no_disponible" | "previo_consulta";
+      preferencias?: string[];
+      titulo_publico?: string;
+      enlaces_publicos?: { linkedin?: string; web?: string; github?: string };
+    }) => void;
+    isPending: boolean;
+  };
 }) {
   const { user } = useAuthStore();
   const qc = useQueryClient();
@@ -159,8 +305,81 @@ function VolunteerProfile({
 
   return (
     <>
-      <TopBar title="Mi Perfil" />
+      <TopBar title="Perfil y datos" />
       <div className="flex-1 p-5 sm:p-8 max-w-3xl mx-auto w-full space-y-6">
+        <div
+          className="p-4 sm:p-5 rounded-2xl"
+          style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
+        >
+          <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+            Tu perfil y tu cuenta
+          </h2>
+          <p className="text-sm mt-2 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            Aquí defines <strong className="font-medium" style={{ color: "var(--text)" }}>cómo te muestras</strong>{" "}
+            (nombre, foto, ubicación, habilidades, disponibilidad) y el enlace público de tu perfil competitivo.
+            <span className="block mt-2">
+              <strong className="font-medium" style={{ color: "var(--text)" }}>Avisos y navegación:</strong>{" "}
+              <strong className="font-medium" style={{ color: "var(--text)" }}>Comunicaciones</strong> está en el menú lateral.
+              El tema claro/oscuro y cerrar sesión están en el <strong className="font-medium" style={{ color: "var(--text)" }}>pie del menú lateral</strong>{" "}
+              (en móvil, al abrir el menú).
+            </span>
+          </p>
+        </div>
+
+        <VolunteerSettingsNav />
+
+        <div className="flex flex-wrap items-center justify-end gap-3 -mt-1 mb-1">
+          <Link
+            href="/dashboard/settings/ajustes"
+            className="text-xs font-semibold px-3 py-1.5 rounded-full transition-opacity hover:opacity-90"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--accent)" }}
+          >
+            Ajustes de cuenta y seguridad →
+          </Link>
+        </div>
+
+        {user?.id ? (
+          <div
+            id="settings-public-vol"
+            className="p-4 sm:p-5 rounded-2xl scroll-mt-28 md:scroll-mt-8"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-semibold flex items-center gap-2" style={{ color: "var(--text)" }}>
+                  <Globe className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />
+                  Tu perfil competitivo público
+                </p>
+                <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  Otros pueden ver tu ELO, racha de entregas, insignias y habilidades con un enlace. No muestra tu correo.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user?.id || typeof window === "undefined") return;
+                    copyTextToClipboard(`${window.location.origin}/voluntario/${user.id}`);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  <Copy className="w-4 h-4" /> Copiar enlace
+                </button>
+                <Link
+                  href={`/voluntario/${user.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+                  style={{ background: "var(--accent-soft)", border: "1px solid var(--border)", color: "var(--accent)" }}
+                >
+                  <ExternalLink className="w-4 h-4" /> Ver vista previa
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <Link
           href="/dashboard/gamification"
           className="block p-4 rounded-2xl mb-6 transition-opacity hover:opacity-90"
@@ -177,31 +396,48 @@ function VolunteerProfile({
           </div>
         </Link>
 
-        <VolunteerProfileBasicsCard
-          user={user}
-          displayName={displayName}
-          setDisplayName={setDisplayName}
-          bio={bio}
-          setBio={setBio}
-          onSave={() => updateProfile.mutate()}
-          savePending={updateProfile.isPending}
-          onAvatarFile={handleAvatarChange}
-          avatarPending={updateAvatar.isPending}
-          onUseLocation={handleUsarMiUbicacion}
-          locationPending={updateUbicacion.isPending}
-          description="Completa tu presentación, sube una foto y guarda tu ubicación para recibir mejores recomendaciones."
-        />
+        <div id="settings-profile-core" className="space-y-6 scroll-mt-28 md:scroll-mt-24">
+          <VolunteerProfileBasicsCard
+            user={user}
+            displayName={displayName}
+            setDisplayName={setDisplayName}
+            apellido={apellido}
+            setApellido={setApellido}
+            bio={bio}
+            setBio={setBio}
+            onSave={() => updateProfile.mutate()}
+            savePending={updateProfile.isPending}
+            onAvatarFile={handleAvatarChange}
+            avatarPending={updateAvatar.isPending}
+            onUseLocation={handleUsarMiUbicacion}
+            locationPending={updateUbicacion.isPending}
+            description="Completa tu presentación, sube una foto y guarda tu ubicación para recibir mejores recomendaciones."
+          />
 
-        <VolunteerAvailabilitySelector
-          value={disponibilidadEstado}
-          onChange={(value) => {
-            setDisponibilidadEstado(value);
-            updatePerfilExtra.mutate({ disponibilidad_estado: value });
-          }}
-          description="Solo los miembros de tu organización verán este estado al asignar tareas."
-        />
+          <VolunteerPersonalizationCard
+            tituloPublico={tituloPublico}
+            setTituloPublico={setTituloPublico}
+            linkedin={linkedin}
+            setLinkedin={setLinkedin}
+            web={web}
+            setWeb={setWeb}
+            github={github}
+            setGithub={setGithub}
+            onSave={savePersonalization}
+            savePending={savePersonalizationPending}
+          />
 
-        <Section title="Mis organizaciones" icon={Building2}>
+          <VolunteerAvailabilitySelector
+            value={disponibilidadEstado}
+            onChange={(value) => {
+              setDisponibilidadEstado(value);
+              updatePerfilExtra.mutate({ disponibilidad_estado: value });
+            }}
+            description="Solo los miembros de tu organización verán este estado al asignar tareas."
+          />
+        </div>
+
+        <Section id="settings-orgs" title="Mis organizaciones" icon={Building2}>
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
             Organizaciones a las que perteneces. Puedes dejar una organización cuando quieras.
           </p>
@@ -240,17 +476,20 @@ function VolunteerProfile({
           )}
         </Section>
 
-        <VolunteerSkillsManager
-          userSkills={userSkills}
-          allSkills={allSkills}
-          loadingSkills={loadingSkills}
-          loadingAllSkills={loadingAllSkills}
-          addPending={addSkillMutation.isPending}
-          removePending={removeSkillMutation.isPending}
-          onAddSkill={(skillId) => addSkillMutation.mutate(skillId)}
-          onRemoveSkill={(skillId) => removeSkillMutation.mutate(skillId)}
-          description="Gestiona tus habilidades para que las organizaciones te asignen mejores tareas."
-        />
+        <div id="settings-skills" className="scroll-mt-28 md:scroll-mt-24">
+          <VolunteerSkillsManager
+            userSkills={userSkills}
+            allSkills={allSkills}
+            loadingSkills={loadingSkills}
+            loadingAllSkills={loadingAllSkills}
+            addPending={addSkillMutation.isPending}
+            removePending={removeSkillMutation.isPending}
+            onAddSkill={(skillId) => addSkillMutation.mutate(skillId)}
+            onRemoveSkill={(skillId) => removeSkillMutation.mutate(skillId)}
+            description="Gestiona tus habilidades para que las organizaciones te asignen mejores tareas."
+          />
+        </div>
+
       </div>
     </>
   );
@@ -281,7 +520,7 @@ function OrgLogoSection({ activeOrgId }: { activeOrgId: string }) {
   };
 
   return (
-    <Section title="Logo de la organización" icon={Image}>
+    <Section id="settings-logo" title="Logo de la organización" icon={Image}>
       <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
         El logo se muestra en el perfil público y al explorar organizaciones. JPG, PNG. Máx. 5 MB.
       </p>
@@ -421,21 +660,31 @@ function OrgPerfilPublicoSection({ activeOrgId }: { activeOrgId: string }) {
   const publicUrl = org?.slug ? `${typeof window !== "undefined" ? window.location.origin : ""}/org/${org.slug}` : null;
 
   return (
-    <Section title="Perfil público" icon={Globe}>
+    <Section id="settings-public" title="Perfil público" icon={Globe}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
           Lo que verán los voluntarios al explorar organizaciones.
         </p>
         {publicUrl && (
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{ background: "var(--accent-soft)", border: "1px solid var(--border)", color: "var(--accent)" }}
-          >
-            <ExternalLink className="w-3.5 h-3.5" /> Ver cómo lo ven otros
-          </a>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => copyTextToClipboard(publicUrl)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+            >
+              <Copy className="w-3.5 h-3.5" /> Copiar URL
+            </button>
+            <a
+              href={publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: "var(--accent-soft)", border: "1px solid var(--border)", color: "var(--accent)" }}
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Ver cómo lo ven otros
+            </a>
+          </div>
         )}
       </div>
       <div className="space-y-4">
@@ -561,6 +810,7 @@ function OrgVisibilidadSection({ activeOrgId }: { activeOrgId: string }) {
     mostrar_objetivos: true,
     mostrar_redes: true,
     mostrar_eventos: true,
+    mostrar_ranking: true,
   });
   const updateNormas = useMutation({
     mutationFn: (normas: OrgNormas) => organizationsApi.update(activeOrgId, { normas }),
@@ -582,6 +832,7 @@ function OrgVisibilidadSection({ activeOrgId }: { activeOrgId: string }) {
         mostrar_objetivos: v.mostrar_objetivos ?? prev.mostrar_objetivos,
         mostrar_redes: v.mostrar_redes ?? prev.mostrar_redes,
         mostrar_eventos: v.mostrar_eventos ?? prev.mostrar_eventos,
+        mostrar_ranking: v.mostrar_ranking ?? prev.mostrar_ranking,
       }));
     }
   }, [org]);
@@ -600,7 +851,7 @@ function OrgVisibilidadSection({ activeOrgId }: { activeOrgId: string }) {
   };
 
   return (
-    <Section title="Visibilidad" icon={Eye}>
+    <Section id="settings-visibility" title="Visibilidad" icon={Eye}>
       <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
         Elige qué secciones mostrar en tu perfil público. Si no configuras nada, todo se muestra por defecto.
       </p>
@@ -611,6 +862,7 @@ function OrgVisibilidadSection({ activeOrgId }: { activeOrgId: string }) {
           { key: "mostrar_objetivos" as const, label: "Mostrar objetivos" },
           { key: "mostrar_redes" as const, label: "Mostrar redes sociales" },
           { key: "mostrar_eventos" as const, label: "Mostrar eventos/actividades recientes" },
+          { key: "mostrar_ranking" as const, label: "Mostrar ranking de voluntarios (ELO)" },
         ].map(({ key, label }) => (
           <label key={key} className="flex items-center gap-2 cursor-pointer">
             <input
@@ -712,7 +964,7 @@ function OrgPersonalizacionSection({ activeOrgId }: { activeOrgId: string }) {
   };
 
   return (
-    <Section title="Identidad visual" icon={Palette}>
+    <Section id="settings-brand" title="Identidad visual" icon={Palette}>
       <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
         Colores y banner para personalizar tu perfil público.
       </p>
@@ -840,7 +1092,7 @@ function OrgTerminosSection({ activeOrgId }: { activeOrgId: string }) {
   };
 
   return (
-    <Section title="Términos y políticas" icon={FileText}>
+    <Section id="settings-terms" title="Términos y políticas" icon={FileText}>
       <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
         Los voluntarios deberán aceptar esto antes de solicitar unirse. Se guarda en JSON para flexibilidad.
       </p>
@@ -931,7 +1183,7 @@ function OrgGamificacionSection({ activeOrgId }: { activeOrgId: string }) {
   };
 
   return (
-    <Section title="Gamificación" icon={Trophy}>
+    <Section id="settings-gamification" title="Gamificación" icon={Trophy}>
       <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
         Configura temporadas, penalizaciones y reglas de ranking para tu organización.
       </p>
@@ -976,17 +1228,75 @@ function OrgGamificacionSection({ activeOrgId }: { activeOrgId: string }) {
   );
 }
 
-function Section({ title, icon: Icon, children }: {
-  title: string; icon: React.ElementType; children: React.ReactNode;
+function Section({ title, icon: Icon, children, id, description }: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  id?: string;
+  description?: string;
 }) {
   return (
-    <div className="p-6 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      <div className="flex items-center gap-2 mb-6">
-        <Icon className="w-4 h-4" style={{ color: "var(--accent)" }} />
-        <h3 className="font-semibold">{title}</h3>
+    <section
+      id={id}
+      className="p-6 rounded-2xl scroll-mt-28 md:scroll-mt-24"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+    >
+      <div className="flex items-start gap-2 mb-6">
+        <Icon className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--accent)" }} />
+        <div className="min-w-0">
+          <h3 className="font-semibold">{title}</h3>
+          {description ? (
+            <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>{description}</p>
+          ) : null}
+        </div>
       </div>
       {children}
-    </div>
+    </section>
+  );
+}
+
+/** Navegación rápida anclada (solo vista organizador) */
+function SettingsOrganizerNav() {
+  const items: { href: string; label: string }[] = [
+    { href: "#settings-org", label: "Organización" },
+    { href: "#settings-logo", label: "Logo" },
+    { href: "#settings-public", label: "Página pública" },
+    { href: "#settings-visibility", label: "Visibilidad" },
+    { href: "#settings-brand", label: "Colores" },
+    { href: "#settings-terms", label: "Términos" },
+    { href: "#settings-gamification", label: "Gamificación" },
+    { href: "#settings-invite", label: "Invitar" },
+    { href: "#settings-members", label: "Miembros" },
+  ];
+  return (
+    <nav
+      className="sticky top-14 md:top-0 z-[5] -mx-5 sm:-mx-8 px-5 sm:px-8 py-3 mb-4 rounded-xl border"
+      style={{
+        background: "color-mix(in oklab, var(--bg-card) 88%, transparent)",
+        borderColor: "var(--border)",
+        backdropFilter: "blur(10px)",
+      }}
+      aria-label="Secciones de configuración"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <LayoutList className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />
+        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          Ir a
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            className="text-xs px-3 py-1.5 rounded-full font-medium transition-opacity hover:opacity-90"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            {item.label}
+          </a>
+        ))}
+      </div>
+    </nav>
   );
 }
 
@@ -1000,7 +1310,12 @@ export default function SettingsPage() {
   const [orgName, setOrgName]           = useState("");
   const [nameSuccess, setNameSuccess]   = useState(false);
   const [displayName, setDisplayName]   = useState(user?.nombre ?? "");
+  const [apellido, setApellido] = useState(user?.apellido ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
+  const [tituloPublico, setTituloPublico] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [web, setWeb] = useState("");
+  const [github, setGithub] = useState("");
 
   /* Invite member */
   const [inviteUserId, setInviteUserId] = useState("");
@@ -1014,15 +1329,41 @@ export default function SettingsPage() {
   });
 
   /* Update org name */
+  const { data: orgData } = useQuery({
+    queryKey: ["org", activeOrgId],
+    queryFn: () => organizationsApi.get(activeOrgId!),
+    enabled: !!activeOrgId,
+  });
+
+  useEffect(() => {
+    if (orgData?.nombre) setOrgName(orgData.nombre);
+  }, [orgData?.nombre]);
+
+  useEffect(() => {
+    if (!user) return;
+    setDisplayName(user.nombre ?? "");
+    setApellido(user.apellido ?? "");
+    setBio(user.bio ?? "");
+    const pe = user.perfil_extra;
+    setTituloPublico(typeof pe?.titulo_publico === "string" ? pe.titulo_publico : "");
+    const en = pe?.enlaces_publicos;
+    setLinkedin(typeof en?.linkedin === "string" ? en.linkedin : "");
+    setWeb(typeof en?.web === "string" ? en.web : "");
+    setGithub(typeof en?.github === "string" ? en.github : "");
+  }, [user]);
+
   const updateOrg = useMutation({
     mutationFn: async (nombre: string) => {
       const { data } = await apiClient.put(`/organizaciones/${activeOrgId}`, { nombre });
       return data;
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org", activeOrgId] });
       setNameSuccess(true);
       setTimeout(() => setNameSuccess(false), 2500);
+      toast.success("Nombre de la organización actualizado");
     },
+    onError: () => toast.error("No se pudo actualizar el nombre."),
   });
 
   /* Invite member */
@@ -1035,10 +1376,12 @@ export default function SettingsPage() {
       return data;
     },
     onSuccess: () => {
+      toast.success("Miembro invitado correctamente");
       setInviteUserId("");
       setInviteOwner(false);
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
     },
+    onError: () => toast.error("No se pudo invitar. Comprueba el UUID y permisos."),
   });
 
   /* Remove member */
@@ -1051,14 +1394,30 @@ export default function SettingsPage() {
 
   const updateProfile = useMutation({
     mutationFn: async () => {
-      const { data } = await apiClient.patch("/auth/me", { nombre: displayName, bio });
-      return data as { id: string; email: string; nombre: string; estado: boolean; tipo?: "voluntario" | "organizador"; is_super_admin?: boolean; avatar_url?: string; bio?: string };
+      const { data } = await apiClient.patch("/auth/me", {
+        nombre: displayName,
+        apellido: apellido.trim() || null,
+        bio,
+      });
+      return data as {
+        id: string;
+        email: string;
+        nombre: string;
+        apellido?: string | null;
+        estado: boolean;
+        tipo?: "voluntario" | "organizador";
+        is_super_admin?: boolean;
+        avatar_url?: string;
+        bio?: string;
+      };
     },
     onSuccess: (data) => {
+      toast.success("Perfil guardado");
       if (token && user) {
         setAuth(token, {
           ...user,
           nombre: data.nombre,
+          apellido: data.apellido ?? undefined,
           tipo: data.tipo ?? user.tipo,
           is_super_admin: data.is_super_admin ?? user.is_super_admin,
           avatar_url: data.avatar_url ?? user.avatar_url,
@@ -1066,6 +1425,7 @@ export default function SettingsPage() {
         });
       }
     },
+    onError: () => toast.error("No se pudo guardar el perfil."),
   });
 
   const updateAvatar = useMutation({
@@ -1101,9 +1461,17 @@ export default function SettingsPage() {
   });
 
   const updatePerfilExtra = useMutation({
-    mutationFn: async (perfil_extra: { disponibilidad_estado?: "disponible" | "no_disponible" | "previo_consulta"; preferencias?: string[] }) => {
+    mutationFn: async (perfil_extra: {
+      disponibilidad_estado?: "disponible" | "no_disponible" | "previo_consulta";
+      preferencias?: string[];
+      titulo_publico?: string;
+      enlaces_publicos?: { linkedin?: string; web?: string; github?: string };
+    }) => {
       const { data } = await apiClient.patch("/auth/me", { perfil_extra });
-      return data as { id: string; email: string; nombre: string; estado: boolean; tipo?: "voluntario" | "organizador"; is_super_admin?: boolean; avatar_url?: string; ubicacion?: { lat?: number; lon?: number; ciudad?: string }; perfil_extra?: { disponibilidad_estado?: "disponible" | "no_disponible" | "previo_consulta"; preferencias?: string[] } };
+      return data as {
+        id: string;
+        perfil_extra?: import("@/shared/store/authStore").UserPerfilExtra;
+      };
     },
     onSuccess: (data) => {
       if (token && user) {
@@ -1115,13 +1483,41 @@ export default function SettingsPage() {
     },
   });
 
+  const savePersonalization = useCallback(async () => {
+    try {
+      await updatePerfilExtra.mutateAsync({
+        titulo_publico: tituloPublico.trim(),
+        enlaces_publicos: {
+          linkedin: linkedin.trim(),
+          web: web.trim(),
+          github: github.trim(),
+        },
+      });
+      toast.success("Personalización guardada");
+    } catch {
+      toast.error("No se pudo guardar la personalización.");
+    }
+  }, [tituloPublico, linkedin, web, github, updatePerfilExtra]);
+
   if (isVolunteer) {
     return (
       <VolunteerProfile
         displayName={displayName}
         setDisplayName={setDisplayName}
+        apellido={apellido}
+        setApellido={setApellido}
         bio={bio}
         setBio={setBio}
+        tituloPublico={tituloPublico}
+        setTituloPublico={setTituloPublico}
+        linkedin={linkedin}
+        setLinkedin={setLinkedin}
+        web={web}
+        setWeb={setWeb}
+        github={github}
+        setGithub={setGithub}
+        savePersonalization={savePersonalization}
+        savePersonalizationPending={updatePerfilExtra.isPending}
         updateProfile={updateProfile}
         updateAvatar={updateAvatar}
         updateUbicacion={updateUbicacion}
@@ -1146,14 +1542,38 @@ export default function SettingsPage() {
       <TopBar title="Configuración" />
       <div className="flex-1 p-5 sm:p-8 max-w-3xl mx-auto w-full space-y-6">
 
+        <div
+          className="p-4 sm:p-5 rounded-2xl"
+          style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
+        >
+          <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+            Configuración de la organización
+          </h2>
+          <p className="text-sm mt-2 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            <strong className="font-medium" style={{ color: "var(--text)" }}>Configuración de la ONG</strong> (marca, página
+            pública, visibilidad, miembros): no es tu perfil personal de usuario.
+            <span className="block mt-2">
+              Define nombre, imagen y página pública; controla qué ven los voluntarios; gestiona invitaciones y miembros.
+              Usa el menú inferior en móvil para saltar de sección. El tema y cerrar sesión están en el pie del menú lateral.
+            </span>
+          </p>
+        </div>
+
+        <SettingsOrganizerNav />
+
         {/* Org settings */}
-        <Section title="Organización" icon={Building2}>
+        <Section
+          id="settings-org"
+          title="Organización"
+          icon={Building2}
+          description="Nombre interno que ves en el panel. Puedes cambiarlo cuando quieras."
+        >
           <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder="Nuevo nombre de la organización"
+              placeholder="Nombre de la organización"
               className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
@@ -1174,6 +1594,7 @@ export default function SettingsPage() {
           {updateOrg.isError && (
             <p className="text-xs mt-2 text-red-500">Error al actualizar.</p>
           )}
+          <OrgTechnicalIds activeOrgId={activeOrgId!} />
         </Section>
 
         {/* Logo de la organización (Cloudinary) */}
@@ -1195,14 +1616,19 @@ export default function SettingsPage() {
         <OrgGamificacionSection activeOrgId={activeOrgId!} />
 
         {/* Invite member */}
-        <Section title="Invitar miembro" icon={UserPlus}>
+        <Section
+          id="settings-invite"
+          title="Invitar miembro"
+          icon={UserPlus}
+          description="Añade a alguien que ya tenga cuenta en la plataforma. Necesitas su ID de usuario (UUID)."
+        >
           <div className="space-y-3">
             <input
               type="text"
               value={inviteUserId}
               onChange={(e) => setInviteUserId(e.target.value)}
-              placeholder="UUID del usuario"
-              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              placeholder="UUID del usuario (ej. desde administración o soporte)"
+              className="w-full px-4 py-2.5 rounded-xl outline-none font-mono text-xs"
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
             <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text-muted)" }}>
@@ -1223,13 +1649,17 @@ export default function SettingsPage() {
               {addMember.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
               Invitar
             </button>
-            {addMember.isError && <p className="text-xs text-red-500">Error al invitar.</p>}
-            {addMember.isSuccess && <p className="text-xs text-green-500">¡Miembro añadido!</p>}
+            {addMember.isError && <p className="text-xs text-red-500">Revisa el mensaje de error arriba o los permisos.</p>}
           </div>
         </Section>
 
         {/* Members list */}
-        <Section title="Miembros actuales" icon={Users}>
+        <Section
+          id="settings-members"
+          title="Miembros actuales"
+          icon={Users}
+          description="Lista de personas con acceso a esta organización."
+        >
           {loadingMembers ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => (

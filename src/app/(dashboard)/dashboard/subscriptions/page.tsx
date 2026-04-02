@@ -231,8 +231,8 @@ export default function SubscriptionsPage() {
                     loading={subscribing === plan.id}
                     data-testid={
                       Number(plan.precio_mensual) > 0
-                        ? `stripe-subscribe-${plan.slug}`
-                        : `free-subscribe-${plan.slug}`
+                        ? `stripe-subscribe-${plan.id}`
+                        : `free-subscribe-${plan.id}`
                     }
                     onClick={() => handleSubscribe(plan)}
                   >

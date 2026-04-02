@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { UserCheck, Mail, Shield, User } from "lucide-react";
 import { staffApi, type StaffMember, type InviteMemberData } from "@/features/staff/api/staffApi";
-import { rolesApi, type Role } from "@/features/roles/api/rolesApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { Card } from "@/shared/ui/Card";

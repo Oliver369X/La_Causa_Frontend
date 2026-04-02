@@ -11,7 +11,7 @@ import CountUp from "react-countup";
 import confetti from "canvas-confetti";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Button } from "@/shared/ui/Button";
-import { ProgressCard, RewardCard, LockedState, StreakState } from "@/shared/ui/gamification";
+import { ProgressCard, RewardCard, LockedState } from "@/shared/ui/gamification";
 import { useCelebrationStore } from "@/shared/store/celebrationStore";
 import {
   getAudioPrefs, setAudioPrefs, play,
@@ -548,7 +548,7 @@ export default function GamificationLabPage() {
                 <p className="text-3xl font-black tabular-nums">
                   <CountUp start={prevStreak} end={streakDays} duration={0.5} preserveValue />
                 </p>
-                <p className="text-xs font-medium opacity-60">días de racha</p>
+                <p className="text-xs font-medium opacity-60">entregas en racha (demo)</p>
               </div>
             </div>
 

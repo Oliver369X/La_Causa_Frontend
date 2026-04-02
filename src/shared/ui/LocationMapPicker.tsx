@@ -41,11 +41,12 @@ export function LocationMapPicker({
   defaultZoom = 13,
 }: LocationMapPickerProps) {
   const [mounted, setMounted] = useState(false);
+  // Carga dinámica de react-leaflet: any evita desalinear tipos estrictos con props reales del mapa.
   const [LeafletComponents, setLeafletComponents] = useState<{
-    MapContainer: React.ComponentType<unknown>;
-    TileLayer: React.ComponentType<unknown>;
-    Marker: React.ComponentType<unknown>;
-    Popup: React.ComponentType<unknown>;
+    MapContainer: React.ComponentType<any>;
+    TileLayer: React.ComponentType<any>;
+    Marker: React.ComponentType<any>;
+    Popup: React.ComponentType<any>;
   } | null>(null);
 
   useEffect(() => {
@@ -57,10 +58,10 @@ export function LocationMapPicker({
     import("leaflet/dist/leaflet.css");
     import("react-leaflet").then((mod) => {
       setLeafletComponents({
-        MapContainer: mod.MapContainer as React.ComponentType<unknown>,
-        TileLayer: mod.TileLayer as React.ComponentType<unknown>,
-        Marker: mod.Marker as React.ComponentType<unknown>,
-        Popup: mod.Popup as React.ComponentType<unknown>,
+        MapContainer: mod.MapContainer as React.ComponentType<any>,
+        TileLayer: mod.TileLayer as React.ComponentType<any>,
+        Marker: mod.Marker as React.ComponentType<any>,
+        Popup: mod.Popup as React.ComponentType<any>,
       });
     });
   }, [mounted]);

@@ -26,6 +26,8 @@ interface VolunteerOnboardingWizardProps {
   progress: VolunteerOnboardingProgress;
   displayName: string;
   setDisplayName: (value: string) => void;
+  apellido: string;
+  setApellido: (value: string) => void;
   bio: string;
   setBio: (value: string) => void;
   onSaveProfile: () => void;
@@ -61,6 +63,8 @@ export function VolunteerOnboardingWizard({
   progress,
   displayName,
   setDisplayName,
+  apellido,
+  setApellido,
   bio,
   setBio,
   onSaveProfile,
@@ -163,6 +167,8 @@ export function VolunteerOnboardingWizard({
               user={user}
               displayName={displayName}
               setDisplayName={setDisplayName}
+              apellido={apellido}
+              setApellido={setApellido}
               bio={bio}
               setBio={setBio}
               onSave={onSaveProfile}

@@ -38,6 +38,7 @@ export default function OnboardingPage() {
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [displayName, setDisplayName] = useState(user?.nombre ?? "");
+  const [apellido, setApellido] = useState(user?.apellido ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [disponibilidadEstado, setDisponibilidadEstado] = useState<"disponible" | "no_disponible" | "previo_consulta">(
     () => (user?.perfil_extra?.disponibilidad_estado as "disponible" | "no_disponible" | "previo_consulta") ?? "previo_consulta"
@@ -261,7 +262,11 @@ export default function OnboardingPage() {
 
   const updateProfile = useMutation({
     mutationFn: async () => {
-      const { data } = await apiClient.patch("/auth/me", { nombre: displayName, bio });
+      const { data } = await apiClient.patch("/auth/me", {
+        nombre: displayName,
+        apellido: apellido.trim() || null,
+        bio,
+      });
       return data as {
         id: string;
         email: string;
@@ -280,6 +285,7 @@ export default function OnboardingPage() {
         setAuth(token, {
           ...user,
           nombre: data.nombre,
+          apellido: (data as { apellido?: string | null }).apellido ?? user.apellido,
           avatar_url: data.avatar_url ?? user.avatar_url,
           bio: data.bio ?? bio,
           ubicacion: data.ubicacion ?? user.ubicacion,
@@ -408,6 +414,8 @@ export default function OnboardingPage() {
         progress={progress}
         displayName={displayName}
         setDisplayName={setDisplayName}
+        apellido={apellido}
+        setApellido={setApellido}
         bio={bio}
         setBio={setBio}
         onSaveProfile={() => updateProfile.mutate()}

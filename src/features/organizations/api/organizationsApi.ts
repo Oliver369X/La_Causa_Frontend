@@ -37,6 +37,8 @@ export interface OrgNormas {
     mostrar_objetivos?: boolean;
     mostrar_redes?: boolean;
     mostrar_eventos?: boolean;
+    /** Ranking de voluntarios de la org (ELO) en la página pública /org/[slug] */
+    mostrar_ranking?: boolean;
     [key: string]: unknown;
   };
   personalizacion?: {

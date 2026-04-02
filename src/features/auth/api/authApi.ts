@@ -22,6 +22,7 @@ export interface UserProfile {
   id: string;
   email: string;
   nombre: string;
+  apellido?: string | null;
   is_active: boolean;
   tipo?: "voluntario" | "organizador";
   is_super_admin?: boolean;
@@ -54,6 +55,7 @@ interface BackendUserResponse {
   id: string;
   email: string;
   nombre: string;
+  apellido?: string | null;
   estado: boolean;
   tipo?: string;
   is_super_admin?: boolean;
@@ -87,6 +89,7 @@ function toUserProfile(user: BackendUserResponse): UserProfile {
     id: user.id,
     email: user.email,
     nombre: user.nombre,
+    apellido: user.apellido ?? undefined,
     is_active: user.estado,
     tipo: user.tipo as "voluntario" | "organizador" | undefined,
     is_super_admin: user.is_super_admin ?? false,

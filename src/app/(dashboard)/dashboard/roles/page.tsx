@@ -1,8 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Shield, Plus, Trash2 } from "lucide-react";
-import { rolesApi, type Role, type CreateRoleData, type AssignRoleData } from "@/features/roles/api/rolesApi";
-import { useAuthStore } from "@/shared/store/authStore";
+import { rolesApi, type Role, type CreateRoleData } from "@/features/roles/api/rolesApi";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { Card } from "@/shared/ui/Card";
 import { Badge } from "@/shared/ui/Badge";
@@ -19,9 +18,8 @@ const DEFAULT_PERMISOS = [
 ];
 
 export default function RolesPage() {
-  const { user }       = useAuthStore();
-  const { can }        = usePermissions();
-  const canManage      = can("manageRoles");
+  const { isSuperAdmin } = usePermissions();
+  const canManage = isSuperAdmin;
 
   const [roles, setRoles]     = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +35,22 @@ export default function RolesPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(loadRoles, []);
+  useEffect(() => {
+    if (isSuperAdmin) loadRoles();
+  }, [isSuperAdmin]);
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="p-5 md:p-8">
+        <Card className="p-6">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            La definición de roles (crear, editar catálogo) es solo para administradores de la plataforma.
+            En cada organización los roles disponibles son los del sistema (organizador, coordinador, voluntario, etc.).
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   const handleCreate = async () => {
     if (!form.nombre.trim()) return;
@@ -78,7 +91,7 @@ export default function RolesPage() {
             Roles y Permisos
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Define roles personalizados y controla el acceso dentro de tu organización.
+            Catálogo global de roles (super-admin). Las organizaciones asignan roles fijos del sistema a sus miembros.
           </p>
         </div>
         {canManage && (

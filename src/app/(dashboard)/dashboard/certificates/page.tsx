@@ -12,12 +12,15 @@ import { Spinner } from "@/shared/ui/Spinner";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { RewardCard } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
+import { useAuthStore } from "@/shared/store/authStore";
 
 function formatDate(str: string) {
   return new Date(str).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function CertificatesPage() {
+  const { user } = useAuthStore();
+  const isOrganizer = user?.tipo === "organizador";
   const [certs, setCerts] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifyCode, setVerifyCode] = useState("");
@@ -66,9 +69,16 @@ export default function CertificatesPage() {
             Certificados por temporada. Verifica con el código de validación.
           </p>
         </div>
-        <Link href="/dashboard/certificates/templates">
-          <Button variant="outline" size="sm">Plantillas</Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {isOrganizer && (
+            <Link href="/dashboard/certificates/emitir">
+              <Button size="sm">Emisión masiva</Button>
+            </Link>
+          )}
+          <Link href="/dashboard/certificates/templates">
+            <Button variant="outline" size="sm">Plantillas</Button>
+          </Link>
+        </div>
       </motion.div>
 
       <ShareModal
