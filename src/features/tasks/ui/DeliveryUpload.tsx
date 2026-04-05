@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { assignmentsApi } from "@/features/assignments/api/assignmentsApi";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
 import { ImagePlus, X } from "lucide-react";
+import { TaskInstructionsDisplay } from "./TaskInstructionsDisplay";
 
 interface DeliveryUploadProps {
   assignmentId: string;
@@ -95,15 +96,9 @@ export function DeliveryUpload({
           </button>
         </div>
 
-        {instrucciones && (
-          <div
-            className="p-3 rounded-xl mb-4 text-sm"
-            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-          >
-            <p className="font-medium mb-1">Instrucciones:</p>
-            <p className="whitespace-pre-wrap" style={{ color: "var(--text-muted)" }}>
-              {instrucciones}
-            </p>
+        {instrucciones?.trim() && (
+          <div className="mb-4">
+            <TaskInstructionsDisplay text={instrucciones} heading="Qué debe incluir tu entrega" />
           </div>
         )}
 

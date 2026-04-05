@@ -1,16 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { eventsApi, type CreateEventData, type Event } from "@/features/events/api/eventsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
-import { Plus, Calendar, Clock, Send, MessageSquare, Award } from "lucide-react";
+import { Plus, Calendar, Clock, Send, MessageSquare, Award, Brain } from "lucide-react";
 import { LocationMapPicker, type LocationPoint } from "@/shared/ui/LocationMapPicker";
 import { formatDate } from "@/shared/utils/utils";
+import { geocodeWithNominatim, reverseGeocodeWithNominatim } from "@/shared/utils/geocoding";
 
 type EventTab = "proximos" | "curso" | "pasados";
+
+/** Campos de formulario locales (p. ej. texto de dirección antes de geocodificar). */
+type EventFormState = Partial<CreateEventData> & { ubicacion?: string };
 
 function classifyEvents(events: Event[]): { proximos: Event[]; curso: Event[]; pasados: Event[] } {
   const now = new Date();
@@ -32,9 +36,80 @@ export default function EventsPage() {
   const isVolunteer = user?.tipo === "voluntario";
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState<Partial<CreateEventData>>({});
+  const [formData, setFormData] = useState<EventFormState>({});
   const [ubicacionGeo, setUbicacionGeo] = useState<LocationPoint | null>(null);
+  const [geocodingMap, setGeocodingMap] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const geocodeAbortRef = useRef<AbortController | null>(null);
+  const reverseAbortRef = useRef<AbortController | null>(null);
   const [tab, setTab] = useState<EventTab>("curso");
+
+  useEffect(() => {
+    const raw = formData.ubicacion?.trim() ?? "";
+    if (raw.length < 3) {
+      if (raw.length === 0) setGeocodeError(null);
+      geocodeAbortRef.current?.abort();
+      setGeocodingMap(false);
+      return;
+    }
+
+    geocodeAbortRef.current?.abort();
+    const t = window.setTimeout(() => {
+      const ac = new AbortController();
+      geocodeAbortRef.current = ac;
+      setGeocodingMap(true);
+      setGeocodeError(null);
+      void geocodeWithNominatim(raw, ac.signal)
+        .then((result) => {
+          if (ac.signal.aborted) return;
+          if (result) {
+            setUbicacionGeo({
+              lat: result.lat,
+              lng: result.lng,
+              direccion: result.displayName,
+            });
+            setFormData((prev) => ({ ...prev, ubicacion: result.displayName }));
+            setGeocodeError(null);
+          } else {
+            setGeocodeError("No encontramos ese lugar en Bolivia. Prueba otra búsqueda o marca en el mapa.");
+          }
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") return;
+          setGeocodeError("No se pudo buscar la dirección. Intenta de nuevo o marca en el mapa.");
+        })
+        .finally(() => {
+          if (!ac.signal.aborted) setGeocodingMap(false);
+        });
+    }, 650);
+
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [formData.ubicacion]);
+
+  /** Clic en mapa sin dirección: obtener texto con geocodificación inversa. */
+  useEffect(() => {
+    if (!ubicacionGeo || ubicacionGeo.direccion) return;
+    const lat = ubicacionGeo.lat;
+    const lng = ubicacionGeo.lng;
+    reverseAbortRef.current?.abort();
+    const ac = new AbortController();
+    reverseAbortRef.current = ac;
+    void reverseGeocodeWithNominatim(lat, lng, ac.signal)
+      .then((name) => {
+        if (ac.signal.aborted || !name) return;
+        setUbicacionGeo((prev) => {
+          if (!prev) return prev;
+          if (prev.direccion) return prev;
+          if (Math.abs(prev.lat - lat) > 1e-5 || Math.abs(prev.lng - lng) > 1e-5) return prev;
+          return { ...prev, direccion: name };
+        });
+        setFormData((prev) => ({ ...prev, ubicacion: name }));
+      })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [ubicacionGeo?.lat, ubicacionGeo?.lng, ubicacionGeo?.direccion]);
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["events", isVolunteer ? "all" : activeOrgId, isVolunteer ? activeOrgId : null],
@@ -131,6 +206,24 @@ export default function EventsPage() {
           )}
         </div>
 
+        {!isVolunteer && activeOrgId && (
+          <div
+            className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl text-sm"
+            style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
+          >
+            <Brain className="w-5 h-5 shrink-0" style={{ color: "var(--accent)" }} />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium">Recomendaciones de voluntarios</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                Definí requisitos y obtené sugerencias ordenadas según habilidades, disponibilidad y experiencia del equipo.{" "}
+                <Link href="/dashboard/matching" className="font-medium underline" style={{ color: "var(--accent)" }}>
+                  Abrir recomendaciones
+                </Link>
+              </p>
+            </div>
+          </div>
+        )}
+
         {!isVolunteer && showForm && (
           <div className="mb-8 p-6 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <h3 className="font-semibold mb-5">Crear nuevo evento</h3>
@@ -141,7 +234,8 @@ export default function EventsPage() {
                 { label: "Fecha inicio *", key: "fecha_inicio", type: "datetime-local", placeholder: "" },
                 { label: "Fecha fin *", key: "fecha_fin", type: "datetime-local", placeholder: "" },
                 { label: "Cupo máximo *", key: "cupo_maximo", type: "number", placeholder: "50" },
-                { label: "Ubicación (dirección)", key: "ubicacion", type: "text", placeholder: "Av. Banzer, 3er anillo, Santa Cruz (opcional)" },
+                { label: "Campaña / proyecto (opcional)", key: "campana", type: "text", placeholder: "Ej. Educación comunitaria 2026" },
+                { label: "Ubicación (dirección)", key: "ubicacion", type: "text", placeholder: "Busca o escribe; al ubicar en el mapa se completa aquí" },
               ].map((f) => (
                 <div key={f.key} className={f.key === "descripcion" || f.key === "ubicacion" ? "md:col-span-2" : ""}>
                   <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>{f.label}</label>
@@ -168,13 +262,23 @@ export default function EventsPage() {
               ))}
               <div className="md:col-span-2">
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>
-                  Ubicación exacta en mapa (opcional)
+                  Mapa (se actualiza al escribir la dirección o puedes marcar a mano)
                 </label>
                 <LocationMapPicker
                   value={ubicacionGeo}
                   onChange={setUbicacionGeo}
-                  placeholder="Haz clic en el mapa para marcar el punto exacto del evento"
+                  placeholder="Escribe arriba para ubicar automáticamente, o haz clic en el mapa para ajustar el punto"
                 />
+                {geocodingMap && (
+                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                    Buscando en el mapa…
+                  </p>
+                )}
+                {geocodeError && !geocodingMap && (
+                  <p className="text-xs mt-2" style={{ color: "#f87171" }}>
+                    {geocodeError}
+                  </p>
+                )}
               </div>
             </div>
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
@@ -193,6 +297,7 @@ export default function EventsPage() {
                     fecha_inicio: (fd.fecha_inicio as string) || "",
                     fecha_fin: (fd.fecha_fin as string) || "",
                     cupo_maximo: Math.max(1, Number(fd.cupo_maximo) || 50),
+                    campana: typeof fd.campana === "string" && fd.campana.trim() ? fd.campana.trim() : undefined,
                     ubicacion_geo: hasUbicacion
                       ? {
                           direccion: direccion || undefined,
@@ -201,7 +306,6 @@ export default function EventsPage() {
                         }
                       : undefined,
                   });
-                  setUbicacionGeo(null);
                 }}
                 className="px-6 py-2.5 rounded-full text-sm font-medium hover:opacity-80 transition-opacity"
                 style={{ background: "var(--text)", color: "var(--bg)" }}
@@ -249,6 +353,11 @@ export default function EventsPage() {
                 </div>
                 {event.descripcion && (
                   <p className="text-xs mb-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>{event.descripcion}</p>
+                )}
+                {event.campana && (
+                  <p className="text-xs mb-3 font-medium" style={{ color: "var(--accent)" }}>
+                    Campaña / proyecto: {event.campana}
+                  </p>
                 )}
                 <div className="flex items-center gap-2 text-xs mb-4" style={{ color: "var(--text-muted)" }}>
                   <Clock className="w-3.5 h-3.5" />

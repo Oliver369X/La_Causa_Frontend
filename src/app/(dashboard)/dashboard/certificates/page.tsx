@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ShieldCheck, Search, CheckCircle, XCircle, Share2, GraduationCap } from "lucide-react";
-import { certificatesApi, type Certificate } from "@/features/certificates/api/certificatesApi";
+import { ShieldCheck, Search, CheckCircle, XCircle, Share2, GraduationCap, Pencil, Trash2 } from "lucide-react";
+import { certificatesApi, type Certificate, type CertificateUpdateData } from "@/features/certificates/api/certificatesApi";
 import { shareApi, type ShareCanal } from "@/features/share/api/shareApi";
 import { ShareModal } from "@/features/share/ui/ShareModal";
 import { Button } from "@/shared/ui/Button";
@@ -13,14 +13,19 @@ import { EmptyState } from "@/shared/ui/EmptyState";
 import { RewardCard } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import { useAuthStore } from "@/shared/store/authStore";
+import { usePermissions } from "@/shared/hooks/usePermissions";
+import { Modal } from "@/shared/ui/Modal";
 
 function formatDate(str: string) {
   return new Date(str).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function CertificatesPage() {
-  const { user } = useAuthStore();
+  const { user, activeOrgId } = useAuthStore();
+  const { can } = usePermissions();
   const isOrganizer = user?.tipo === "organizador";
+  const canManageCerts = isOrganizer && activeOrgId && can("createEvents");
+
   const [certs, setCerts] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifyCode, setVerifyCode] = useState("");
@@ -30,12 +35,31 @@ export default function CertificatesPage() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareCertId, setShareCertId] = useState<string | null>(null);
 
+  const [editCert, setEditCert] = useState<Certificate | null>(null);
+  const [editForm, setEditForm] = useState<CertificateUpdateData>({});
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadCerts = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (canManageCerts && activeOrgId) {
+        const data = await certificatesApi.list({ organizacion_id: activeOrgId });
+        setCerts(data);
+      } else {
+        const data = await certificatesApi.list();
+        setCerts(data);
+      }
+    } catch {
+      setCerts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [canManageCerts, activeOrgId]);
+
   useEffect(() => {
-    certificatesApi.list()
-      .then(setCerts)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    loadCerts();
+  }, [loadCerts]);
 
   const handleVerify = async () => {
     if (!verifyCode.trim()) return;
@@ -49,6 +73,41 @@ export default function CertificatesPage() {
       setVerifyError("Certificado no encontrado o código inválido.");
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const openEdit = (c: Certificate) => {
+    setEditCert(c);
+    setEditForm({
+      titulo: c.titulo,
+      descripcion: c.descripcion ?? undefined,
+      horas_acreditadas: c.horas_acreditadas,
+      url_pdf: c.url_pdf ?? undefined,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editCert) return;
+    setSavingEdit(true);
+    try {
+      await certificatesApi.update(editCert.id, editForm);
+      setEditCert(null);
+      await loadCerts();
+    } catch {
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Revocar y eliminar este certificado? Esta acción no se puede deshacer.")) return;
+    setDeletingId(id);
+    try {
+      await certificatesApi.delete(id);
+      await loadCerts();
+    } catch {
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -66,7 +125,9 @@ export default function CertificatesPage() {
             Certificados
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Certificados por temporada. Verifica con el código de validación.
+            {canManageCerts
+              ? "Certificados emitidos en tu organización activa. Podés editar o revocar."
+              : "Certificados por temporada. Verifica con el código de validación."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -80,6 +141,65 @@ export default function CertificatesPage() {
           </Link>
         </div>
       </motion.div>
+
+      <Modal
+        open={!!editCert}
+        onClose={() => !savingEdit && setEditCert(null)}
+        title="Editar certificado"
+      >
+        {editCert && (
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Título</label>
+              <input
+                className="w-full h-10 px-3 rounded-xl text-sm outline-none"
+                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                value={editForm.titulo ?? ""}
+                onChange={(e) => setEditForm((f) => ({ ...f, titulo: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Descripción</label>
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-y"
+                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                value={editForm.descripcion ?? ""}
+                onChange={(e) => setEditForm((f) => ({ ...f, descripcion: e.target.value || undefined }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Horas acreditadas</label>
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                className="w-full h-10 px-3 rounded-xl text-sm outline-none"
+                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                value={editForm.horas_acreditadas ?? 0}
+                onChange={(e) => setEditForm((f) => ({ ...f, horas_acreditadas: parseFloat(e.target.value) || 0 }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>URL PDF (opcional)</label>
+              <input
+                className="w-full h-10 px-3 rounded-xl text-sm outline-none"
+                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                value={editForm.url_pdf ?? ""}
+                onChange={(e) => setEditForm((f) => ({ ...f, url_pdf: e.target.value || undefined }))}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setEditCert(null)} disabled={savingEdit}>
+                Cancelar
+              </Button>
+              <Button size="sm" loading={savingEdit} onClick={() => void saveEdit()}>
+                Guardar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <ShareModal
         open={shareModalOpen}
@@ -145,7 +265,9 @@ export default function CertificatesPage() {
 
       {/* Vitrina de certificados emitidos */}
       <div>
-        <h2 className="font-semibold text-sm mb-4">Certificados emitidos</h2>
+        <h2 className="font-semibold text-sm mb-4">
+          {canManageCerts ? "Certificados de la organización" : "Certificados emitidos"}
+        </h2>
         {loading ? (
           <div className="flex justify-center py-16"><Spinner size="lg" /></div>
         ) : certs.length === 0 ? (
@@ -157,7 +279,11 @@ export default function CertificatesPage() {
           >
             <EmptyState
               title="Sin certificados"
-              description="Los certificados se emiten al cerrar una temporada."
+              description={
+                canManageCerts
+                  ? "Emití certificados desde Emisión masiva o al cerrar temporadas."
+                  : "Los certificados se emiten al cerrar una temporada."
+              }
               icon={<GraduationCap className="w-14 h-14 mx-auto" style={{ color: "var(--text-muted)" }} />}
             />
           </motion.div>
@@ -194,12 +320,33 @@ export default function CertificatesPage() {
                         </a>
                       )}
                       <button
+                        type="button"
                         onClick={() => { setShareCertId(cert.id); setShareModalOpen(true); }}
                         className="flex items-center gap-1 text-xs font-semibold"
                         style={{ color: "var(--g-progreso)" }}
                       >
                         <Share2 className="w-3.5 h-3.5" /> Compartir
                       </button>
+                      {canManageCerts && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(cert)}
+                            className="flex items-center gap-1 text-xs font-semibold"
+                            style={{ color: "var(--accent)" }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(cert.id)}
+                            disabled={deletingId === cert.id}
+                            className="flex items-center gap-1 text-xs font-semibold text-red-500 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> {deletingId === cert.id ? "…" : "Revocar"}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -19,3 +19,27 @@ export async function uploadImage(file: File): Promise<UploadResult> {
   });
   return data;
 }
+
+export interface UploadDocumentResult extends UploadResult {
+  content_type?: string;
+}
+
+/** PDF, Word, Excel, texto → Cloudinary raw. */
+export async function uploadDocument(file: File): Promise<UploadDocumentResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await apiClient.post<UploadDocumentResult>(EP.UPLOAD_DOCUMENT, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+/** Nota de voz / dictado (webm, mp3, …). */
+export async function uploadAudio(file: File): Promise<UploadDocumentResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await apiClient.post<UploadDocumentResult>(EP.UPLOAD_AUDIO, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}

@@ -8,9 +8,12 @@ import { useCelebrationStore } from "@/shared/store/celebrationStore";
 import { tasksApi, type Task, type CreateTaskData, type MyAssignment, type TaskAvailable } from "@/features/tasks/api/tasksApi";
 import { eventsApi, type Event } from "@/features/events/api/eventsApi";
 import { DeliveryUpload } from "@/features/tasks/ui/DeliveryUpload";
+import { TaskInstructionsDisplay } from "@/features/tasks/ui/TaskInstructionsDisplay";
+import { InstructionTemplateLibrary } from "@/features/tasks/ui/InstructionTemplateLibrary";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { formatDate } from "@/shared/utils/utils";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Plus, CheckSquare, Check, X, Clock, UserPlus, ImagePlus, AlertTriangle } from "lucide-react";
 
 const STATUSES: Task["estado"][] = ["pending", "in_progress", "completed", "cancelled"];
@@ -79,6 +82,16 @@ function TasksPageContent() {
       qc.invalidateQueries({ queryKey: ["tasks", activeOrgId] });
       setShowForm(false);
       setFormData({});
+    },
+    onError: (err: unknown) => {
+      const detail =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string }; status?: number } }).response?.data?.detail
+          : null;
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (status === 403 && typeof detail === "string") {
+        toast.error(detail);
+      }
     },
   });
 
@@ -162,8 +175,14 @@ function TasksPageContent() {
                 >
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-sm">{a.tarea_titulo}</h3>
-                    {a.instrucciones && (
-                      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{a.instrucciones}</p>
+                    {a.instrucciones?.trim() && (
+                      <div className="mt-3 max-h-[min(280px,45vh)] overflow-y-auto pr-1">
+                        <TaskInstructionsDisplay
+                          text={a.instrucciones}
+                          variant="compact"
+                          heading="Qué debes hacer"
+                        />
+                      </div>
                     )}
                     <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
                       <Clock className="w-3 h-3" />
@@ -356,14 +375,29 @@ function TasksPageContent() {
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Instrucciones para el voluntario</label>
+                <p className="text-xs mb-2 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  Escribe un paso por línea, o usa{" "}
+                  <code className="px-1 rounded" style={{ background: "var(--bg-subtle)" }}>1.</code>{" "}
+                  <code className="px-1 rounded" style={{ background: "var(--bg-subtle)" }}>2.</code> para numerar. Las viñetas con{" "}
+                  <code className="px-1 rounded" style={{ background: "var(--bg-subtle)" }}>- </code> también se verán como lista.
+                </p>
                 <textarea
-                  placeholder="Paso 1: ... Paso 2: ..."
+                  placeholder={"1. Llegar 15 min antes\n2. Firmar lista en recepción\n- Traer chaleco naranja"}
                   value={(formData as Record<string, string>).instrucciones ?? ""}
                   onChange={(e) => setFormData((prev) => ({ ...prev, instrucciones: e.target.value }))}
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-xl text-sm outline-none resize-none"
+                  rows={6}
+                  className="w-full min-h-[140px] px-4 py-3 rounded-xl text-sm outline-none resize-y font-mono leading-relaxed"
                   style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
+                <div className="mt-3">
+                  <InstructionTemplateLibrary
+                    orgId={activeOrgId}
+                    currentText={(formData as Record<string, string>).instrucciones ?? ""}
+                    onApply={(next) =>
+                      setFormData((prev) => ({ ...prev, instrucciones: next }))
+                    }
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Dificultad</label>
@@ -401,6 +435,19 @@ function TasksPageContent() {
                   style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
               </div>
+              <div className="md:col-span-2 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="req-revision-manual"
+                  checked={Boolean((formData as { requiere_revision_manual?: boolean }).requiere_revision_manual)}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, requiere_revision_manual: e.target.checked }))}
+                  className="mt-1"
+                />
+                <label htmlFor="req-revision-manual" className="text-sm cursor-pointer" style={{ color: "var(--text-muted)" }}>
+                  <span className="font-medium" style={{ color: "var(--text)" }}>Revisión manual obligatoria</span>
+                  {" — "}Las entregas con evidencia no se auto-aprueban; el equipo debe revisar (CU25).
+                </label>
+              </div>
             </div>
             <div className="flex gap-3 mt-5">
               <button
@@ -415,6 +462,7 @@ function TasksPageContent() {
                     dificultad: (fd.dificultad as CreateTaskData["dificultad"]) || "media",
                     vacantes: Math.max(1, parseInt(fd.vacantes || "1", 10)),
                     fecha_vencimiento: fd.fecha_vencimiento || undefined,
+                    requiere_revision_manual: Boolean((formData as { requiere_revision_manual?: boolean }).requiere_revision_manual),
                   });
                 }}
                 disabled={!(formData as Record<string, string>).evento_id || !(formData as Record<string, string>).titulo}
@@ -456,7 +504,13 @@ function TasksPageContent() {
                       <div key={task.id} className="p-4 rounded-xl transition-colors hover:opacity-90"
                            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-sm font-medium flex-1 min-w-0">{task.titulo}</p>
+                          <Link
+                            href={`/dashboard/tasks/${task.id}`}
+                            className="text-sm font-medium flex-1 min-w-0 hover:underline"
+                            style={{ color: "var(--text)" }}
+                          >
+                            {task.titulo}
+                          </Link>
                           {isOverdue && (
                             <span className="flex items-center gap-0.5 text-xs text-red-500 shrink-0" title="Vencida">
                               <AlertTriangle className="w-3 h-3" />

@@ -1,47 +1,51 @@
-/**
- * Manuals / Knowledge Base feature.
- * No dedicated backend endpoint yet — content is stored locally and
- * can be exported as PDF from the UI.
- */
-import type { UUID } from "@/shared/types";
+import { apiClient } from "@/shared/api/client";
+import { EP } from "@/shared/api/endpoints";
 
-export type ManualCategory = "onboarding" | "operations" | "safety" | "hr" | "technical" | "other";
-
-export interface ManualSection {
-  id: UUID;
-  titulo: string;
-  contenido: string;
-  orden: number;
+export interface ManualAceptacion {
+  id: string;
+  manual_id: string;
+  usuario_id: string;
+  fecha_aceptacion: string;
 }
 
 export interface Manual {
-  id: UUID;
+  id: string;
+  organizacion_id: string;
+  evento_id: string | null;
+  creado_por: string;
   titulo: string;
-  categoria: ManualCategory;
-  descripcion?: string;
-  version: string;
-  publicado: boolean;
-  secciones: ManualSection[];
-  organizacion_id: UUID;
-  autor_id: UUID;
+  descripcion: string;
+  url_documento: string;
+  requiere_aceptacion: boolean;
   created_at: string;
-  updated_at?: string;
+  aceptaciones: ManualAceptacion[];
 }
 
-/**
- * Stub implementation — returns empty arrays until a backend endpoint
- * is available. Replace async functions with real apiClient calls.
- */
+export interface CreateManualPayload {
+  titulo: string;
+  descripcion: string;
+  url_documento: string;
+  requiere_aceptacion: boolean;
+  evento_id?: string;
+}
+
 export const manualsApi = {
-  list: async (_orgId: UUID): Promise<Manual[]> => {
-    return [];
+  list: async (orgId: string): Promise<Manual[]> => {
+    const { data } = await apiClient.get<Manual[]>(EP.ORG_MANUALES(orgId));
+    return data;
   },
 
-  get: async (_id: UUID): Promise<Manual | null> => {
-    return null;
+  get: async (id: string): Promise<Manual> => {
+    const { data } = await apiClient.get<Manual>(EP.MANUAL(id));
+    return data;
   },
 
-  create: async (_payload: Omit<Manual, "id" | "created_at">): Promise<Manual> => {
-    throw new Error("Manuals backend endpoint not yet implemented.");
+  create: async (orgId: string, payload: CreateManualPayload): Promise<Manual> => {
+    const { data } = await apiClient.post<Manual>(EP.ORG_MANUALES(orgId), payload);
+    return data;
+  },
+
+  accept: async (manualId: string): Promise<void> => {
+    await apiClient.post(EP.MANUAL_ACCEPT(manualId));
   },
 };

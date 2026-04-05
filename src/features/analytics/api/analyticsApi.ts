@@ -8,6 +8,16 @@ export interface DashboardStats {
   tasks_completed: number;
   tasks_pending: number;
   average_rating: number | null;
+  /** % voluntarios con ≥2 eventos aprobados en el periodo (sobre quienes tienen ≥1) */
+  volunteer_retention_pct: number | null;
+  /** Proxy: % asignaciones activas que culminan en tarea completada */
+  assignment_precision_pct: number | null;
+  /** Horas acreditadas en certificados (no revocados) en el periodo */
+  impact_hours_total: number;
+  /** Promedio segundos entre evidencia y revisión (entregas aprobadas) */
+  mtta_audit_seconds: number | null;
+  /** Skills nuevas en el periodo / voluntarios activos */
+  skills_new_avg_per_volunteer: number | null;
 }
 
 export interface DashboardComparison {
@@ -35,6 +45,11 @@ interface RawDashboardStats {
   total_tareas: number;
   tareas_completadas: number;
   promedio_calificacion: number | null;
+  tasa_retencion_voluntarios?: number | null;
+  precision_asignacion_pct?: number | null;
+  horas_impacto_acumuladas?: number;
+  mtta_auditoria_segundos?: number | null;
+  skills_nuevas_promedio_voluntario?: number | null;
 }
 
 interface RawDashboardComparison {
@@ -58,6 +73,11 @@ const toDashboardStats = (raw: RawDashboardStats): DashboardStats => {
     tasks_completed: tasksCompleted,
     tasks_pending: tasksPending,
     average_rating: raw.promedio_calificacion ?? null,
+    volunteer_retention_pct: raw.tasa_retencion_voluntarios ?? null,
+    assignment_precision_pct: raw.precision_asignacion_pct ?? null,
+    impact_hours_total: Number(raw.horas_impacto_acumuladas ?? 0),
+    mtta_audit_seconds: raw.mtta_auditoria_segundos ?? null,
+    skills_new_avg_per_volunteer: raw.skills_nuevas_promedio_voluntario ?? null,
   };
 };
 

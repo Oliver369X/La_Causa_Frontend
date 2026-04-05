@@ -81,6 +81,9 @@ export default function StaffPage() {
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Quién participa en la gestión y con qué rol (organizador, coordinador, admin…). Las invitaciones dependen de tus permisos.
           </p>
+          <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+            La junta directiva no es un rol aparte en la plataforma: el propietario y los administradores suelen cubrir esa gobernanza; invitá coordinadores u organizadores para delegar operación diaria.
+          </p>
         </div>
         {canManage && (
           <Button size="sm" onClick={() => setShowInvite(true)}>

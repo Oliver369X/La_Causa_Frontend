@@ -41,6 +41,17 @@ export const auditApi = {
     return data;
   },
 
+  /** CU20 — Solo eventos rbac.role.assign / rbac.role.create */
+  listRoleHistory: async (
+    orgId: string,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<AuditLog[]> => {
+    const { data } = await apiClient.get<AuditLog[]>(`/auditoria/${orgId}/roles`, {
+      params: { limit: opts.limit ?? 100, offset: opts.offset ?? 0 },
+    });
+    return data;
+  },
+
   listGlobal: async (filters: GlobalAuditFilters = {}): Promise<AuditLog[]> => {
     const { data } = await apiClient.get<AuditLog[]>("/admin/auditoria", {
       params: filters,

@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import { apiClient } from "@/shared/api/client";
 import { useAuthStore } from "@/shared/store/authStore";
 
@@ -54,6 +54,8 @@ export interface VolunteerMatchResult {
   skills_faltantes: string[];
   confianza: "high" | "medium" | "low";
   explanation?: string;
+  /** Sub-puntuaciones 0–100 (motor de ponderación explicable). */
+  breakdown?: Partial<Record<string, number>> | null;
 }
 
 export interface MatchResponse {
@@ -71,7 +73,25 @@ export const volunteersApi = {
   },
 
   match: async (payload: MatchRequest): Promise<MatchResponse> => {
-    const { data } = await mlClient.post<MatchResponse>("/match", payload);
-    return data;
+    try {
+      const { data } = await mlClient.post<MatchResponse>("/match", payload);
+      return data;
+    } catch (err: unknown) {
+      if (isAxiosError(err) && err.response?.data) {
+        const body = err.response.data as { detail?: unknown };
+        const d = body.detail;
+        if (Array.isArray(d)) {
+          const msg = d
+            .map(
+              (x: { loc?: (string | number)[]; msg?: string }) =>
+                `${(x.loc ?? []).join(".")}: ${x.msg ?? ""}`
+            )
+            .join("; ");
+          throw new Error(msg || "Error de validación (422)");
+        }
+        if (typeof d === "string") throw new Error(d);
+      }
+      throw err;
+    }
   },
 };

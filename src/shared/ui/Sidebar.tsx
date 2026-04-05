@@ -19,6 +19,9 @@ import {
   Award,
   History,
   Settings,
+  FileText,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
@@ -26,13 +29,17 @@ import { agentApi } from "@/features/agent/api/agentApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useTheme } from "@/shared/store/themeStore";
 import { cn } from "@/shared/utils/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
+
 import { clearAuthSessionCookie } from "@/shared/auth/sessionCookie";
 import { NotificationBell } from "@/features/communications/components/NotificationBell";
 import { usePermissions, type PermissionAction } from "@/shared/hooks/usePermissions";
 import { ORGANIZER_NAV_SECTIONS } from "@/shared/config/organizerNavConfig";
+import { useSidebarLayoutStore } from "@/shared/store/sidebarLayoutStore";
+import { OrgLogoBox } from "@/shared/ui/OrgLogoBox";
 
-const volunteerNavItems = [
+const volunteerNavItemsBase = [
   { href: "/dashboard",                icon: LayoutDashboard, label: "Dashboard"      },
   { href: "/dashboard/organizaciones", icon: Building2,       label: "Explorar orgs" },
   { href: "/dashboard/events",        icon: Calendar,        label: "Eventos"       },
@@ -40,7 +47,7 @@ const volunteerNavItems = [
   { href: "/dashboard/gamification",  icon: Trophy,          label: "Gamificación"   },
   { href: "/dashboard/temporadas",     icon: History,         label: "Temporadas"    },
   { href: "/dashboard/certificates",  icon: Award,           label: "Certificados"  },
-  { href: "/dashboard/gamification-lab", icon: Sparkles,    label: "Lab visual"    },
+  { href: "/dashboard/manuales",     icon: FileText,        label: "Manuales"      },
   { href: "/dashboard/settings",     icon: Settings,        label: "Mi Perfil"     },
 ];
 
@@ -50,6 +57,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const router   = useRouter();
   const { theme, toggle } = useTheme();
   const { user, logout, activeOrgId, setActiveOrg } = useAuthStore();
+  const setCollapsed = useSidebarLayoutStore((s) => s.setCollapsed);
   const { can } = usePermissions();
   const isVolunteer = user?.tipo === "voluntario";
   const canSeeGlobalAdmin = Boolean(user?.is_super_admin);
@@ -73,7 +81,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       return true;
     });
 
-  const navBase = isVolunteer ? volunteerNavItems : null;
+  const navBase = isVolunteer ? volunteerNavItemsBase : null;
   const showAgentQuickAccess = !isVolunteer && agentCanUse;
 
   const { data: volunteerOrgs = [] } = useQuery({
@@ -105,48 +113,69 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   };
 
   return (
-    <div className="flex flex-col h-full"
-         style={{ background: "var(--bg-subtle)", borderRight: "1px solid var(--border)" }}>
+    <div
+      className="flex h-full min-w-0 flex-col"
+      style={{ background: "var(--bg-subtle)", borderRight: "1px solid var(--border)" }}
+    >
 
-      {/* Logo */}
-      <div className="p-5 flex items-center justify-between"
-           style={{ borderBottom: "1px solid var(--border)" }}>
-        <Link href="/" className="flex items-center gap-2 font-semibold text-sm" onClick={onClose}>
-          <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 inline-block shrink-0" />
-          La Causa AI
-        </Link>
-        {onClose && (
-          <button onClick={onClose} className="p-1.5 rounded-lg opacity-60 hover:opacity-100 transition-opacity">
-            <X className="w-4 h-4" />
+      {/* Logo · ocultar (solo escritorio) · cerrar (drawer móvil) */}
+      <div className="p-4 sm:p-5" style={{ borderBottom: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-between gap-2">
+          <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-sm" onClick={onClose}>
+            <span className="inline-block h-6 w-6 shrink-0 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500" />
+            <span className="truncate">La Causa AI</span>
+          </Link>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-lg p-1.5 opacity-60 transition-opacity hover:opacity-100 md:hidden"
+              aria-label="Cerrar menú"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {!onClose && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold shadow-sm transition-[background,box-shadow] hover:opacity-95"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--bg-card)",
+              color: "var(--accent)",
+              boxShadow: "0 1px 2px rgba(0,0,0,.06)",
+            }}
+            title="Ocultar barra lateral"
+            aria-label="Ocultar barra lateral"
+          >
+            <PanelLeftClose className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+            <span>Ocultar panel lateral</span>
           </button>
         )}
       </div>
 
-      {/* Org / Perfil badge */}
+      {/* Org / Perfil */}
       <div className="p-4" style={{ borderBottom: "1px solid var(--border)" }}>
         {isVolunteer && volunteerOrgs.length > 0 ? (
           <div className="relative">
             <button
               onClick={() => setOrgDropdownOpen((v) => !v)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all"
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
             >
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--accent-soft)" }}>
-                <Building2 className="w-4 h-4" style={{ color: "var(--accent)" }} />
+              <OrgLogoBox logoUrl={selectedOrg?.logo_url} size="md" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{selectedOrg?.nombre ?? "Seleccionar organización"}</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>Organización</p>
-                <p className="text-sm font-medium truncate">
-                  {selectedOrg?.nombre ?? "Seleccionar..."}
-                </p>
-              </div>
-              <ChevronDown className={cn("w-4 h-4 shrink-0 transition-transform", orgDropdownOpen && "rotate-180")} style={{ color: "var(--text-muted)" }} />
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", orgDropdownOpen && "rotate-180")} style={{ color: "var(--text-muted)" }} />
             </button>
             {orgDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setOrgDropdownOpen(false)} aria-hidden />
                 <div
-                  className="absolute left-0 right-0 top-full mt-1 py-1 rounded-xl z-50 max-h-48 overflow-y-auto"
+                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-xl py-1"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}
                 >
                   {volunteerOrgs.map((org) => (
@@ -160,13 +189,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                           router.push(`/dashboard/organizaciones/${org.id}`);
                         }
                       }}
-                      className="w-full px-4 py-2 text-left text-sm hover:opacity-80"
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:opacity-90"
                       style={{
                         background: activeOrgId === org.id ? "var(--accent-soft)" : "transparent",
                         color: "var(--text)",
                       }}
                     >
-                      {org.nombre}
+                      <OrgLogoBox logoUrl={org.logo_url} size="sm" />
+                      <span className="min-w-0 flex-1 truncate">{org.nombre}</span>
                     </button>
                   ))}
                 </div>
@@ -174,23 +204,26 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
-               style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                 style={{ background: "var(--accent-soft)" }}>
-              {isVolunteer ? (
-                <Sparkles className="w-4 h-4" style={{ color: "var(--accent)" }} />
-              ) : (
-                <Building2 className="w-4 h-4" style={{ color: "var(--accent)" }} />
+          <div
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            {isVolunteer ? (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--accent-soft)" }}>
+                <Sparkles className="h-5 w-5" style={{ color: "var(--accent)" }} />
+              </div>
+            ) : (
+              <OrgLogoBox logoUrl={selectedOrg?.logo_url} size="md" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">
+                {isVolunteer ? "Voluntario" : selectedOrg?.nombre ?? "Sin organización"}
+              </p>
+              {isVolunteer && (
+                <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                  Perfil personal
+                </p>
               )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {isVolunteer ? "Voluntario" : "Organización"}
-              </p>
-              <p className="text-sm font-medium truncate">
-                {isVolunteer ? "Mi Perfil" : "Mi Organización"}
-              </p>
             </div>
           </div>
         )}
@@ -328,53 +361,185 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 }
 
 /* ─── Mobile top-bar ─────────────────────────────────────────────────── */
-export function MobileTopBar({ onOpen }: { onOpen: () => void }) {
+/** Portal a body + z muy alto: el <main> y capas fixed de las páginas no deben robar el clic al hamburguesa */
+export function MobileTopBar({ menuOpen, onToggleMenu }: { menuOpen: boolean; onToggleMenu: () => void }) {
   return (
     <header
-      className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 h-14"
-      style={{ background: "var(--bg-subtle)", borderBottom: "1px solid var(--border)" }}
+      className="pointer-events-auto md:hidden fixed inset-x-0 top-0 z-[10000] flex h-14 items-center justify-between border-b px-4 pt-[env(safe-area-inset-top)]"
+      style={{ background: "var(--bg)", borderColor: "var(--border)" }}
     >
-      <button onClick={onOpen} className="p-2" data-testid="sidebar-open">
-        <Menu className="w-5 h-5" />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleMenu();
+        }}
+        className="relative z-10 touch-manipulation rounded-lg p-2.5 [-webkit-tap-highlight-color:transparent] pointer-events-auto"
+        aria-expanded={menuOpen}
+        aria-label={menuOpen ? "Cerrar menú de navegación" : "Abrir menú de navegación"}
+        data-testid="sidebar-open"
+      >
+        <Menu className="h-5 w-5" style={{ color: "var(--text)" }} />
       </button>
-      <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-sm">
-        <span className="w-5 h-5 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 inline-block" />
-        La Causa AI
+      <Link href="/dashboard" className="flex min-w-0 flex-1 items-center justify-center gap-2 px-2 text-center text-sm font-semibold">
+        <span className="inline-block h-5 w-5 shrink-0 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500" />
+        <span className="truncate">La Causa AI</span>
       </Link>
-      <NotificationBell />
+      <div className="flex shrink-0 justify-end">
+        <NotificationBell />
+      </div>
     </header>
   );
 }
 
 /* ─── Main export ────────────────────────────────────────────────────── */
 export function Sidebar() {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileNavOpen = useSidebarLayoutStore((s) => s.mobileNavOpen);
+  const setMobileNavOpen = useSidebarLayoutStore((s) => s.setMobileNavOpen);
+  const toggleMobileNav = useSidebarLayoutStore((s) => s.toggleMobileNav);
+  const collapsed = useSidebarLayoutStore((s) => s.collapsed);
+  const setCollapsed = useSidebarLayoutStore((s) => s.setCollapsed);
+  /** Solo escritorio (md+): evita FAB duplicado con el menú hamburguesa en móvil */
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [navPortalReady, setNavPortalReady] = useState(false);
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => {
+      const next = mq.matches;
+      setIsDesktop(next);
+      if (!next) setCollapsed(false);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [setCollapsed]);
+  useLayoutEffect(() => {
+    setNavPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileNavOpen]);
+
   return (
     <>
-      {/* Desktop */}
-      <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-64 z-40">
+      <aside
+        className={cn(
+          "hidden md:flex md:flex-col fixed left-0 top-0 z-40 h-full w-64 max-w-[100vw]",
+          collapsed && "pointer-events-none"
+        )}
+        style={{
+          transform: collapsed ? "translateX(-100%)" : "translateX(0)",
+          transition: "transform 200ms ease-out",
+        }}
+        aria-hidden={collapsed}
+      >
         <SidebarContent />
       </aside>
-      {/* Mobile trigger */}
-      <MobileTopBar onOpen={() => setMobileOpen(true)} />
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex" onClick={() => setMobileOpen(false)}>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <aside className="relative w-72 h-full z-10" onClick={(e) => e.stopPropagation()}>
-            <SidebarContent onClose={() => setMobileOpen(false)} />
-          </aside>
-        </div>
-      )}
+      {/* Solo md+: en móvil el menú es el hamburguesa (drawer); nunca `flex` en base — rompía `max-md:hidden` */}
+      {isDesktop &&
+        collapsed &&
+        createPortal(
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCollapsed(false);
+            }}
+            className="pointer-events-auto fixed left-4 top-1/2 z-[9999] flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border touch-manipulation backdrop-blur-sm transition-all duration-200 hover:scale-[1.06] active:scale-95"
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border)",
+              color: "var(--accent)",
+              boxShadow: "0 4px 20px rgba(0,0,0,.08), 0 0 0 1px var(--accent-soft)",
+            }}
+            title="Mostrar barra lateral"
+            aria-label="Mostrar barra lateral"
+          >
+            <PanelLeft className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2.25} />
+          </button>,
+          document.body
+        )}
+      {navPortalReady &&
+        createPortal(
+          <MobileTopBar menuOpen={mobileNavOpen} onToggleMenu={toggleMobileNav} />,
+          document.body
+        )}
+      {/* Drawer en body: evita que el <main> (TopBar z-10, tarjetas) quede por encima del menú */}
+      {navPortalReady &&
+        mobileNavOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[10060] flex md:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú de navegación"
+            onClick={() => setMobileNavOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" aria-hidden />
+            <aside
+              id="mobile-sidebar-drawer"
+              className="relative z-10 flex h-full min-h-0 w-72 max-w-[85vw] flex-col shadow-2xl"
+              style={{
+                background: "var(--bg-subtle)",
+                borderRight: "1px solid var(--border)",
+                boxShadow: "4px 0 24px rgba(0,0,0,.12)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <SidebarContent onClose={() => setMobileNavOpen(false)} />
+            </aside>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
 
 export function TopBar({ title }: { title: string }) {
+  const collapsed = useSidebarLayoutStore((s) => s.collapsed);
+  const setCollapsed = useSidebarLayoutStore((s) => s.setCollapsed);
   return (
-    <header className="h-14 flex items-center justify-between px-4 md:px-6" style={{ borderBottom: "1px solid var(--border)" }}>
-      <h1 className="text-base font-semibold">{title}</h1>
-      <NotificationBell />
+    <header
+      className="relative z-10 flex h-14 items-center justify-between border-b px-4 md:px-6"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {/* En móvil el menú es solo el de MobileTopBar (layout); aquí no hamburguesa para no duplicar */}
+        {collapsed && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCollapsed(false);
+            }}
+            className="pointer-events-auto relative z-20 hidden shrink-0 touch-manipulation items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-semibold tracking-tight transition-colors hover:opacity-95 md:inline-flex"
+            style={{
+              color: "var(--accent)",
+              background: "var(--accent-soft)",
+              borderColor: "var(--border)",
+            }}
+            title="Mostrar barra lateral"
+            aria-label="Mostrar barra lateral"
+          >
+            <PanelLeft className="h-4 w-4 shrink-0" strokeWidth={2.25} />
+            <span className="hidden sm:inline">Menú</span>
+          </button>
+        )}
+        <h1 className="truncate text-base font-semibold">{title}</h1>
+      </div>
+      {/* En móvil la campana va solo en MobileTopBar (evita duplicar) */}
+      <div className="hidden md:block">
+        <NotificationBell />
+      </div>
     </header>
   );
 }

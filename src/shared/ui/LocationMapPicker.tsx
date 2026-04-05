@@ -55,8 +55,22 @@ export function LocationMapPicker({
 
   useEffect(() => {
     if (!mounted || typeof window === "undefined") return;
-    import("leaflet/dist/leaflet.css");
-    import("react-leaflet").then((mod) => {
+    let cancelled = false;
+
+    void Promise.all([import("leaflet/dist/leaflet.css"), import("leaflet")]).then(([, Lmod]) => {
+      if (cancelled) return;
+      const L = (Lmod as { default?: typeof import("leaflet") }).default ?? Lmod;
+      // Webpack/Next no resuelven las rutas por defecto de marker-icon.png / shadow.
+      delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+      const base = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images";
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: `${base}/marker-icon-2x.png`,
+        iconUrl: `${base}/marker-icon.png`,
+        shadowUrl: `${base}/marker-shadow.png`,
+      });
+      return import("react-leaflet");
+    }).then((mod) => {
+      if (cancelled || !mod) return;
       setLeafletComponents({
         MapContainer: mod.MapContainer as React.ComponentType<any>,
         TileLayer: mod.TileLayer as React.ComponentType<any>,
@@ -64,6 +78,10 @@ export function LocationMapPicker({
         Popup: mod.Popup as React.ComponentType<any>,
       });
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [mounted]);
 
   const handleClear = useCallback(() => {
@@ -131,7 +149,9 @@ export function LocationMapPicker({
           {value && (
             <Marker position={[value.lat, value.lng]}>
               <Popup>
-                Ubicación seleccionada: {value.lat.toFixed(5)}, {value.lng.toFixed(5)}
+                <span className="text-sm">
+                  Punto en el mapa: {value.lat.toFixed(5)}, {value.lng.toFixed(5)}
+                </span>
               </Popup>
             </Marker>
           )}
@@ -140,8 +160,7 @@ export function LocationMapPicker({
       {value && (
         <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
           <MapPin className="w-3 h-3 inline mr-1" />
-          {value.lat.toFixed(5)}, {value.lng.toFixed(5)}
-          {value.direccion && ` · ${value.direccion}`}
+          Coordenadas: {value.lat.toFixed(5)}, {value.lng.toFixed(5)}
         </p>
       )}
     </div>

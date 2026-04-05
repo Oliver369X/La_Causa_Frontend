@@ -39,6 +39,25 @@ export interface QuickReplyItem {
   send_text: string;
 }
 
+/** Adjunto ya subido vía /uploads/*; el backend lo envía al modelo multimodal. */
+export interface ChatAttachment {
+  kind: "image" | "document" | "audio";
+  url: string;
+  media_type?: string | null;
+}
+
+export interface AgentUsageSnapshot {
+  turn_prompt_tokens?: number | null;
+  turn_completion_tokens?: number | null;
+  turn_cost_usd?: number | null;
+  month_input_tokens: number;
+  month_output_tokens: number;
+  month_total_tokens: number;
+  month_cost_usd: number;
+  /** null = ilimitado */
+  month_quota_tokens?: number | null;
+}
+
 export interface ChatResponse {
   session_id: string;
   reply: string;
@@ -49,6 +68,7 @@ export interface ChatResponse {
   trace_id?: string;
   model_provider?: string;
   model_name?: string;
+  usage?: AgentUsageSnapshot | null;
 }
 
 export interface AgentAccessResponse {
@@ -58,6 +78,7 @@ export interface AgentAccessResponse {
 
 export interface ConversationSummary {
   session_id: string;
+  title?: string | null;
   created_at: string;
   updated_at: string;
   message_count: number;
@@ -87,10 +108,12 @@ export const agentApi = {
     sessionId: string | null,
     orgId: string | null,
     confirmed?: boolean,
-    confirmationId?: string
+    confirmationId?: string,
+    attachments?: ChatAttachment[]
   ): Promise<ChatResponse> => {
     const { data } = await agentClient.post<ChatResponse>("/chat", {
       message,
+      attachments: attachments ?? [],
       session_id: sessionId,
       org_id: orgId,
       confirmed: confirmed ?? false,
@@ -112,6 +135,31 @@ export const agentApi = {
     const params = orgId ? { org_id: orgId } : {};
     const { data } = await agentClient.get<ConversationMessagesResponse>(
       `/conversations/${encodeURIComponent(sessionId)}/messages`,
+      { params }
+    );
+    return data;
+  },
+
+  getUsage: async (orgId: string | null): Promise<AgentUsageSnapshot> => {
+    const params = orgId ? { org_id: orgId } : {};
+    const { data } = await agentClient.get<AgentUsageSnapshot>("/usage", { params });
+    return data;
+  },
+
+  deleteConversation: async (sessionId: string, orgId: string | null): Promise<void> => {
+    const params = orgId ? { org_id: orgId } : {};
+    await agentClient.delete(`/conversations/${encodeURIComponent(sessionId)}`, { params });
+  },
+
+  renameConversation: async (
+    sessionId: string,
+    title: string,
+    orgId: string | null
+  ): Promise<ConversationSummary> => {
+    const params = orgId ? { org_id: orgId } : {};
+    const { data } = await agentClient.patch<ConversationSummary>(
+      `/conversations/${encodeURIComponent(sessionId)}`,
+      { title },
       { params }
     );
     return data;

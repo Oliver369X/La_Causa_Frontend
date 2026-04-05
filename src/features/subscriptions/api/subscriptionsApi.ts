@@ -10,6 +10,8 @@ export interface Plan {
   precio_mensual: number;
   max_voluntarios: number;
   max_eventos: number;
+  /** Tope de tareas nuevas por mes calendario (organización). */
+  max_tareas_mes: number;
   caracteristicas: string[];
 }
 
@@ -23,6 +25,9 @@ export interface Subscription {
   auto_renovar: boolean;
   /** URL al comprobante en Stripe (hosted invoice) si existe */
   ultima_factura_url?: string | null;
+  limite_voluntarios_pactado?: number | null;
+  limite_eventos_pactado?: number | null;
+  limite_tareas_pactado?: number | null;
 }
 
 export interface SyncCheckoutPayload {
@@ -67,6 +72,7 @@ export const subscriptionsApi = {
         precio_mensual: number;
         max_voluntarios: number;
         max_eventos_mes: number;
+        max_tareas_mes?: number;
         funciones?: Record<string, unknown>;
       }>
     >(EP.PLANS);
@@ -77,6 +83,7 @@ export const subscriptionsApi = {
       precio_mensual: Number(plan.precio_mensual),
       max_voluntarios: plan.max_voluntarios,
       max_eventos: plan.max_eventos_mes,
+      max_tareas_mes: plan.max_tareas_mes ?? 200,
       caracteristicas: Object.keys(plan.funciones ?? {}),
     }));
   },

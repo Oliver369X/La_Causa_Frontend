@@ -26,8 +26,8 @@ interface SkillDraft {
 export default function MLLabPage() {
   const qc = useQueryClient();
   const { activeOrgId } = useAuthStore();
-  const { isSuperAdmin, can } = usePermissions();
-  const canUseLab = isSuperAdmin || can("managePlans");
+  const { isSuperAdmin } = usePermissions();
+  const canUseLab = isSuperAdmin;
 
   const [tipoEvento, setTipoEvento] = useState("workshop");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -133,7 +133,7 @@ export default function MLLabPage() {
         <div className="p-6 md:p-8">
           <Card className="p-6">
             <p className="text-sm">
-              Esta sección es solo para admin de organización o super-admin.
+              ML Lab es solo para super-administradores (pipeline, sintéticos, reentrenamiento). El matching en producción usa fase 1 desde el flujo de eventos/voluntarios.
             </p>
           </Card>
         </div>

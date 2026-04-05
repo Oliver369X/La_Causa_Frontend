@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Crown, Flag, FlaskConical, Gem, Rocket, Shuffle, Sparkles,
@@ -11,6 +12,8 @@ import CountUp from "react-countup";
 import confetti from "canvas-confetti";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Button } from "@/shared/ui/Button";
+import { Card } from "@/shared/ui/Card";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 import { ProgressCard, RewardCard, LockedState } from "@/shared/ui/gamification";
 import { useCelebrationStore } from "@/shared/store/celebrationStore";
 import {
@@ -142,7 +145,7 @@ function Podium({ ranks, theme }: { ranks: DemoRank[]; theme: ThemeId }) {
 }
 
 /* ── Main Page ─────────────────────────────────── */
-export default function GamificationLabPage() {
+function GamificationLabContent() {
   const [xpPercent, setXpPercent] = useState(42);
   const [prevXp, setPrevXp] = useState(42);
   const [streakDays, setStreakDays] = useState(7);
@@ -736,4 +739,30 @@ export default function GamificationLabPage() {
       </div>
     </>
   );
+}
+
+export default function GamificationLabPage() {
+  const { isSuperAdmin } = usePermissions();
+  if (!isSuperAdmin) {
+    return (
+      <>
+        <TopBar title="Lab visual de gamificación" />
+        <div className="p-6 md:p-8">
+          <Card className="p-6 max-w-lg">
+            <p className="text-sm" style={{ color: "var(--text)" }}>
+              Esta sección es solo para super-administradores de la plataforma (herramientas de desarrollo).
+            </p>
+            <Link
+              href="/dashboard/gamification"
+              className="mt-4 inline-block text-sm font-medium underline"
+              style={{ color: "var(--accent)" }}
+            >
+              Ir a Gamificación
+            </Link>
+          </Card>
+        </div>
+      </>
+    );
+  }
+  return <GamificationLabContent />;
 }

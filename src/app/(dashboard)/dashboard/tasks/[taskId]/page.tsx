@@ -17,6 +17,7 @@ import Link from "next/link";
 import { ArrowLeft, UserPlus, Clock, AlertTriangle, Check, X } from "lucide-react";
 import { formatDate } from "@/shared/utils/utils";
 import { useState } from "react";
+import { TaskInstructionsDisplay } from "@/features/tasks/ui/TaskInstructionsDisplay";
 
 const dificultadColors: Record<string, { bg: string; color: string }> = {
   baja: { bg: "rgba(34,197,94,.15)", color: "#22c55e" },
@@ -150,15 +151,9 @@ export default function TaskDetailPage() {
             </p>
           )}
 
-          {task.instrucciones && (
+          {task.instrucciones?.trim() && (
             <div className="mb-4">
-              <h4 className="font-medium text-sm mb-2">Instrucciones</h4>
-              <div
-                className="p-4 rounded-xl text-sm whitespace-pre-wrap"
-                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-              >
-                {task.instrucciones}
-              </div>
+              <TaskInstructionsDisplay text={task.instrucciones} heading="Instrucciones para voluntarios" />
             </div>
           )}
 

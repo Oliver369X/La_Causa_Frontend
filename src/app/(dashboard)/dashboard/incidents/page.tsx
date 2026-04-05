@@ -39,8 +39,16 @@ export default function IncidentsPage() {
   });
 
   const handleSubmit = async () => {
-    if (!form.titulo.trim() || !form.descripcion.trim() || !form.evento_id) {
-      setError("Título, descripción y evento son requeridos.");
+    if (!form.evento_id) {
+      setError("Selecciona un evento.");
+      return;
+    }
+    if (form.titulo.trim().length < 5) {
+      setError("El título debe tener al menos 5 caracteres.");
+      return;
+    }
+    if (form.descripcion.trim().length < 10) {
+      setError("La descripción debe tener al menos 10 caracteres.");
       return;
     }
     setSaving(true);
@@ -49,8 +57,16 @@ export default function IncidentsPage() {
       await incidentsApi.report({ ...form, evento_id: form.evento_id as UUID });
       setSuccess(true);
       setForm({ ...EMPTY, evento_id: "" });
-    } catch {
-      setError("Error al reportar el incidente. Intenta de nuevo.");
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string | Array<{ msg?: string }> } } };
+      const detail = axiosErr?.response?.data?.detail;
+      if (typeof detail === "string") {
+        setError(detail);
+      } else if (Array.isArray(detail)) {
+        setError(detail.map((d) => d.msg ?? "").join(". "));
+      } else {
+        setError("Error al reportar el incidente. Intenta de nuevo.");
+      }
     } finally {
       setSaving(false);
     }
@@ -104,23 +120,26 @@ export default function IncidentsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Título del incidente *</label>
+              <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Título del incidente * <span className="font-normal">(mín. 5 caracteres)</span></label>
               <input
                 value={form.titulo}
                 onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
                 placeholder="Resumen breve del problema"
+                minLength={5}
+                maxLength={200}
                 className="w-full h-9 px-3 text-sm rounded-lg outline-none"
                 style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Descripción *</label>
+              <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Descripción * <span className="font-normal">(mín. 10 caracteres)</span></label>
               <textarea
                 rows={4}
                 value={form.descripcion}
                 onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
                 placeholder="Describe el incidente con detalle: qué ocurrió, cuándo, quiénes estuvieron involucrados…"
+                minLength={10}
                 className="w-full px-3 py-2 text-sm rounded-lg outline-none resize-none"
                 style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
               />

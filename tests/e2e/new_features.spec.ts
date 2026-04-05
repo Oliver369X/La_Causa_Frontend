@@ -22,6 +22,8 @@ const MOCK_USER = {
   nombre: "Admin Demo",
   is_active: true,
   rol: "admin",
+  tipo: "organizador",
+  is_super_admin: false,
 };
 const MOCK_ORG_ID = "org-demo-001";
 const MOCK_EVENT_ID = "ev-demo-001";
@@ -369,6 +371,65 @@ async function mockBackendApis(page: Page) {
     if (url.includes("/organizaciones"))
       return route.fulfill({ json: [{ id: MOCK_ORG_ID, nombre: "Fundación Demo", descripcion: "Org de prueba" }] });
 
+    if (url.includes("/permisos/mis"))
+      return route.fulfill({
+        json: {
+          permisos: ["view_events", "create_events", "assign_tasks", "view_members", "view_analytics"],
+          es_propietario: true,
+        },
+      });
+
+    if (url.includes("/mis-obligaciones-feedback"))
+      return route.fulfill({
+        json: [{ evento_id: MOCK_EVENT_ID, tipo: "ml_eval", estado: "pendiente" }],
+      });
+
+    if (url.includes(`/eventos/${MOCK_EVENT_ID}/solicitudes`) && method === "GET")
+      return route.fulfill({
+        json: [
+          {
+            id: "s1",
+            usuario_id: MOCK_USER.id,
+            usuario_nombre: MOCK_USER.nombre,
+            usuario_email: MOCK_USER.email,
+            evento_id: MOCK_EVENT_ID,
+            estado: "aprobado",
+            fecha_solicitud: "2026-01-01T00:00:00",
+            fecha_respuesta: "2026-01-02T00:00:00",
+            mensaje_solicitud: null,
+            nota_interna_organizador: null,
+            horas_acreditadas: 0,
+            calificacion: null,
+          },
+        ],
+      });
+
+    if (
+      url.includes(`/eventos/${MOCK_EVENT_ID}`) &&
+      method === "GET" &&
+      !url.includes("solicitudes") &&
+      !url.includes("mis-obligaciones")
+    )
+      return route.fulfill({
+        json: {
+          id: MOCK_EVENT_ID,
+          titulo: "Maratón Solidaria",
+          descripcion: "Evento demo",
+          fecha_inicio: "2026-03-01T09:00:00",
+          fecha_fin: "2026-03-01T13:00:00",
+          estado: "finalizado",
+          cupo_maximo: 100,
+          organizacion_id: MOCK_ORG_ID,
+          creador_id: null,
+          ubicacion_geo: null,
+          created_at: "2026-01-01T00:00:00",
+          updated_at: "2026-01-01T00:00:00",
+        },
+      });
+
+    if (url.includes("/api/feedback") && method === "POST")
+      return route.fulfill({ json: { total_labeled_matches: 1 } });
+
     if (url.includes("/eventos") && method === "GET")
       return route.fulfill({
         json: [
@@ -477,21 +538,19 @@ test("CU18 › Flujo 3 › Ver incidencias con distintos estados", async ({ page
 // CU19 — FLUJO: Retroalimentación / Retrospectiva
 // ═════════════════════════════════════════════════════════════════════════════
 
-test("CU19 › Flujo 1 › Ver página de retroalimentación", async ({ page }) => {
+test("CU19 › Flujo 1 › Ver página de retroalimentación ML por evento", async ({ page }) => {
   await setAuthenticated(page);
   await mockBackendApis(page);
 
-  await page.goto("/dashboard/retrospectives");
+  await page.goto(`/dashboard/events/${MOCK_EVENT_ID}/feedback-ml`);
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(800);
 
-  // Primera visita compila la página; recargar para el resultado final
   await page.reload();
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(600);
 
-  const h1 = page.locator("h1").first();
-  await expect(h1).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Evaluación post-evento/i })).toBeVisible();
   await page.waitForTimeout(500);
 });
 
@@ -499,27 +558,16 @@ test("CU19 › Flujo 2 › Rellenar formulario de retroalimentación con puntaje
   await setAuthenticated(page);
   await mockBackendApis(page);
 
-  await page.goto("/dashboard/retrospectives");
+  await page.goto(`/dashboard/events/${MOCK_EVENT_ID}/feedback-ml`);
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(500);
 
-  // Rellenar ID del evento
-  const inputs = page.locator("input");
-  const firstInput = inputs.first();
-  await firstInput.fill(MOCK_EVENT_ID);
+  await page.locator("select").first().selectOption({ index: 1 });
   await page.waitForTimeout(400);
 
-  // Si hay un segundo input (voluntario ID), rellenarlo
-  if (await inputs.count() > 1) {
-    await inputs.nth(1).fill(MOCK_USER.id);
-    await page.waitForTimeout(400);
-  }
-
-  // Scroll para ver el resto del formulario
   await page.evaluate(() => window.scrollTo({ top: 300, behavior: "smooth" }));
   await page.waitForTimeout(600);
 
-  // Verificar textarea para comentarios
   const textarea = page.locator("textarea");
   if (await textarea.count() > 0) {
     await textarea.fill("El voluntario demostró excelente compromiso y capacidad de trabajo bajo presión");
@@ -529,38 +577,19 @@ test("CU19 › Flujo 2 › Rellenar formulario de retroalimentación con puntaje
   await page.waitForTimeout(600);
 });
 
-test("CU19 › Flujo 3 › Explorar el formulario de selección de habilidades demostradas", async ({ page }) => {
+test("CU19 › Flujo 3 › Slider de puntaje visible en feedback ML", async ({ page }) => {
   await setAuthenticated(page);
   await mockBackendApis(page);
 
-  await page.goto("/dashboard/retrospectives");
+  await page.goto(`/dashboard/events/${MOCK_EVENT_ID}/feedback-ml`);
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(500);
 
-  // Scroll al área de habilidades si existe
-  await page.evaluate(() => window.scrollTo({ top: 400, behavior: "smooth" }));
-  await page.waitForTimeout(700);
-
-  // Buscar checkboxes o botones togglables de habilidades
-  const checkboxes = page.locator("input[type=checkbox]");
-  if (await checkboxes.count() > 0) {
-    for (const cb of await checkboxes.all()) {
-      if (await cb.isVisible()) {
-        await cb.click();
-        await page.waitForTimeout(200);
-      }
-    }
+  await expect(page.getByText("Puntaje de rendimiento")).toBeVisible();
+  const slider = page.locator('input[type="range"]');
+  if (await slider.count() > 0) {
+    await slider.first().fill("8");
   }
-
-  // Buscar botones de habilidades togglables
-  const skillBtns = page.locator("button").filter({ hasText: /python|comunicación|liderazgo/i });
-  for (const btn of await skillBtns.all()) {
-    if (await btn.isVisible()) {
-      await btn.click();
-      await page.waitForTimeout(200);
-    }
-  }
-
   await page.waitForTimeout(600);
 });
 

@@ -47,7 +47,33 @@ export default function AuditPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex flex-col gap-3 mb-6">
+          <div className="flex flex-wrap gap-2">
+            {([
+              { label: "Todos", value: "" },
+              { label: "Asig. roles", value: "rbac.role.assign" },
+              { label: "Crear rol", value: "rbac.role.create" },
+              { label: "Eventos", value: "event." },
+              { label: "Tareas", value: "task." },
+              { label: "Usuarios", value: "user." },
+            ] as const).map((chip) => {
+              const active = actionFilter === chip.value;
+              return (
+                <button
+                  key={chip.value}
+                  onClick={() => setActionFilter(chip.value)}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+                  style={{
+                    background: active ? "var(--accent)" : "var(--bg-subtle)",
+                    color: active ? "#fff" : "var(--text-muted)",
+                    border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
+                  }}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
             <input

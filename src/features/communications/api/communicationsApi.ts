@@ -15,6 +15,8 @@ export interface Notification {
   leida?: boolean;
   estado?: string;
   url_accion?: string;
+  entidad_tipo?: string | null;
+  entidad_id?: string | null;
   created_at: string;
 }
 
@@ -40,6 +42,8 @@ function normalizeNotification(raw: Record<string, unknown>): Notification {
     leida,
     estado: raw.estado as string | undefined,
     url_accion: raw.url_accion as string | undefined,
+    entidad_tipo: (raw.entidad_tipo as string | null | undefined) ?? null,
+    entidad_id: (raw.entidad_id as string | null | undefined) ?? null,
     created_at: raw.created_at as string,
   };
 }

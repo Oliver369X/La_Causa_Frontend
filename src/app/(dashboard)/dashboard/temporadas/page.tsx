@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { History, Calendar, Trophy, Lock, Clock, CheckCircle } from "lucide-react";
+import { History, Calendar, Trophy, Lock, Clock, CheckCircle, Plus } from "lucide-react";
 import { gamificationApi, type Season, type HistoricalRankingEntry } from "@/features/gamification/api/gamificationApi";
+import { useAuthStore } from "@/shared/store/authStore";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
@@ -32,7 +33,23 @@ function seasonProgress(season: Season): number {
   return Math.round(((now - start) / (end - start)) * 100);
 }
 
+function todayIsoDate(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function apiErrorDetail(err: unknown): string {
+  const d = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof d === "string" ? d : "No se pudo completar la operación.";
+}
+
 export default function TemporadasPage() {
+  const { activeOrgId, user } = useAuthStore();
+  const isOrganizer = user?.tipo === "organizador";
+
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [historicalRanking, setHistoricalRanking] = useState<HistoricalRankingEntry[]>([]);
@@ -40,18 +57,28 @@ export default function TemporadasPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [closingId, setClosingId] = useState<string | null>(null);
 
+  const [nombre, setNombre] = useState("");
+  const [fechaInicio, setFechaInicio] = useState(todayIsoDate);
+  const [duracionMeses, setDuracionMeses] = useState(12);
+  const [useFechaFin, setUseFechaFin] = useState(false);
+  const [fechaFin, setFechaFin] = useState("");
+  const [creating, setCreating] = useState(false);
+
   const refreshSeasons = () => {
-    gamificationApi.getSeasons()
+    gamificationApi
+      .getSeasons(activeOrgId ?? undefined)
       .then(setSeasons)
       .catch(() => {});
   };
 
   useEffect(() => {
-    gamificationApi.getSeasons()
+    setLoading(true);
+    gamificationApi
+      .getSeasons(activeOrgId ?? undefined)
       .then(setSeasons)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeOrgId]);
 
   useEffect(() => {
     if (!selectedSeasonId) {
@@ -75,10 +102,35 @@ export default function TemporadasPage() {
       toast.success("Temporada cerrada. Ranking guardado, ELO con reset suave.");
       refreshSeasons();
       if (selectedSeasonId === seasonId) setSelectedSeasonId(null);
-    } catch {
-      toast.error("No se pudo cerrar la temporada.");
+    } catch (e) {
+      toast.error(apiErrorDetail(e));
     } finally {
       setClosingId(null);
+    }
+  };
+
+  const handleCreateSeason = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!activeOrgId || !nombre.trim()) return;
+    setCreating(true);
+    try {
+      await gamificationApi.createSeason({
+        nombre: nombre.trim(),
+        organizacion_id: activeOrgId,
+        fecha_inicio: fechaInicio,
+        ...(useFechaFin && fechaFin ? { fecha_fin: fechaFin } : { duracion_meses: duracionMeses }),
+      });
+      toast.success("Temporada creada.");
+      setNombre("");
+      setFechaInicio(todayIsoDate());
+      setDuracionMeses(12);
+      setUseFechaFin(false);
+      setFechaFin("");
+      refreshSeasons();
+    } catch (err) {
+      toast.error(apiErrorDetail(err));
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -96,16 +148,110 @@ export default function TemporadasPage() {
             Temporadas y ranking histórico
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Consulta el ranking histórico por temporada. Las temporadas activas muestran progreso y countdown.
+            Crea temporadas para tu organización, consulta el ranking histórico y cierra la temporada al finalizar el ciclo.
           </p>
         </motion.div>
+
+        {isOrganizer && !activeOrgId && (
+          <div
+            className="rounded-xl p-4 text-sm"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+          >
+            Selecciona una organización en la barra superior para gestionar temporadas y crear una nueva.
+          </div>
+        )}
+
+        {isOrganizer && activeOrgId && (
+          <motion.form
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={motionSpring.tab}
+            onSubmit={handleCreateSeason}
+            className="rounded-2xl p-5 space-y-4"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <h2 className="font-semibold flex items-center gap-2 text-sm">
+              <Plus className="w-4 h-4" style={{ color: "var(--g-progreso)" }} />
+              Nueva temporada
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+              <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                Nombre
+                <input
+                  required
+                  value={nombre}
+                  onChange={(ev) => setNombre(ev.target.value)}
+                  placeholder="Ej. Verano 2026"
+                  className="rounded-lg px-3 py-2 text-sm w-full"
+                  style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  maxLength={100}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                Fecha de inicio
+                <input
+                  type="date"
+                  required
+                  value={fechaInicio}
+                  onChange={(ev) => setFechaInicio(ev.target.value)}
+                  className="rounded-lg px-3 py-2 text-sm w-full"
+                  style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+              </label>
+              {!useFechaFin ? (
+                <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  Duración (meses)
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={duracionMeses}
+                    onChange={(ev) => setDuracionMeses(Number(ev.target.value) || 12)}
+                    className="rounded-lg px-3 py-2 text-sm w-full tabular-nums"
+                    style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  />
+                </label>
+              ) : (
+                <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  Fecha de fin
+                  <input
+                    type="date"
+                    required={useFechaFin}
+                    value={fechaFin}
+                    onChange={(ev) => setFechaFin(ev.target.value)}
+                    className="rounded-lg px-3 py-2 text-sm w-full"
+                    style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  />
+                </label>
+              )}
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                <Button type="submit" loading={creating} disabled={!nombre.trim()} className="w-full sm:w-auto">
+                  Crear temporada
+                </Button>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-muted)" }}>
+              <input
+                type="checkbox"
+                checked={useFechaFin}
+                onChange={(ev) => setUseFechaFin(ev.target.checked)}
+                className="rounded"
+              />
+              Definir fecha de fin en lugar de duración en meses
+            </label>
+          </motion.form>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-20"><Spinner size="lg" /></div>
         ) : seasons.length === 0 ? (
           <EmptyState
             title="Sin temporadas"
-            description="Aún no hay temporadas configuradas. Las temporadas se crean desde la gamificación."
+            description={
+              isOrganizer && activeOrgId
+                ? "Usa el formulario de arriba para crear la primera temporada de la organización."
+                : "No hay temporadas que coincidan con el filtro actual o aún no se han registrado."
+            }
           />
         ) : (
           <>

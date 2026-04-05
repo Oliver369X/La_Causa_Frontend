@@ -41,6 +41,8 @@ export const EP = {
 
   // ── Uploads ─────────────────────────────────────────────────────────
   UPLOAD_IMAGE:        "/uploads/imagen",
+  UPLOAD_DOCUMENT:     "/uploads/documento",
+  UPLOAD_AUDIO:        "/uploads/audio",
 
   // ── Events ──────────────────────────────────────────────────────────
   EVENTS:              "/eventos",
@@ -89,6 +91,11 @@ export const EP = {
   SEASON_CLOSE:        (id: string) => `/temporadas/${id}/cerrar`,
   EVENT_MEDALS:        (eventId: string) => `/eventos/${eventId}/medallas`,
   EVENT_MEDALS_AWARD:  (eventId: string) => `/eventos/${eventId}/medallas/otorgar`,
+
+  // ── Manuales ──────────────────────────────────────────────────────────
+  ORG_MANUALES:    (orgId: string) => `/organizaciones/${orgId}/manuales`,
+  MANUAL:          (id: string) => `/manuales/${id}`,
+  MANUAL_ACCEPT:   (id: string) => `/manuales/${id}/aceptar`,
 
   // ── Incidencias ───────────────────────────────────────────────────────
   INCIDENCIAS:         "/incidencias",

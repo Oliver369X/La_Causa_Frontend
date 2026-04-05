@@ -28,6 +28,8 @@ export interface Event {
   fecha_inicio: string;
   fecha_fin: string;
   cupo_maximo: number;
+  /** Campaña o proyecto (agrupación lógica, sin entidad separada). */
+  campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
   created_at?: string;
   updated_at?: string;
@@ -40,6 +42,7 @@ export interface CreateEventData {
   fecha_inicio: string;
   fecha_fin: string;
   cupo_maximo: number;
+  campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
 }
 
@@ -50,6 +53,7 @@ export interface UpdateEventData {
   fecha_inicio?: string;
   fecha_fin?: string;
   cupo_maximo?: number;
+  campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
 }
 
@@ -63,6 +67,7 @@ interface BackendEvent {
   fecha_inicio: string;
   fecha_fin: string;
   cupo_maximo: number;
+  campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
   created_at?: string;
   updated_at?: string;
@@ -79,6 +84,7 @@ function toEvent(dto: BackendEvent): Event {
     fecha_inicio: dto.fecha_inicio,
     fecha_fin: dto.fecha_fin,
     cupo_maximo: dto.cupo_maximo,
+    campana: dto.campana ?? undefined,
     ubicacion_geo: dto.ubicacion_geo,
     created_at: dto.created_at,
     updated_at: dto.updated_at,
@@ -130,6 +136,7 @@ export const eventsApi = {
       fecha_inicio: payload.fecha_inicio,
       fecha_fin: payload.fecha_fin,
       cupo_maximo: payload.cupo_maximo,
+      campana: payload.campana?.trim() || null,
       ubicacion_geo: payload.ubicacion_geo,
     });
     return toEvent(data);
@@ -143,6 +150,7 @@ export const eventsApi = {
     if (payload.fecha_inicio != null) body.fecha_inicio = payload.fecha_inicio;
     if (payload.fecha_fin != null) body.fecha_fin = payload.fecha_fin;
     if (payload.cupo_maximo != null) body.cupo_maximo = payload.cupo_maximo;
+    if (payload.campana !== undefined) body.campana = payload.campana?.trim() || null;
     if (payload.ubicacion_geo != null) body.ubicacion_geo = payload.ubicacion_geo;
     const { data } = await apiClient.put<BackendEvent>(`/eventos/${eventId}`, body);
     return toEvent(data);
@@ -153,5 +161,19 @@ export const eventsApi = {
       estado,
     });
     return toEvent(data);
+  },
+
+  getMyFeedbackObligations: async (
+    eventId: string
+  ): Promise<Array<{ evento_id: string; tipo: string; estado: string }>> => {
+    const { data } = await apiClient.get(`/eventos/${eventId}/mis-obligaciones-feedback`);
+    return data;
+  },
+
+  submitVoluntarioRetro: async (
+    eventId: string,
+    payload: { que_bien: string; que_mejorar: string; accion: string }
+  ): Promise<void> => {
+    await apiClient.post(`/eventos/${eventId}/retro-voluntario`, payload);
   },
 };

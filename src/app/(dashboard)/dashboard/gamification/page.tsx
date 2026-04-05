@@ -12,6 +12,7 @@ import { GamificationSkeleton } from "@/shared/ui/Skeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ProfileBanner } from "@/features/gamification/ui/ProfileBanner";
 import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
+import { GamificationSoundPanel } from "@/features/gamification/ui/GamificationSoundPanel";
 import { RewardCard, ProgressCard } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
 
@@ -109,6 +110,8 @@ export default function GamificationPage() {
           </Link>
         )}
       </motion.div>
+
+      <GamificationSoundPanel />
 
       {loading ? (
         <GamificationSkeleton />

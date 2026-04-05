@@ -13,6 +13,7 @@ export interface Task {
   fecha_inicio?: string;
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
+  requiere_revision_manual?: boolean;
   created_at?: string;
 }
 
@@ -28,6 +29,7 @@ export interface CreateTaskData {
   fecha_inicio?: string;
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
+  requiere_revision_manual?: boolean;
 }
 
 type BackendTaskStatus = "pendiente" | "en_progreso" | "revision" | "completada" | "bloqueada";
@@ -44,6 +46,7 @@ interface BackendTask {
   fecha_inicio?: string;
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
+  requiere_revision_manual?: boolean;
   created_at?: string;
 }
 
@@ -74,6 +77,7 @@ function toTask(dto: BackendTask): Task {
     fecha_inicio: dto.fecha_inicio,
     fecha_vencimiento: dto.fecha_vencimiento,
     multiplicador_elo: dto.multiplicador_elo ?? 1,
+    requiere_revision_manual: dto.requiere_revision_manual ?? false,
     created_at: dto.created_at,
   };
 }
@@ -154,6 +158,7 @@ export const tasksApi = {
       fecha_inicio: payload.fecha_inicio,
       fecha_vencimiento: payload.fecha_vencimiento,
       multiplicador_elo: payload.multiplicador_elo ?? 1,
+      requiere_revision_manual: payload.requiere_revision_manual ?? false,
     });
     return toTask(data);
   },

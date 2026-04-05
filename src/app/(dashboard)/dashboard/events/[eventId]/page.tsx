@@ -280,9 +280,45 @@ export default function EventDetailPage() {
                 {event.ubicacion_geo.direccion || `${event.ubicacion_geo?.lat?.toFixed(5)}, ${event.ubicacion_geo?.lng?.toFixed(5)}`}
               </div>
             )}
-            <div className="flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
-              <Users className="w-4 h-4 shrink-0" />
-              {approvedCount}/{event.cupo_maximo} voluntarios aprobados
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
+                <Users className="w-4 h-4 shrink-0" />
+                <span>{approvedCount}/{event.cupo_maximo} voluntarios aprobados</span>
+                {approvedCount < event.cupo_maximo ? (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-xs font-medium"
+                    style={{ color: "#b45309", background: "rgba(245, 158, 11, 0.12)" }}
+                  >
+                    Faltan {event.cupo_maximo - approvedCount} voluntarios
+                  </span>
+                ) : (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-xs font-medium"
+                    style={{ color: "#15803d", background: "rgba(34, 197, 94, 0.12)" }}
+                  >
+                    Cupo completo
+                  </span>
+                )}
+              </div>
+              <div
+                className="h-1.5 rounded-full overflow-hidden ml-6"
+                style={{ background: "var(--bg-subtle)" }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min((approvedCount / event.cupo_maximo) * 100, 100)}%`,
+                    background: approvedCount >= event.cupo_maximo
+                      ? "#22c55e"
+                      : "linear-gradient(90deg, #f59e0b, #f97316)",
+                  }}
+                />
+              </div>
+              {pendingCount > 0 && (
+                <p className="text-xs ml-6" style={{ color: "var(--text-muted)" }}>
+                  {pendingCount} solicitudes pendientes
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
               <ListTodo className="w-4 h-4 shrink-0" />

@@ -1,11 +1,25 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { analyticsApi } from "@/features/analytics/api/analyticsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { GamificationPanel, ReporteDinamicoWidget, TaskAssignmentWidget } from "@/widgets";
-import { BarChart3, CheckSquare, Calendar, Users, Compass, Sparkles, Building2 } from "lucide-react";
+import {
+  BarChart3,
+  CheckSquare,
+  Calendar,
+  Users,
+  Compass,
+  Sparkles,
+  Building2,
+  Repeat2,
+  Target,
+  Clock,
+  GraduationCap,
+  Timer,
+} from "lucide-react";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { skillsApi } from "@/features/skills/api/skillsApi";
 import { buildVolunteerOnboardingProgress } from "@/features/onboarding/lib/volunteerOnboarding";
@@ -20,9 +34,22 @@ export default function DashboardPage() {
   const isVolunteer = user?.tipo === "voluntario";
   const isOrganizer = user?.tipo === "organizador";
 
+  const organizerDashRange = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    return {
+      start: `${start.toISOString().slice(0, 10)}T00:00:00`,
+      end: `${end.toISOString().slice(0, 10)}T23:59:59`,
+    };
+  }, []);
+
   const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats", activeOrgId],
-    queryFn: () => analyticsApi.dashboard(activeOrgId!),
+    queryKey: ["dashboard-stats", activeOrgId, isOrganizer ? organizerDashRange.start : "all"],
+    queryFn: () =>
+      isOrganizer
+        ? analyticsApi.dashboard(activeOrgId!, organizerDashRange.start, organizerDashRange.end)
+        : analyticsApi.dashboard(activeOrgId!),
     enabled: !!activeOrgId,
   });
 
@@ -102,6 +129,62 @@ export default function DashboardPage() {
     { label: "Eventos", value: stats?.total_events ?? 0, icon: Calendar, color: "text-purple-400" },
     { label: "Tareas", value: stats?.total_tasks ?? 0, icon: CheckSquare, color: "text-green-400" },
     { label: "Completadas", value: stats?.tasks_completed ?? 0, icon: BarChart3, color: "text-amber-400" },
+  ];
+
+  const fmtMtta = (seconds: number | null | undefined) => {
+    if (seconds == null || !Number.isFinite(seconds)) return "—";
+    if (seconds < 60) return `${seconds.toFixed(1)} s`;
+    return `${(seconds / 60).toFixed(1)} min`;
+  };
+
+  const kpiCards = [
+    {
+      label: "Retención voluntarios",
+      sub: "≥2 eventos / con ≥1 en el periodo",
+      value:
+        stats?.volunteer_retention_pct != null
+          ? `${stats.volunteer_retention_pct.toFixed(1)}%`
+          : "—",
+      icon: Repeat2,
+      color: "text-cyan-400",
+    },
+    {
+      label: "Precisión asignación",
+      sub: "Completadas exitosas / asignaciones activas",
+      value:
+        stats?.assignment_precision_pct != null
+          ? `${stats.assignment_precision_pct.toFixed(1)}%`
+          : "—",
+      icon: Target,
+      color: "text-rose-400",
+    },
+    {
+      label: "Horas de impacto",
+      sub: "Certificados (no revocados)",
+      value: (stats?.impact_hours_total ?? 0).toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1,
+      }),
+      icon: Clock,
+      color: "text-emerald-400",
+    },
+    {
+      label: "MTTA auditoría",
+      sub: "Media evidencia → revisión",
+      value: fmtMtta(stats?.mtta_audit_seconds),
+      icon: Timer,
+      color: "text-orange-400",
+    },
+    {
+      label: "Skills / voluntario",
+      sub: "Nuevas skills registradas / voluntarios activos (ventana actual)",
+      value:
+        stats?.skills_new_avg_per_volunteer != null
+          ? stats.skills_new_avg_per_volunteer.toFixed(2)
+          : "—",
+      icon: GraduationCap,
+      color: "text-indigo-400",
+    },
   ];
 
   return (
@@ -229,7 +312,7 @@ export default function DashboardPage() {
                     {organizerOrg?.nombre ?? "Resumen operativo"}
                   </h1>
                   <p className="text-sm mt-2 max-w-2xl" style={{ color: "var(--text-muted)" }}>
-                    Métricas de tu equipo, tareas y reportes de la organización activa. Los voluntarios ven un inicio distinto, centrado en su perfil y causas.
+                    Métricas de tu equipo, tareas y reportes de la organización activa (últimos 30 días). Los voluntarios ven un inicio distinto, centrado en su perfil y causas.
                   </p>
                 </div>
               </div>
@@ -264,7 +347,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
               {statCards.map((card) => (
                 <div
                   key={card.label}
@@ -278,6 +361,36 @@ export default function DashboardPage() {
                   <p className="text-3xl font-bold">{card.value}</p>
                 </div>
               ))}
+            </div>
+
+            <div className="mb-8">
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+                KPIs estratégicos
+              </p>
+              <p className="text-xs mb-4 max-w-4xl" style={{ color: "var(--text-muted)" }}>
+                Métricas alineadas a retención, calidad de asignación, impacto auditado, tiempo de revisión y desarrollo de
+                habilidades (misma ventana de 30 días que el resumen superior). Ajusta el rango en Reporte dinámico.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+                {kpiCards.map((k) => (
+                  <div
+                    key={k.label}
+                    className="p-4 rounded-2xl transition-colors hover:opacity-90"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-medium leading-tight" style={{ color: "var(--text-muted)" }}>
+                        {k.label}
+                      </p>
+                      <k.icon className={`w-4 h-4 shrink-0 ${k.color}`} />
+                    </div>
+                    <p className="text-2xl font-bold tabular-nums mb-1">{k.value}</p>
+                    <p className="text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                      {k.sub}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Widgets row */}

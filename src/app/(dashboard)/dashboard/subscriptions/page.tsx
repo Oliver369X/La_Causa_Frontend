@@ -144,16 +144,34 @@ export default function SubscriptionsPage() {
       {/* Current subscription */}
       {subscription && (
         <div
-          className="rounded-2xl p-4 flex items-center gap-4"
+          className="rounded-2xl p-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4"
           style={{ background: "rgba(168,85,247,.08)", border: "1px solid rgba(168,85,247,.3)" }}
         >
-          <CreditCard className="w-5 h-5 shrink-0" style={{ color: "#a855f7" }} />
-          <div>
+          <CreditCard className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#a855f7" }} />
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Plan activo</p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               Estado: <Badge label={subscription.estado} variant={subscription.estado === "activa" ? "success" : "warning"} />
               &nbsp;·&nbsp;Desde {new Date(subscription.fecha_inicio).toLocaleDateString("es-ES")}
               {subscription.fecha_fin && ` · Hasta ${new Date(subscription.fecha_fin).toLocaleDateString("es-ES")}`}
+            </p>
+            {(subscription.limite_voluntarios_pactado != null ||
+              subscription.limite_eventos_pactado != null ||
+              subscription.limite_tareas_pactado != null) && (
+              <ul className="text-xs mt-3 space-y-1 list-disc list-inside" style={{ color: "var(--text-muted)" }}>
+                {subscription.limite_voluntarios_pactado != null && (
+                  <li>Hasta {subscription.limite_voluntarios_pactado} miembros activos en la organización</li>
+                )}
+                {subscription.limite_eventos_pactado != null && (
+                  <li>Hasta {subscription.limite_eventos_pactado} eventos creados por mes calendario</li>
+                )}
+                {subscription.limite_tareas_pactado != null && (
+                  <li>Hasta {subscription.limite_tareas_pactado} tareas creadas por mes calendario</li>
+                )}
+              </ul>
+            )}
+            <p className="text-[11px] mt-2 leading-snug" style={{ color: "var(--text-muted)" }}>
+              Si al invitar, crear eventos o tareas ves un error 403, revisá estos límites o actualizá el plan.
             </p>
             {subscription.ultima_factura_url && (
               <a
@@ -215,7 +233,8 @@ export default function SubscriptionsPage() {
                 <ul className="space-y-1.5 mb-5">
                   {[
                     `Hasta ${plan.max_voluntarios} voluntarios`,
-                    `Hasta ${plan.max_eventos} eventos`,
+                    `Hasta ${plan.max_eventos} eventos por mes`,
+                    `Hasta ${plan.max_tareas_mes} tareas por mes`,
                     ...plan.caracteristicas,
                   ].map((f) => (
                     <li key={f} className="flex items-center gap-2 text-xs">

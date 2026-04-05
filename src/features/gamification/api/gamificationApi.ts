@@ -98,6 +98,17 @@ export interface Season {
   fecha_inicio: string;
   fecha_fin: string;
   activa: boolean;
+  created_at?: string;
+}
+
+/** Cuerpo de POST /temporadas (SeasonCreateRequest en backend). */
+export interface SeasonCreatePayload {
+  nombre: string;
+  organizacion_id?: string | null;
+  fecha_inicio: string;
+  /** Si se omite, el backend calcula con duracion_meses. */
+  fecha_fin?: string | null;
+  duracion_meses?: number;
 }
 
 export interface EloRange {
@@ -219,6 +230,12 @@ export const gamificationApi = {
   getSeasons: async (organizacionId?: string): Promise<Season[]> => {
     const params = organizacionId ? { organizacion_id: organizacionId } : {};
     const { data } = await apiClient.get<Season[]>(EP.SEASONS, { params });
+    return data;
+  },
+
+  /** Crear temporada (organización opcional en backend; en UI suele enviarse la org activa). */
+  createSeason: async (payload: SeasonCreatePayload): Promise<Season> => {
+    const { data } = await apiClient.post<Season>(EP.SEASONS, payload);
     return data;
   },
 

@@ -6,7 +6,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { volunteersApi, type Member } from "@/features/volunteers/api/volunteersApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye } from "lucide-react";
+import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy } from "lucide-react";
 import Link from "next/link";
 
 function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
@@ -28,6 +28,9 @@ function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{displayName}</p>
+        {member.usuario_email && member.usuario_email !== displayName && (
+          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{member.usuario_email}</p>
+        )}
         <div className="flex items-center gap-2 mt-0.5">
           <Calendar className="w-3 h-3 shrink-0" style={{ color: "var(--text-muted)" }} />
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>Ingresó {joined}</span>
@@ -130,6 +133,49 @@ export default function VolunteersPage() {
               color: "var(--text)",
             }}
           />
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Total miembros</p>
+            <p className="text-2xl font-bold mt-1">{members.length}</p>
+          </div>
+          <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Activos</p>
+            <p className="text-2xl font-bold mt-1">{members.filter((m) => m.estado_membresia === "activo").length}</p>
+          </div>
+          <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Solicitudes pendientes</p>
+            <p className="text-2xl font-bold mt-1">{pendientes.length}</p>
+          </div>
+          <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Filtrados</p>
+            <p className="text-2xl font-bold mt-1">{filtered.length}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          <Link
+            href="/dashboard/manuales"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+          >
+            <FileText className="w-3 h-3" /> Manuales pendientes
+          </Link>
+          <Link
+            href="/dashboard/tasks"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+          >
+            <CheckSquare className="w-3 h-3" /> Tareas asignadas
+          </Link>
+          <Link
+            href="/dashboard/gamification"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+          >
+            <Trophy className="w-3 h-3" /> Gamificación
+          </Link>
         </div>
 
         {/* Solicitudes pendientes */}

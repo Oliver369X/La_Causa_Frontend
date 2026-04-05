@@ -15,6 +15,8 @@ const MOCK_USER = {
   nombre: "Admin Demo",
   is_active: true,
   rol: "admin",
+  tipo: "organizador",
+  is_super_admin: false,
 };
 const MOCK_ORG_ID = "org-demo-001";
 
@@ -51,8 +53,62 @@ async function mockBackendApis(page: Page) {
     const url    = route.request().url();
     const method = route.request().method();
 
+    if (url.includes("/permisos/mis"))
+      return route.fulfill({
+        json: {
+          permisos: [
+            "view_events",
+            "create_events",
+            "assign_tasks",
+            "view_members",
+            "view_analytics",
+            "edit_org",
+          ],
+          es_propietario: true,
+        },
+      });
     if (url.includes("/analytics/dashboard"))
       return route.fulfill({ json: { total_volunteers: 12, total_events: 5, total_tasks: 23, tasks_completed: 17 } });
+    if (url.includes("/mis-obligaciones-feedback"))
+      return route.fulfill({
+        json: [{ evento_id: "ev-1", tipo: "ml_eval", estado: "pendiente" }],
+      });
+    if (url.match(/\/eventos\/[^/]+\/solicitudes/) && method === "GET")
+      return route.fulfill({
+        json: [
+          {
+            id: "s1",
+            usuario_id: "u-vol-1",
+            usuario_nombre: "Voluntario Demo",
+            usuario_email: "vol@demo.org",
+            evento_id: "ev-1",
+            estado: "aprobado",
+            fecha_solicitud: "2026-01-01T00:00:00",
+            fecha_respuesta: "2026-01-02T00:00:00",
+            mensaje_solicitud: null,
+            nota_interna_organizador: null,
+            horas_acreditadas: 0,
+            calificacion: null,
+          },
+        ],
+      });
+    if (url.match(/\/eventos\/[^/?]+$/) && method === "GET" && !url.includes("solicitudes") && !url.includes("mis-obligaciones"))
+      return route.fulfill({
+        json: {
+          id: "ev-1",
+          titulo: "Maratón Solidaria",
+          descripcion: "Carrera benéfica anual",
+          fecha_inicio: "2026-03-01T09:00:00",
+          fecha_fin: "2026-03-01T13:00:00",
+          estado: "finalizado",
+          cupo_maximo: 100,
+          organizacion_id: MOCK_ORG_ID,
+          creador_id: null,
+          ubicacion_geo: null,
+          created_at: "2026-01-01T00:00:00",
+          updated_at: "2026-01-01T00:00:00",
+        },
+      });
     if (url.includes("/eventos") && method === "GET")
       return route.fulfill({
         json: [
@@ -60,6 +116,8 @@ async function mockBackendApis(page: Page) {
           { id: "ev-2", titulo: "Feria de Voluntariado", descripcion: "Stand de la org",        fecha_inicio: "2026-03-15T10:00", fecha_fin: "2026-03-15T18:00", estado: "en_curso",   cupo_maximo: 50,  organizacion_id: MOCK_ORG_ID, creador_id: null, ubicacion_geo: null, created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" },
         ],
       });
+    if (url.includes("/api/feedback") && method === "POST")
+      return route.fulfill({ json: { total_labeled_matches: 1, mensaje: "ok", actualizado: true } });
     if (url.includes("/tareas"))
       return route.fulfill({
         json: [
@@ -354,12 +412,13 @@ test.describe("Páginas autenticadas (smoke)", () => {
     await page.waitForTimeout(400);
   });
 
-  test("Página de Gamificación muestra el título y espera datos", async ({ page }) => {
+  test("Página de Gamificación muestra perfil competitivo y panel de sonidos", async ({ page }) => {
     await page.goto("/dashboard/gamification");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
 
-    await expect(page.getByRole("heading", { name: "Gamificación" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Mi perfil competitivo/i })).toBeVisible();
+    await expect(page.getByText("Sonidos")).toBeVisible();
     await page.waitForTimeout(500);
   });
 
@@ -395,14 +454,14 @@ test.describe("Páginas autenticadas (smoke)", () => {
     await page.waitForTimeout(400);
   });
 
-  test("Página de Retroalimentación muestra formulario con slider de puntaje", async ({ page }) => {
-    await page.goto("/dashboard/retrospectives");
+  test("Retroalimentación ML por evento muestra formulario con puntaje", async ({ page }) => {
+    await page.goto("/dashboard/events/ev-1/feedback-ml");
     await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(800);
 
-    await expect(page.getByRole("heading").filter({ hasText: /Retroalimentación/i })).toBeVisible();
-    await expect(page.getByText("Puntaje de rendimiento"    )).toBeVisible();
-    await expect(page.getByRole("button", { name: /Enviar retroalimentación/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Evaluación post-evento/i })).toBeVisible();
+    await expect(page.getByText("Puntaje de rendimiento")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Enviar evaluación/i })).toBeVisible();
     await page.waitForTimeout(400);
   });
 

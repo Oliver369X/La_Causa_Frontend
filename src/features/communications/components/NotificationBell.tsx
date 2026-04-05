@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, BellRing } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { communicationsApi, type Notification } from "@/features/communications/api/communicationsApi";
 import { Badge } from "@/shared/ui/Badge";
@@ -35,15 +35,65 @@ function isUnread(n: Notification): boolean {
   return !n.leida;
 }
 
+function showBrowserNotification(n: Notification) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  try {
+    new Notification(n.titulo, {
+      body: n.mensaje,
+      icon: "/favicon.ico",
+      tag: n.id,
+    });
+  } catch { /* SW-only env, ignore */ }
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const prevIdsRef = useRef<Set<string>>(new Set());
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushEnabled(Notification.permission === "granted");
+    }
+  }, []);
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => communicationsApi.list(),
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
+
+  const handleNewNotifications = useCallback((notifs: Notification[]) => {
+    const currentIds = new Set(notifs.filter(isUnread).map((n) => n.id));
+    if (prevIdsRef.current.size > 0) {
+      for (const n of notifs) {
+        if (isUnread(n) && !prevIdsRef.current.has(n.id)) {
+          showBrowserNotification(n);
+        }
+      }
+    }
+    prevIdsRef.current = currentIds;
+  }, []);
+
+  useEffect(() => {
+    if (notifications.length > 0) {
+      handleNewNotifications(notifications);
+    }
+  }, [notifications, handleNewNotifications]);
+
+  const togglePush = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      setPushEnabled(true);
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    setPushEnabled(perm === "granted");
+  };
 
   const unreadCount = notifications.filter((n) => isUnread(n)).length;
 
@@ -98,15 +148,27 @@ export function NotificationBell() {
         >
           <div className="p-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
             <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>Notificaciones</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs font-medium flex items-center gap-1"
-                style={{ color: "var(--accent)" }}
-              >
-                <CheckCheck className="w-3.5 h-3.5" /> Marcar todas leídas
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {!pushEnabled && (
+                <button
+                  onClick={togglePush}
+                  className="text-xs font-medium flex items-center gap-1 px-2 py-0.5 rounded-lg transition-colors"
+                  style={{ color: "var(--text-muted)", background: "var(--bg-subtle)" }}
+                  title="Activar notificaciones del navegador"
+                >
+                  <BellRing className="w-3.5 h-3.5" /> Push
+                </button>
+              )}
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs font-medium flex items-center gap-1"
+                  style={{ color: "var(--accent)" }}
+                >
+                  <CheckCheck className="w-3.5 h-3.5" /> Leídas
+                </button>
+              )}
+            </div>
           </div>
           <div className="overflow-y-auto max-h-[320px]">
             {isLoading ? (
@@ -117,21 +179,14 @@ export function NotificationBell() {
               <div className="divide-y" style={{ borderColor: "var(--border)" }}>
                 {recent.map((n) => {
                   const unread = isUnread(n);
-                  return (
-                    <div
-                      key={n.id}
-                      onClick={() => {
-                        if (unread) markRead(n.id);
-                      }}
-                      className={cn(
-                        "px-3 py-2.5 cursor-pointer transition-opacity hover:opacity-90",
-                        unread && "opacity-100"
-                      )}
-                      style={{
-                        background: unread ? "var(--bg-subtle)" : "transparent",
-                        borderLeft: unread ? "3px solid var(--accent)" : "3px solid transparent",
-                      }}
-                    >
+                  const actionHref =
+                    n.entidad_tipo === "evento_feedback_ml" && n.entidad_id
+                      ? `/dashboard/events/${n.entidad_id}/feedback-ml`
+                      : n.entidad_tipo === "evento_retro_voluntario" && n.entidad_id
+                        ? `/dashboard/events/${n.entidad_id}/retro-voluntario`
+                        : null;
+                  const inner = (
+                    <>
                       <div className="flex items-start gap-2">
                         {unread && (
                           <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "var(--accent)" }} />
@@ -145,6 +200,43 @@ export function NotificationBell() {
                           <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>{timeAgo(n.created_at)}</p>
                         </div>
                       </div>
+                    </>
+                  );
+                  return (
+                    <div
+                      key={n.id}
+                      className={cn(
+                        "px-3 py-2.5 transition-opacity hover:opacity-90",
+                        unread && "opacity-100",
+                        actionHref ? "cursor-pointer" : "cursor-pointer"
+                      )}
+                      style={{
+                        background: unread ? "var(--bg-subtle)" : "transparent",
+                        borderLeft: unread ? "3px solid var(--accent)" : "3px solid transparent",
+                      }}
+                    >
+                      {actionHref ? (
+                        <Link
+                          href={actionHref}
+                          onClick={() => {
+                            if (unread) markRead(n.id);
+                            setOpen(false);
+                          }}
+                          className="block"
+                        >
+                          {inner}
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          className="w-full text-left"
+                          onClick={() => {
+                            if (unread) markRead(n.id);
+                          }}
+                        >
+                          {inner}
+                        </button>
+                      )}
                     </div>
                   );
                 })}

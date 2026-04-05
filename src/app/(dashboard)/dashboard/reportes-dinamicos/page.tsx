@@ -18,9 +18,26 @@ import {
   TrendingUp,
   AlertTriangle,
   Target,
+  Repeat2,
+  Clock,
+  Timer,
+  GraduationCap,
 } from "lucide-react";
 import { generateReportPdf } from "@/features/reportes/utils/generateReportPdf";
 import type { ReportMetrics, ReporteTipo } from "@/features/reportes/utils/generateReportPdf";
+
+const METRIC_GROUPS: { key: keyof ReportMetrics; label: string }[] = [
+  { key: "voluntarios", label: "Voluntarios" },
+  { key: "eventos", label: "Eventos" },
+  { key: "tareas", label: "Tareas" },
+  { key: "completadas", label: "Completadas" },
+  { key: "tasaFinalizacion", label: "Tasa finalización" },
+  { key: "retencion", label: "Retención voluntarios" },
+  { key: "precisionAsignacion", label: "Precisión asignación" },
+  { key: "horasImpacto", label: "Horas impacto" },
+  { key: "mtta", label: "MTTA auditoría" },
+  { key: "skillsPromedio", label: "Skills / voluntario" },
+];
 
 const toStartOfDayIso = (dateStr: string) => `${dateStr}T00:00:00`;
 const toEndOfDayIso = (dateStr: string) => `${dateStr}T23:59:59`;
@@ -28,13 +45,15 @@ const fmt = (v: number) => (Number.isFinite(v) ? v.toLocaleString() : "0");
 
 interface StatCardProps {
   label: string;
-  value: number;
+  value: number | string;
   icon: React.ElementType;
   visible?: boolean;
 }
 
 function StatCard({ label, value, icon: Icon, visible = true }: StatCardProps) {
   if (!visible) return null;
+  const display =
+    typeof value === "number" ? value.toLocaleString() : value;
   return (
     <div
       className="p-6 rounded-2xl flex flex-col gap-4"
@@ -46,7 +65,7 @@ function StatCard({ label, value, icon: Icon, visible = true }: StatCardProps) {
           <Icon className="w-4 h-4" style={{ color: "var(--accent)" }} />
         </div>
       </div>
-      <p className="text-4xl font-bold">{value.toLocaleString()}</p>
+      <p className="text-4xl font-bold tabular-nums">{display}</p>
     </div>
   );
 }
@@ -57,6 +76,11 @@ const DEFAULT_METRICS: ReportMetrics = {
   tareas: true,
   completadas: true,
   tasaFinalizacion: true,
+  retencion: true,
+  precisionAsignacion: true,
+  horasImpacto: true,
+  mtta: true,
+  skillsPromedio: true,
 };
 
 export default function ReportesDinamicosPage() {
@@ -117,6 +141,18 @@ export default function ReportesDinamicosPage() {
   const tasksPerEvent = totalEvents > 0 ? (totalTasks / totalEvents) : 0;
   const tasksPerVolunteer = totalVolunteers > 0 ? (totalTasks / totalVolunteers) : 0;
   const unread = notifs.filter((n) => !n.leida).length;
+
+  const retentionDisplay =
+    stats?.volunteer_retention_pct != null ? `${stats.volunteer_retention_pct.toFixed(1)}%` : "—";
+  const precisionDisplay =
+    stats?.assignment_precision_pct != null ? `${stats.assignment_precision_pct.toFixed(1)}%` : "—";
+  const horasDisplay = (stats?.impact_hours_total ?? 0).toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+  });
+  const skillsDisplay =
+    stats?.skills_new_avg_per_volunteer != null
+      ? stats.skills_new_avg_per_volunteer.toFixed(2)
+      : "—";
   const currentClose = comparison
     ? (comparison.current.total_tasks > 0
       ? Math.round((comparison.current.tasks_completed / comparison.current.total_tasks) * 100)
@@ -138,6 +174,12 @@ export default function ReportesDinamicosPage() {
     recomendaciones.push("Buen estado general. Mantén revisiones semanales y mejora continua de tiempos de cierre.");
   }
 
+  const fmtMtta = (seconds: number | null | undefined) => {
+    if (seconds == null || !Number.isFinite(seconds)) return "—";
+    if (seconds < 60) return `${seconds.toFixed(1)} s`;
+    return `${(seconds / 60).toFixed(1)} min`;
+  };
+
   const handleDownloadPdf = async () => {
     if (!stats) return;
     setDownloading(true);
@@ -149,11 +191,25 @@ export default function ReportesDinamicosPage() {
           total_tasks: stats.total_tasks ?? 0,
           tasks_completed: stats.tasks_completed ?? 0,
           tasks_pending: stats.tasks_pending ?? 0,
+          volunteer_retention_pct: stats.volunteer_retention_pct,
+          assignment_precision_pct: stats.assignment_precision_pct,
+          impact_hours_total: stats.impact_hours_total,
+          mtta_audit_seconds: stats.mtta_audit_seconds,
+          skills_new_avg_per_volunteer: stats.skills_new_avg_per_volunteer,
         },
         metrics,
         tipoReporte,
         org?.nombre,
         comparison
+          ? {
+              current: comparison.current,
+              previous: comparison.previous,
+              start_date: comparison.start_date,
+              end_date: comparison.end_date,
+              previous_start_date: comparison.previous_start_date,
+              previous_end_date: comparison.previous_end_date,
+            }
+          : undefined
       );
     } catch (e) {
       console.error("Error al generar PDF:", e);
@@ -217,7 +273,7 @@ export default function ReportesDinamicosPage() {
                   Métricas a incluir
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  {(["voluntarios", "eventos", "tareas", "completadas", "tasaFinalizacion"] as const).map((key) => (
+                  {METRIC_GROUPS.map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -225,9 +281,7 @@ export default function ReportesDinamicosPage() {
                         onChange={() => toggleMetric(key)}
                         className="rounded"
                       />
-                      <span className="text-sm">
-                        {key === "tasaFinalizacion" ? "Tasa finalización" : key.charAt(0).toUpperCase() + key.slice(1)}
-                      </span>
+                      <span className="text-sm">{label}</span>
                     </label>
                   ))}
                 </div>
@@ -311,11 +365,53 @@ export default function ReportesDinamicosPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard label="Voluntarios" value={totalVolunteers} icon={Users} visible={metrics.voluntarios} />
               <StatCard label="Eventos" value={totalEvents} icon={Calendar} visible={metrics.eventos} />
               <StatCard label="Total Tareas" value={totalTasks} icon={CheckSquare} visible={metrics.tareas} />
               <StatCard label="Completadas" value={completedTasks} icon={BarChart3} visible={metrics.completadas} />
+            </div>
+
+            <div className="mb-6">
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+                KPIs estratégicos
+              </p>
+              <p className="text-xs mb-4 max-w-3xl" style={{ color: "var(--text-muted)" }}>
+                Periodo según fechas arriba. La precisión de asignación es un indicador operativo (tareas completadas sobre
+                asignaciones aceptadas/en curso); el modelo ML no etiqueta aún cada sugerencia en base de datos.
+              </p>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <StatCard
+                  label="Retención"
+                  value={retentionDisplay}
+                  icon={Repeat2}
+                  visible={metrics.retencion}
+                />
+                <StatCard
+                  label="Precisión asignación"
+                  value={precisionDisplay}
+                  icon={Target}
+                  visible={metrics.precisionAsignacion}
+                />
+                <StatCard
+                  label="Horas impacto"
+                  value={horasDisplay}
+                  icon={Clock}
+                  visible={metrics.horasImpacto}
+                />
+                <StatCard
+                  label="MTTA auditoría"
+                  value={fmtMtta(stats?.mtta_audit_seconds)}
+                  icon={Timer}
+                  visible={metrics.mtta}
+                />
+                <StatCard
+                  label="Skills / voluntario"
+                  value={skillsDisplay}
+                  icon={GraduationCap}
+                  visible={metrics.skillsPromedio}
+                />
+              </div>
             </div>
 
             {metrics.tasaFinalizacion && (
@@ -442,6 +538,45 @@ export default function ReportesDinamicosPage() {
                         <td className="text-right">
                           {(comparison.current.tasks_completed - comparison.previous.tasks_completed) >= 0 ? "+" : ""}
                           {fmt(comparison.current.tasks_completed - comparison.previous.tasks_completed)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2">Retención</td>
+                        <td className="text-right">
+                          {comparison.current.volunteer_retention_pct != null
+                            ? `${comparison.current.volunteer_retention_pct.toFixed(1)}%`
+                            : "—"}
+                        </td>
+                        <td className="text-right">
+                          {comparison.previous.volunteer_retention_pct != null
+                            ? `${comparison.previous.volunteer_retention_pct.toFixed(1)}%`
+                            : "—"}
+                        </td>
+                        <td className="text-right">
+                          {comparison.current.volunteer_retention_pct != null &&
+                          comparison.previous.volunteer_retention_pct != null
+                            ? `${(comparison.current.volunteer_retention_pct - comparison.previous.volunteer_retention_pct >= 0 ? "+" : "")}${(comparison.current.volunteer_retention_pct - comparison.previous.volunteer_retention_pct).toFixed(1)} pp`
+                            : "—"}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2">Horas impacto</td>
+                        <td className="text-right">{horasDisplay}</td>
+                        <td className="text-right">
+                          {(comparison.previous.impact_hours_total ?? 0).toLocaleString(undefined, {
+                            maximumFractionDigits: 1,
+                          })}
+                        </td>
+                        <td className="text-right">
+                          {(comparison.current.impact_hours_total ?? 0) -
+                            (comparison.previous.impact_hours_total ?? 0) >=
+                          0
+                            ? "+"
+                            : ""}
+                          {(
+                            (comparison.current.impact_hours_total ?? 0) -
+                            (comparison.previous.impact_hours_total ?? 0)
+                          ).toLocaleString(undefined, { maximumFractionDigits: 1 })}
                         </td>
                       </tr>
                     </tbody>

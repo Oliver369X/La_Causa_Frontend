@@ -1228,6 +1228,30 @@ function OrgGamificacionSection({ activeOrgId }: { activeOrgId: string }) {
   );
 }
 
+function OrgAgentSection({ activeOrgId }: { activeOrgId: string }) {
+  return (
+    <Section id="settings-agent" title="Configuración del Agente IA" icon={Sparkles}>
+      <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
+        El agente conversacional puede revisar entregas de tareas, consultar estadísticas de la organización, gestionar eventos y buscar voluntarios. Requiere un plan activo.
+      </p>
+      <div className="space-y-2 text-xs" style={{ color: "var(--text-muted)" }}>
+        <p>Herramientas disponibles: revisión de evidencias, consulta de candidatos, creación de eventos, búsqueda de voluntarios, estadísticas organizacionales.</p>
+        <p>Modelo: configurado por entorno del servidor (Mistral / OpenRouter).</p>
+      </div>
+      <div className="mt-4">
+        <Link
+          href="/dashboard/agent"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+          style={{ background: "var(--accent)", color: "white" }}
+        >
+          <Sparkles className="w-4 h-4" />
+          Ir al agente
+        </Link>
+      </div>
+    </Section>
+  );
+}
+
 function Section({ title, icon: Icon, children, id, description }: {
   title: string;
   icon: React.ElementType;
@@ -1614,6 +1638,8 @@ export default function SettingsPage() {
 
         {/* Configuración de gamificación */}
         <OrgGamificacionSection activeOrgId={activeOrgId!} />
+
+        <OrgAgentSection activeOrgId={activeOrgId!} />
 
         {/* Invite member */}
         <Section
