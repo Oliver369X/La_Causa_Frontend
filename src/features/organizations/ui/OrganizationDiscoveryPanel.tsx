@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Building2, ExternalLink, LogOut, Trophy, UserPlus, X } from "lucide-react";
 import type { MembershipRequest, Organization } from "@/features/organizations/api/organizationsApi";
@@ -41,6 +41,21 @@ export function OrganizationDiscoveryPanel({
   const [mensaje, setMensaje] = useState("");
 
   const visibleOrgs = useMemo(() => (limit ? orgs.slice(0, limit) : orgs), [limit, orgs]);
+
+  /** Cierre con Escape y bloqueo de scroll del fondo cuando el modal está abierto. */
+  useEffect(() => {
+    if (!modalOrg) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalOrg(null);
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [modalOrg]);
 
   const yaEsMiembro = (orgId: string) => misOrgs.some((org) => org.id === orgId);
   const tieneSolicitud = (orgId: string) =>
@@ -97,7 +112,7 @@ export function OrganizationDiscoveryPanel({
                 <div className="flex flex-wrap gap-2 mt-auto">
                   {org.slug ? (
                     <a
-                      href={`/org/${org.slug}`}
+                      href={`/org/${org.slug}?returnTo=${encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.search) : "/dashboard/organizaciones")}`}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium"
@@ -165,13 +180,20 @@ export function OrganizationDiscoveryPanel({
       </div>
 
       {modalOrg ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setModalOrg(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="join-org-title"
+        >
           <div
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Unirme a {modalOrg.nombre}</h3>
+              <h3 id="join-org-title" className="font-semibold">Unirme a {modalOrg.nombre}</h3>
               <button onClick={() => setModalOrg(null)} className="p-2 rounded-lg hover:bg-black/5">
                 <X className="w-4 h-4" />
               </button>

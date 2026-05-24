@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, Info, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ChevronDown, CreditCard, Info, Loader2, Sparkles } from "lucide-react";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Card } from "@/shared/ui/Card";
 import { Button } from "@/shared/ui/Button";
@@ -16,6 +17,7 @@ import {
   type VolunteerMatchResult,
 } from "@/features/volunteers/api/volunteersApi";
 import { skillsApi } from "@/features/skills/api/skillsApi";
+import { agentApi } from "@/features/agent/api/agentApi";
 
 const LS_WEIGHTS = "matching.calibration.weights.v1";
 
@@ -76,6 +78,13 @@ export default function MatchingPage() {
   const { can } = usePermissions();
   const canView = can("viewMembers");
 
+  const { data: access, isLoading: loadingAccess } = useQuery({
+    queryKey: ["agent-access", activeOrgId],
+    queryFn: () => agentApi.getAccess(activeOrgId),
+    enabled: canView && !!activeOrgId,
+  });
+  const hasPaidAccess = access?.can_use === true;
+
   const [tipoEvento, setTipoEvento] = useState("workshop");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [horaInicio, setHoraInicio] = useState(9);
@@ -116,13 +125,13 @@ export default function MatchingPage() {
   const { data: members = [], isLoading: loadingMembers } = useQuery({
     queryKey: ["matching-members", activeOrgId],
     queryFn: () => volunteersApi.listMembers(activeOrgId!),
-    enabled: canView && !!activeOrgId,
+    enabled: canView && !!activeOrgId && hasPaidAccess,
   });
 
   const { data: allSkills = [] } = useQuery({
     queryKey: ["matching-skills"],
     queryFn: skillsApi.list,
-    enabled: canView,
+    enabled: canView && hasPaidAccess,
   });
 
   const candidatosIds = useMemo(() => members.map((m) => m.usuario_id), [members]);
@@ -199,6 +208,61 @@ export default function MatchingPage() {
               No tenés permisos para ver recomendaciones de equipo.
             </p>
           </Card>
+        </div>
+      </>
+    );
+  }
+
+  if (loadingAccess) {
+    return (
+      <>
+        <TopBar title="Recomendaciones" />
+        <div className="flex-1 flex items-center justify-center p-8">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
+        </div>
+      </>
+    );
+  }
+
+  if (access && !access.can_use) {
+    const needsPlan = access.reason === "sin_plan_pago";
+    const noOrg = access.reason === "sin_organizacion";
+    return (
+      <>
+        <TopBar title="Recomendaciones" />
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <div
+            className="max-w-md p-6 rounded-2xl text-center space-y-4"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <AlertTriangle className="w-12 h-12 mx-auto" style={{ color: "var(--accent)" }} />
+            <h2 className="text-lg font-semibold">Acceso restringido</h2>
+            {needsPlan && (
+              <>
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Las recomendaciones con IA forman parte del Plan Pro. Actualizá tu suscripción para ordenar a tu equipo según habilidades, disponibilidad y experiencia.
+                </p>
+                <Link
+                  href="/dashboard/subscriptions"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Ver planes y suscribirse
+                </Link>
+              </>
+            )}
+            {noOrg && (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Seleccioná o creá una organización para acceder a las recomendaciones.
+              </p>
+            )}
+            {!needsPlan && !noOrg && (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Esta función está disponible solo para organizadores con plan de pago.
+              </p>
+            )}
+          </div>
         </div>
       </>
     );

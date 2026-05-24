@@ -28,11 +28,13 @@ import { eventsApi } from "@/features/events/api/eventsApi";
 import { tasksApi } from "@/features/tasks/api/tasksApi";
 import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
 import Link from "next/link";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 export default function DashboardPage() {
   const { activeOrgId, user, volunteerOnboarding } = useAuthStore();
-  const isVolunteer = user?.tipo === "voluntario";
-  const isOrganizer = user?.tipo === "organizador";
+  const { isVolunteerExperience } = usePermissions();
+  const isVolunteer = isVolunteerExperience;
+  const isOrganizer = !isVolunteerExperience;
 
   const organizerDashRange = useMemo(() => {
     const end = new Date();

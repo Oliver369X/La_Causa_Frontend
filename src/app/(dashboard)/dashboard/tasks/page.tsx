@@ -14,7 +14,9 @@ import { TopBar } from "@/shared/ui/Sidebar";
 import { formatDate } from "@/shared/utils/utils";
 import Link from "next/link";
 import { toast } from "sonner";
+import { extractApiDetail } from "@/shared/utils/apiError";
 import { Plus, CheckSquare, Check, X, Clock, UserPlus, ImagePlus, AlertTriangle } from "lucide-react";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 const STATUSES: Task["estado"][] = ["pending", "in_progress", "completed", "cancelled"];
 
@@ -35,10 +37,109 @@ const assignStatusLabels: Record<string, string> = {
   completada: "Completada",
 };
 
+function nowForDatetimeLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day}T${h}:${min}`;
+}
+
+function isTaskVencida(task: Task): boolean {
+  if (!task.fecha_vencimiento) return false;
+  if (task.estado === "completed" || task.estado === "cancelled") return false;
+  return new Date(task.fecha_vencimiento) < new Date();
+}
+
+function validateTaskDueDate(fechaVencimiento: string): string | null {
+  const vencimiento = new Date(fechaVencimiento);
+  if (Number.isNaN(vencimiento.getTime())) {
+    return "La fecha de vencimiento no es válida.";
+  }
+  if (vencimiento < new Date()) {
+    return "La fecha de vencimiento no puede estar en el pasado.";
+  }
+  return null;
+}
+
+function TaskBoardCard({
+  task,
+  statusMutation,
+  vencida = false,
+}: {
+  task: Task;
+  statusMutation: { mutate: (args: { id: string; estado: Task["estado"] }) => void };
+  vencida?: boolean;
+}) {
+  return (
+    <div
+      className="p-4 rounded-xl transition-colors hover:opacity-90"
+      style={{
+        background: "var(--bg-subtle)",
+        border: vencida ? "1px solid rgba(239,68,68,.35)" : "1px solid var(--border)",
+      }}
+    >
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <Link
+          href={`/dashboard/tasks/${task.id}`}
+          className="text-sm font-medium flex-1 min-w-0 hover:underline"
+          style={{ color: "var(--text)" }}
+        >
+          {task.titulo}
+        </Link>
+        {vencida && (
+          <span className="flex items-center gap-0.5 text-xs text-red-500 shrink-0" title="Vencida">
+            <AlertTriangle className="w-3 h-3" />
+          </span>
+        )}
+      </div>
+      {task.descripcion && (
+        <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+          {task.descripcion}
+        </p>
+      )}
+      {task.fecha_vencimiento && (
+        <p
+          className={`text-xs mb-1 ${vencida ? "text-red-500" : ""}`}
+          style={!vencida ? { color: "var(--text-muted)" } : undefined}
+        >
+          Vence: {formatDate(task.fecha_vencimiento)}
+        </p>
+      )}
+      <div className="flex gap-2 mt-2">
+        <select
+          value={task.estado}
+          onChange={(e) =>
+            statusMutation.mutate({ id: task.id, estado: e.target.value as Task["estado"] })
+          }
+          className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
+        >
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {statusConfig[s].label}
+            </option>
+          ))}
+        </select>
+        <Link
+          href={`/dashboard/tasks/${task.id}`}
+          className="px-2 py-1.5 rounded-lg text-xs font-medium shrink-0"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        >
+          Ver
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function TasksPageContent() {
   const searchParams = useSearchParams();
   const { activeOrgId, user } = useAuthStore();
-  const isVolunteer = user?.tipo === "voluntario";
+  const { isVolunteerExperience } = usePermissions();
+  const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
   const eventoIdFromUrl = searchParams.get("evento_id");
   const taskIdFromUrl = searchParams.get("task_id");
@@ -84,14 +185,7 @@ function TasksPageContent() {
       setFormData({});
     },
     onError: (err: unknown) => {
-      const detail =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { detail?: string }; status?: number } }).response?.data?.detail
-          : null;
-      const status = (err as { response?: { status?: number } }).response?.status;
-      if (status === 403 && typeof detail === "string") {
-        toast.error(detail);
-      }
+      toast.error(extractApiDetail(err, "No se pudo crear la tarea."));
     },
   });
 
@@ -146,6 +240,9 @@ function TasksPageContent() {
   }, [isVolunteer, loadingAssignments, myAssignments, showCelebration]);
 
   const columns = STATUSES.filter((s) => s !== "cancelled");
+  const minDateTimeLocal = nowForDatetimeLocal();
+  const vencidas = tasks.filter(isTaskVencida);
+  const activeTasks = tasks.filter((t) => !isTaskVencida(t));
   const isLoading = isVolunteer ? loadingAssignments : loadingTasks;
 
   if (isVolunteer) {
@@ -429,6 +526,7 @@ function TasksPageContent() {
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Fecha vencimiento</label>
                 <input
                   type="datetime-local"
+                  min={minDateTimeLocal}
                   value={(formData as Record<string, string>).fecha_vencimiento ?? ""}
                   onChange={(e) => setFormData((prev) => ({ ...prev, fecha_vencimiento: e.target.value }))}
                   className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
@@ -453,19 +551,29 @@ function TasksPageContent() {
               <button
                 onClick={() => {
                   const fd = formData as Record<string, string>;
-                  if (!fd.evento_id) return;
+                  if (!fd.evento_id || !fd.titulo?.trim()) {
+                    toast.error("Selecciona un evento e ingresa un título.");
+                    return;
+                  }
+                  if (fd.fecha_vencimiento?.trim()) {
+                    const dateError = validateTaskDueDate(fd.fecha_vencimiento.trim());
+                    if (dateError) {
+                      toast.error(dateError);
+                      return;
+                    }
+                  }
                   createMutation.mutate({
                     evento_id: fd.evento_id,
-                    titulo: fd.titulo || "",
+                    titulo: fd.titulo.trim(),
                     descripcion: fd.descripcion || undefined,
                     instrucciones: fd.instrucciones || undefined,
                     dificultad: (fd.dificultad as CreateTaskData["dificultad"]) || "media",
                     vacantes: Math.max(1, parseInt(fd.vacantes || "1", 10)),
-                    fecha_vencimiento: fd.fecha_vencimiento || undefined,
+                    fecha_vencimiento: fd.fecha_vencimiento?.trim() || undefined,
                     requiere_revision_manual: Boolean((formData as { requiere_revision_manual?: boolean }).requiere_revision_manual),
                   });
                 }}
-                disabled={!(formData as Record<string, string>).evento_id || !(formData as Record<string, string>).titulo}
+                disabled={!(formData as Record<string, string>).evento_id || !(formData as Record<string, string>).titulo?.trim() || createMutation.isPending}
                 className="px-6 py-2.5 rounded-full text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
                 style={{ background: "var(--text)", color: "var(--bg)" }}
               >
@@ -483,10 +591,10 @@ function TasksPageContent() {
         {isLoading ? (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando tareas...</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
             {columns.map((status) => {
               const config = statusConfig[status];
-              const colTasks = tasks.filter((t) => t.estado === status);
+              const colTasks = activeTasks.filter((t) => t.estado === status);
               return (
                 <div key={status} className="rounded-2xl p-4"
                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -498,52 +606,13 @@ function TasksPageContent() {
                     {config.label} ({colTasks.length})
                   </div>
                   <div className="space-y-3">
-                    {colTasks.map((task) => {
-                      const isOverdue = task.fecha_vencimiento && new Date(task.fecha_vencimiento) < new Date();
-                      return (
-                      <div key={task.id} className="p-4 rounded-xl transition-colors hover:opacity-90"
-                           style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <Link
-                            href={`/dashboard/tasks/${task.id}`}
-                            className="text-sm font-medium flex-1 min-w-0 hover:underline"
-                            style={{ color: "var(--text)" }}
-                          >
-                            {task.titulo}
-                          </Link>
-                          {isOverdue && (
-                            <span className="flex items-center gap-0.5 text-xs text-red-500 shrink-0" title="Vencida">
-                              <AlertTriangle className="w-3 h-3" />
-                            </span>
-                          )}
-                        </div>
-                        {task.descripcion && <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>{task.descripcion}</p>}
-                        {task.fecha_vencimiento && (
-                          <p className={`text-xs mb-1 ${isOverdue ? "text-red-500" : ""}`} style={!isOverdue ? { color: "var(--text-muted)" } : undefined}>
-                            Vence: {formatDate(task.fecha_vencimiento)}
-                          </p>
-                        )}
-                        <div className="flex gap-2 mt-2">
-                          <select
-                            value={task.estado}
-                            onChange={(e) => statusMutation.mutate({ id: task.id, estado: e.target.value as Task["estado"] })}
-                            className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none"
-                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
-                          >
-                            {STATUSES.map((s) => (
-                              <option key={s} value={s}>{statusConfig[s].label}</option>
-                            ))}
-                          </select>
-                          <Link
-                            href={`/dashboard/tasks/${task.id}`}
-                            className="px-2 py-1.5 rounded-lg text-xs font-medium shrink-0"
-                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-                          >
-                            Ver
-                          </Link>
-                        </div>
-                      </div>
-                    );})}
+                    {colTasks.map((task) => (
+                      <TaskBoardCard
+                        key={task.id}
+                        task={task}
+                        statusMutation={statusMutation}
+                      />
+                    ))}
                     {colTasks.length === 0 && (
                       <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>Sin tareas</p>
                     )}
@@ -551,6 +620,28 @@ function TasksPageContent() {
                 </div>
               );
             })}
+            <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium mb-4"
+                style={{ background: "rgba(239,68,68,.12)", color: "#f87171" }}
+              >
+                <AlertTriangle className="w-3 h-3" />
+                Vencidas ({vencidas.length})
+              </div>
+              <div className="space-y-3">
+                {vencidas.map((task) => (
+                  <TaskBoardCard
+                    key={task.id}
+                    task={task}
+                    statusMutation={statusMutation}
+                    vencida
+                  />
+                ))}
+                {vencidas.length === 0 && (
+                  <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>Sin tareas vencidas</p>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

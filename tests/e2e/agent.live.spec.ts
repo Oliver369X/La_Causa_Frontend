@@ -37,7 +37,7 @@ test.describe("Live E2E - flujo real login -> dashboard -> agent", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { name: "Agente IA" })).toBeVisible({ timeout: 20_000 });
 
-    const input = page.locator('input[placeholder="Escribe tu mensaje…"]');
+    const input = page.getByPlaceholder(/Escribe, dicta o adjunta/i);
     await expect(input).toBeVisible({ timeout: 20_000 });
     await input.fill("Dame un resumen corto del estado de mi organización y sugiere una siguiente acción.");
     await page.locator('button[type="submit"]').click();

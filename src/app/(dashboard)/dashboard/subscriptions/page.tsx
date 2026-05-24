@@ -9,16 +9,13 @@ import { Badge } from "@/shared/ui/Badge";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
 import { CreditCard, Check } from "lucide-react";
-
-function formatPrice(n: number) {
-  return new Intl.NumberFormat("es-BO", { style: "currency", currency: "BOB" }).format(n);
-}
+import { bobToUsdHint, formatBob } from "@/shared/config/pricingPlans";
 
 export default function SubscriptionsPage() {
   const { activeOrgId, user } = useAuthStore();
-  const { can }        = usePermissions();
+  const { can, isVolunteerExperience } = usePermissions();
   const canManage      = can("managePlans");
-  const isVolunteer    = user?.tipo === "voluntario";
+  const isVolunteer    = isVolunteerExperience;
 
   const [plans, setPlans]                   = useState<Plan[]>([]);
   const [subscription, setSubscription]     = useState<Subscription | null>(null);
@@ -209,7 +206,7 @@ export default function SubscriptionsPage() {
           <div className="p-6 text-center space-y-3">
             <p className="text-sm font-medium">No hay planes disponibles</p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Ejecuta el script de migración para insertar los planes (Plan Semilla, Plan Bosque/Pro) en la base de datos.
+              Ejecuta en el servidor: python scripts/sync_plans_lacausa.py
             </p>
           </div>
         </Card>
@@ -226,16 +223,27 @@ export default function SubscriptionsPage() {
                 {plan.descripcion && (
                   <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>{plan.descripcion}</p>
                 )}
-                <p className="text-2xl font-bold mb-4">
-                  {formatPrice(plan.precio_mensual)}
-                  <span className="text-xs font-normal ml-1" style={{ color: "var(--text-muted)" }}>/mes</span>
+                <p className="text-2xl font-bold mb-1">
+                  {formatBob(plan.precio_mensual)}
+                  {plan.precio_mensual > 0 && (
+                    <span className="text-xs font-normal ml-1" style={{ color: "var(--text-muted)" }}>/mes</span>
+                  )}
                 </p>
+                {plan.precio_mensual > 0 && (
+                  <p className="text-[11px] mb-4" style={{ color: "var(--text-muted)" }}>
+                    {bobToUsdHint(plan.precio_mensual)}
+                  </p>
+                )}
+                {plan.precio_mensual <= 0 && <div className="mb-4" />}
                 <ul className="space-y-1.5 mb-5">
                   {[
-                    `Hasta ${plan.max_voluntarios} voluntarios`,
-                    `Hasta ${plan.max_eventos} eventos por mes`,
-                    `Hasta ${plan.max_tareas_mes} tareas por mes`,
-                    ...plan.caracteristicas,
+                    ...(plan.caracteristicas.length > 0
+                      ? plan.caracteristicas
+                      : [
+                          `Hasta ${plan.max_voluntarios} voluntarios`,
+                          `Hasta ${plan.max_eventos} eventos por mes`,
+                          `Hasta ${plan.max_tareas_mes} tareas por mes`,
+                        ]),
                   ].map((f) => (
                     <li key={f} className="flex items-center gap-2 text-xs">
                       <Check className="w-3.5 h-3.5 shrink-0 text-green-500" />

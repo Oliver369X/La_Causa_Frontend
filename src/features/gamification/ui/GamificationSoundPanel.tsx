@@ -3,25 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
-import {
-  getAudioPrefs,
-  setAudioPrefs,
-  play,
-  type EffectId,
-  type EffectVariant,
-} from "@/shared/lib/gamificationAudio";
-
-const EFFECT_IDS: EffectId[] = ["click", "xp_gain", "rank_shift", "badge_unlock", "season_finale"];
-const EFFECT_LABELS: Record<EffectId, string> = {
-  click: "Click",
-  xp_gain: "XP",
-  rank_shift: "Ranking",
-  badge_unlock: "Insignia",
-  season_finale: "Finale",
-};
+import { getAudioPrefs, setAudioPrefs } from "@/shared/lib/gamificationAudio";
 
 /**
- * Preferencias de sonido para producción (misma lógica que el Lab visual, sin demo de partículas).
+ * Preferencias de sonido: solo activar/desactivar (variantes fijas en el motor de audio).
  */
 export function GamificationSoundPanel() {
   const [prefs, setPrefs] = useState(() => getAudioPrefs());
@@ -37,7 +22,7 @@ export function GamificationSoundPanel() {
 
   return (
     <div
-      className="rounded-2xl p-5 space-y-4"
+      className="rounded-2xl p-5"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -50,7 +35,7 @@ export function GamificationSoundPanel() {
           <div>
             <h2 className="text-sm font-semibold">Sonidos</h2>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Activá efectos y elegí variante A / B / C por tipo (se guardan en este navegador).
+              Activá o desactivá los efectos de gamificación (se guardan en este navegador).
             </p>
           </div>
         </div>
@@ -61,47 +46,6 @@ export function GamificationSoundPanel() {
         >
           {prefs.enabled ? "Activados" : "Desactivados"}
         </Button>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <label className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
-          Volumen
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={prefs.volume}
-          onChange={(e) => update({ volume: parseFloat(e.target.value) })}
-          className="flex-1 h-2 rounded-full accent-[var(--accent)]"
-          disabled={!prefs.enabled}
-        />
-        <span className="text-xs tabular-nums w-8">{Math.round(prefs.volume * 100)}%</span>
-      </div>
-
-      <div className="space-y-3">
-        {EFFECT_IDS.map((effectId) => (
-          <div key={effectId} className="flex flex-wrap items-center gap-2">
-            <span className="text-xs w-24 shrink-0" style={{ color: "var(--text-muted)" }}>
-              {EFFECT_LABELS[effectId]}
-            </span>
-            {(["a", "b", "c"] as EffectVariant[]).map((v) => (
-              <Button
-                key={v}
-                size="xs"
-                variant={prefs.variants[effectId] === v ? "primary" : "ghost"}
-                disabled={!prefs.enabled}
-                onClick={() => {
-                  update({ variants: { [effectId]: v } });
-                  play(effectId);
-                }}
-              >
-                {v.toUpperCase()}
-              </Button>
-            ))}
-          </div>
-        ))}
       </div>
     </div>
   );

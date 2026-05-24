@@ -54,7 +54,7 @@ test.describe("Live E2E - carril crítico real", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("heading", { name: "Agente IA" })).toBeVisible({ timeout: 20_000 });
 
-    const input = page.locator('input[placeholder="Escribe tu mensaje…"]');
+    const input = page.getByPlaceholder(/Escribe, dicta o adjunta/i);
     await input.fill("Resume el estado operativo actual y recomienda una acción concreta.");
     await page.locator('button[type="submit"]').click();
 

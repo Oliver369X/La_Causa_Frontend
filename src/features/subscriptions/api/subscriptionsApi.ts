@@ -84,7 +84,9 @@ export const subscriptionsApi = {
       max_voluntarios: plan.max_voluntarios,
       max_eventos: plan.max_eventos_mes,
       max_tareas_mes: plan.max_tareas_mes ?? 200,
-      caracteristicas: Object.keys(plan.funciones ?? {}),
+      caracteristicas: Array.isArray((plan.funciones as { caracteristicas?: string[] })?.caracteristicas)
+        ? (plan.funciones as { caracteristicas: string[] }).caracteristicas
+        : Object.keys(plan.funciones ?? {}).filter((k) => k !== "caracteristicas"),
     }));
   },
 

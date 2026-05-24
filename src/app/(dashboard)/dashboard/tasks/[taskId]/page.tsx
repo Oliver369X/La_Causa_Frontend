@@ -12,12 +12,16 @@ import {
   type DeliveryReviewResponse,
 } from "@/features/assignments/api/assignmentsApi";
 import { eventsApi } from "@/features/events/api/eventsApi";
+import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
 import { ArrowLeft, UserPlus, Clock, AlertTriangle, Check, X } from "lucide-react";
 import { formatDate } from "@/shared/utils/utils";
 import { useState } from "react";
 import { TaskInstructionsDisplay } from "@/features/tasks/ui/TaskInstructionsDisplay";
+import { extractApiDetail } from "@/shared/utils/apiError";
+import { toast } from "sonner";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 const dificultadColors: Record<string, { bg: string; color: string }> = {
   baja: { bg: "rgba(34,197,94,.15)", color: "#22c55e" },
@@ -40,7 +44,8 @@ export default function TaskDetailPage() {
   const params = useParams();
   const taskId = params.taskId as string;
   const { activeOrgId, user } = useAuthStore();
-  const isVolunteer = user?.tipo === "voluntario";
+  const { isVolunteerExperience } = usePermissions();
+  const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
   const [showAssignModal, setShowAssignModal] = useState(false);
 
@@ -198,7 +203,7 @@ export default function TaskDetailPage() {
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              No hay asignaciones. Asigna voluntarios aprobados en el evento.
+              No hay asignaciones. Asigna voluntarios miembros de tu organización.
             </p>
             <button
               onClick={() => setShowAssignModal(true)}
@@ -213,9 +218,12 @@ export default function TaskDetailPage() {
           <AssignModal
             taskId={taskId}
             eventId={task.evento_id}
+            orgId={event?.organizacion_id ?? activeOrgId ?? ""}
+            assignedUserIds={assignments.map((a) => a.usuario_id).filter(Boolean) as string[]}
             onClose={() => setShowAssignModal(false)}
             onSuccess={() => {
               qc.invalidateQueries({ queryKey: ["task-assignments", taskId] });
+              qc.invalidateQueries({ queryKey: ["event-applications", task.evento_id] });
               setShowAssignModal(false);
             }}
           />
@@ -342,6 +350,9 @@ function DeliveryItem({
         });
       }
     },
+    onError: (err) => {
+      toast.error(extractApiDetail(err, "No se pudo revisar la entrega."));
+    },
   });
 
   const needsReview = delivery.estado === "pendiente_revision" || !delivery.fecha_revision;
@@ -465,26 +476,52 @@ function DeliveryItem({
 function AssignModal({
   taskId,
   eventId,
+  orgId,
+  assignedUserIds,
   onClose,
   onSuccess,
 }: {
   taskId: string;
   eventId: string;
+  orgId: string;
+  assignedUserIds: string[];
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { data: members = [], isLoading: loadingMembers } = useQuery({
+    queryKey: ["members", orgId],
+    queryFn: () => volunteersApi.listMembers(orgId),
+    enabled: !!orgId,
+  });
+
   const { data: applications = [] } = useQuery({
     queryKey: ["event-applications", eventId],
     queryFn: () => eventsApi.listApplications(eventId),
     enabled: !!eventId,
   });
 
-  const approved = applications.filter((a) => a.estado === "aprobado" || a.estado === "asistio");
+  const approvedInEvent = new Set(
+    applications
+      .filter((a) => a.estado === "aprobado" || a.estado === "asistio")
+      .map((a) => a.usuario_id)
+  );
+  const alreadyAssigned = new Set(assignedUserIds);
+
+  const candidates = members.filter(
+    (m) =>
+      m.estado_membresia === "activo" &&
+      !m.es_propietario &&
+      !alreadyAssigned.has(m.usuario_id)
+  );
+
   const [selected, setSelected] = useState<string>("");
   const assignMutation = useMutation({
     mutationFn: (usuarioId: string) =>
       assignmentsApi.assign(taskId, { tipo: "individual", usuario_id: usuarioId }),
     onSuccess: () => onSuccess(),
+    onError: (err: unknown) => {
+      toast.error(extractApiDetail(err, "No se pudo asignar la tarea."));
+    },
   });
 
   return (
@@ -500,30 +537,41 @@ function AssignModal({
       >
         <h3 className="font-semibold mb-4">Asignar voluntario</h3>
         <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-          Voluntarios aprobados en este evento:
+          Voluntarios activos de tu organización. Si aún no están inscritos en el evento, se inscriben automáticamente al asignar.
         </p>
-        {approved.length === 0 ? (
+        {loadingMembers ? (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando voluntarios…</p>
+        ) : candidates.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            No hay voluntarios aprobados. Aprueba solicitudes desde el detalle del evento.
+            No hay voluntarios disponibles. Aprueba solicitudes de membresía en Voluntarios o libera cupos de esta tarea.
           </p>
         ) : (
           <div className="space-y-2 mb-4">
-            {approved.map((a) => (
+            {candidates.map((m) => (
               <label
-                key={a.id}
+                key={m.usuario_id}
                 className="flex items-center gap-3 p-3 rounded-xl cursor-pointer"
                 style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
               >
                 <input
                   type="radio"
                   name="volunteer"
-                  checked={selected === a.usuario_id}
-                  onChange={() => setSelected(a.usuario_id)}
+                  checked={selected === m.usuario_id}
+                  onChange={() => setSelected(m.usuario_id)}
                 />
-                <span className="text-sm">
-                  {a.usuario_nombre || a.usuario_email || `Usuario ${a.usuario_id.slice(0, 8)}…`}
+                <span className="text-sm flex-1 min-w-0">
+                  {m.usuario_nombre || m.usuario_email || `Usuario ${m.usuario_id.slice(0, 8)}…`}
+                  {!approvedInEvent.has(m.usuario_id) && (
+                    <span className="block text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      Se inscribirá en el evento al asignar
+                    </span>
+                  )}
                 </span>
-                {a.usuario_email && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{a.usuario_email}</span>}
+                {m.usuario_email && (
+                  <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
+                    {m.usuario_email}
+                  </span>
+                )}
               </label>
             ))}
           </div>

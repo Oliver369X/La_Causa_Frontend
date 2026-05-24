@@ -10,11 +10,44 @@ import { Plus, Calendar, Clock, Send, MessageSquare, Award, Brain } from "lucide
 import { LocationMapPicker, type LocationPoint } from "@/shared/ui/LocationMapPicker";
 import { formatDate } from "@/shared/utils/utils";
 import { geocodeWithNominatim, reverseGeocodeWithNominatim } from "@/shared/utils/geocoding";
+import { toast } from "sonner";
+import { extractApiDetail } from "@/shared/utils/apiError";
+import { agentApi } from "@/features/agent/api/agentApi";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 type EventTab = "proximos" | "curso" | "pasados";
 
 /** Campos de formulario locales (p. ej. texto de dirección antes de geocodificar). */
 type EventFormState = Partial<CreateEventData> & { ubicacion?: string };
+
+function nowForDatetimeLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day}T${h}:${min}`;
+}
+
+function validateEventDates(fechaInicio: string, fechaFin: string): string | null {
+  const inicio = new Date(fechaInicio);
+  const fin = new Date(fechaFin);
+  const now = new Date();
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
+    return "Las fechas no son válidas.";
+  }
+  if (inicio < now) {
+    return "La fecha de inicio no puede estar en el pasado.";
+  }
+  if (fin <= inicio) {
+    return "La fecha de fin debe ser posterior a la de inicio.";
+  }
+  if (fin < now) {
+    return "La fecha de fin no puede estar en el pasado.";
+  }
+  return null;
+}
 
 function classifyEvents(events: Event[]): { proximos: Event[]; curso: Event[]; pasados: Event[] } {
   const now = new Date();
@@ -33,8 +66,15 @@ function classifyEvents(events: Event[]): { proximos: Event[]; curso: Event[]; p
 
 export default function EventsPage() {
   const { activeOrgId, user } = useAuthStore();
-  const isVolunteer = user?.tipo === "voluntario";
+  const { isVolunteerExperience } = usePermissions();
+  const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
+
+  const { data: paidAccess } = useQuery({
+    queryKey: ["agent-access", activeOrgId],
+    queryFn: () => agentApi.getAccess(activeOrgId),
+    enabled: !isVolunteer && !!activeOrgId,
+  });
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<EventFormState>({});
   const [ubicacionGeo, setUbicacionGeo] = useState<LocationPoint | null>(null);
@@ -43,6 +83,11 @@ export default function EventsPage() {
   const geocodeAbortRef = useRef<AbortController | null>(null);
   const reverseAbortRef = useRef<AbortController | null>(null);
   const [tab, setTab] = useState<EventTab>("curso");
+  const minDateTimeLocal = nowForDatetimeLocal();
+  const minFechaFinLocal =
+    formData.fecha_inicio && formData.fecha_inicio > minDateTimeLocal
+      ? formData.fecha_inicio
+      : minDateTimeLocal;
 
   useEffect(() => {
     const raw = formData.ubicacion?.trim() ?? "";
@@ -120,10 +165,14 @@ export default function EventsPage() {
   const createMutation = useMutation({
     mutationFn: eventsApi.create,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["events", activeOrgId] });
+      qc.invalidateQueries({ queryKey: ["events"] });
       setShowForm(false);
       setFormData({});
       setUbicacionGeo(null);
+      toast.success("Evento creado como borrador");
+    },
+    onError: (err: unknown) => {
+      toast.error(extractApiDetail(err, "No se pudo crear el evento."));
     },
   });
 
@@ -194,6 +243,11 @@ export default function EventsPage() {
               </button>
             ))}
           </div>
+          {!isVolunteer && !activeOrgId && (
+            <p className="text-sm w-full sm:w-auto" style={{ color: "var(--text-muted)" }}>
+              Selecciona una organización en la barra lateral para crear eventos.
+            </p>
+          )}
           {!isVolunteer && activeOrgId && (
             <button
               onClick={() => setShowForm(true)}
@@ -206,7 +260,7 @@ export default function EventsPage() {
           )}
         </div>
 
-        {!isVolunteer && activeOrgId && (
+        {!isVolunteer && activeOrgId && paidAccess?.can_use && (
           <div
             className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl text-sm"
             style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
@@ -252,6 +306,13 @@ export default function EventsPage() {
                     <input
                       type={f.type}
                       placeholder={f.placeholder}
+                      min={
+                        f.type === "datetime-local"
+                          ? f.key === "fecha_fin"
+                            ? minFechaFinLocal
+                            : minDateTimeLocal
+                          : undefined
+                      }
                       value={(formData as Record<string, string>)[f.key] ?? ""}
                       onChange={(e) => setFormData((prev) => ({ ...prev, [f.key]: e.target.value }))}
                       className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
@@ -284,18 +345,36 @@ export default function EventsPage() {
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
               El evento se creará como borrador. Publícalo cuando esté listo desde el detalle del evento.
             </p>
+            {createMutation.isError && (
+              <p className="text-xs mt-3" style={{ color: "#f87171" }}>
+                {extractApiDetail(createMutation.error, "Error al crear el evento.")}
+              </p>
+            )}
             <div className="flex gap-3 mt-5">
               <button
+                disabled={createMutation.isPending}
                 onClick={() => {
                   const fd = formData as Record<string, unknown>;
+                  const nombre = (fd.nombre as string)?.trim();
+                  const fechaInicio = (fd.fecha_inicio as string)?.trim();
+                  const fechaFin = (fd.fecha_fin as string)?.trim();
+                  if (!nombre || !fechaInicio || !fechaFin) {
+                    toast.error("Completa nombre y fechas de inicio y fin.");
+                    return;
+                  }
+                  const dateError = validateEventDates(fechaInicio, fechaFin);
+                  if (dateError) {
+                    toast.error(dateError);
+                    return;
+                  }
                   const direccion = (fd.ubicacion as string)?.trim();
                   const hasUbicacion = direccion || ubicacionGeo;
                   createMutation.mutate({
                     organizacion_id: activeOrgId!,
-                    nombre: (fd.nombre as string) || "",
+                    nombre,
                     descripcion: (fd.descripcion as string) || undefined,
-                    fecha_inicio: (fd.fecha_inicio as string) || "",
-                    fecha_fin: (fd.fecha_fin as string) || "",
+                    fecha_inicio: fechaInicio,
+                    fecha_fin: fechaFin,
                     cupo_maximo: Math.max(1, Number(fd.cupo_maximo) || 50),
                     campana: typeof fd.campana === "string" && fd.campana.trim() ? fd.campana.trim() : undefined,
                     ubicacion_geo: hasUbicacion
@@ -307,10 +386,10 @@ export default function EventsPage() {
                       : undefined,
                   });
                 }}
-                className="px-6 py-2.5 rounded-full text-sm font-medium hover:opacity-80 transition-opacity"
+                className="px-6 py-2.5 rounded-full text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
                 style={{ background: "var(--text)", color: "var(--bg)" }}
               >
-                Crear
+                {createMutation.isPending ? "Creando…" : "Crear"}
               </button>
               <button
                 onClick={() => setShowForm(false)}
@@ -373,6 +452,8 @@ export default function EventsPage() {
                   </Link>
                   {canPostular(event) && (
                     <button
+                      type="button"
+                      data-testid="event-apply-btn"
                       onClick={() => setApplyEventId(event.id)}
                       disabled={applyMutation.isPending}
                       className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
@@ -433,6 +514,8 @@ export default function EventsPage() {
               />
               <div className="flex gap-2">
                 <button
+                  type="button"
+                  data-testid="event-apply-submit"
                   onClick={() =>
                     applyMutation.mutate({ eventId: applyEventId, mensaje: applyMessage.trim() || undefined })
                   }

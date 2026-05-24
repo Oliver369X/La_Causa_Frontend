@@ -32,10 +32,12 @@ import { Button } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
 import { toast } from "sonner";
 import { cn } from "@/shared/utils/utils";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 export default function EmitirCertificadosPage() {
   const { activeOrgId, user } = useAuthStore();
-  const isOrganizer = user?.tipo === "organizador";
+  const { canManageOrg } = usePermissions();
+  const isOrganizer = canManageOrg;
 
   const [plantillaId, setPlantillaId] = useState("");
   const [temporadaId, setTemporadaId] = useState<string>("");

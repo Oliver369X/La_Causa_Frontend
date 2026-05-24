@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { useTheme } from "@/shared/store/themeStore";
+import { LANDING_PRICING_PLANS } from "@/shared/config/pricingPlans";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -24,25 +25,6 @@ const features = [
   { icon: BarChart, title: "Analítica Avanzada",    desc: "Métricas en tiempo real: horas donadas, tasa de completion y rendimiento por equipo." },
   { icon: Users,    title: "RBAC Multi-tenant",     desc: "Roles granulares (owner, admin, coordinador) con espacios de trabajo completamente aislados." },
   { icon: Bot,      title: "Agente Conversacional", desc: "Chat IA integrado para guiar a voluntarios, responder preguntas y ejecutar acciones operativas." },
-];
-
-const plans = [
-  {
-    name: "Iniciativa",
-    price: "$0",
-    period: "/mes",
-    items: ["Hasta 50 voluntarios", "Gestión de eventos básica", "Soporte comunitario"],
-    cta: "Comenzar gratis",
-    highlight: false,
-  },
-  {
-    name: "Organización IA",
-    price: "$49",
-    period: "/mes",
-    items: ["Voluntarios ilimitados", "Matching IA + Predicciones", "Validación automática", "Soporte prioritario 24/7"],
-    cta: "Actualizar a Pro",
-    highlight: true,
-  },
 ];
 
 const logos = ["Cruz Roja", "UNICEF", "Hábitat", "Médicos Sin F.", "Ashoka"];
@@ -160,7 +142,7 @@ export default function LandingPage() {
 
         <motion.h1 variants={fadeUp} custom={1} initial="hidden" animate="visible"
           className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08] mb-6 max-w-4xl">
-          Gestión inteligente para{" "}
+          LA CAUSA Premium para{" "}
           <span className="bg-gradient-to-r from-purple-500 to-blue-500 bg-clip-text text-transparent">
             organizaciones con propósito.
           </span>
@@ -269,16 +251,18 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ───────────────────────────────────────────── */}
-      <section id="pricing" className="py-24 px-5 max-w-4xl mx-auto">
+      <section id="pricing" className="py-24 px-5 max-w-5xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-            Planes simples y transparentes
+            LA CAUSA Premium
           </h2>
-          <p style={{ color: "var(--text-muted)" }}>Sin contratos. Cancela cuando quieras.</p>
+          <p style={{ color: "var(--text-muted)" }}>
+            Precios en bolivianos para organizaciones en Santa Cruz. Sin contratos largos.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {plans.map((p) => (
+        <motion.div className="grid grid-cols-1 md:grid-cols-3 gap-6" variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+          {LANDING_PRICING_PLANS.map((p) => (
             <div
               key={p.name}
               className="p-8 rounded-2xl flex flex-col relative"
@@ -294,7 +278,7 @@ export default function LandingPage() {
               )}
               <h3 className="font-semibold text-base mb-1">{p.name}</h3>
               <div className="text-4xl font-bold mb-6">
-                {p.price}
+                {p.priceLabel}
                 <span className="text-base font-normal" style={{ color: "var(--text-muted)" }}>{p.period}</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
@@ -318,7 +302,7 @@ export default function LandingPage() {
               </Link>
             </div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* ── Footer ────────────────────────────────────────────── */}

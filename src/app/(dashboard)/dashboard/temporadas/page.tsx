@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { History, Calendar, Trophy, Lock, Clock, CheckCircle, Plus } from "lucide-react";
 import { gamificationApi, type Season, type HistoricalRankingEntry } from "@/features/gamification/api/gamificationApi";
 import { useAuthStore } from "@/shared/store/authStore";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
@@ -48,7 +49,10 @@ function apiErrorDetail(err: unknown): string {
 
 export default function TemporadasPage() {
   const { activeOrgId, user } = useAuthStore();
-  const isOrganizer = user?.tipo === "organizador";
+  const { can, isSuperAdmin, canManageOrg } = usePermissions();
+  const isOrganizer = canManageOrg;
+  /** Solo la organización (gestores con create_events o super-admin) puede cerrar temporadas. */
+  const canManageSeasons = isSuperAdmin || can("createEvents");
 
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
@@ -161,7 +165,7 @@ export default function TemporadasPage() {
           </div>
         )}
 
-        {isOrganizer && activeOrgId && (
+        {canManageSeasons && activeOrgId && (
           <motion.form
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -283,14 +287,16 @@ export default function TemporadasPage() {
                         {daysUntil(activeSeason.fecha_fin)} días restantes
                       </span>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      loading={closingId === activeSeason.id}
-                      onClick={() => handleCloseSeason(activeSeason.id)}
-                    >
-                      <Lock className="w-3 h-3 mr-1" /> Cerrar temporada
-                    </Button>
+                    {canManageSeasons && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        loading={closingId === activeSeason.id}
+                        onClick={() => handleCloseSeason(activeSeason.id)}
+                      >
+                        <Lock className="w-3 h-3 mr-1" /> Cerrar temporada
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4">
@@ -347,7 +353,7 @@ export default function TemporadasPage() {
                         {formatDate(s.fecha_inicio)} – {formatDate(s.fecha_fin)}
                       </p>
                     </button>
-                    {s.activa && (
+                    {s.activa && canManageSeasons && (
                       <Button
                         size="sm"
                         variant="outline"

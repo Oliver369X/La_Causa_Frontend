@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { organizationsApi, type Organization } from "@/features/organizations/api/organizationsApi";
@@ -32,10 +32,26 @@ interface Solicitud {
   estado: string;
 }
 
+function safeReturnTo(value: string | null): string | null {
+  if (!value || typeof value !== "string") return null;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value.trim());
+  } catch {
+    return null;
+  }
+  if (!decoded.startsWith("/") || decoded.startsWith("//") || decoded.includes("://")) return null;
+  return decoded;
+}
+
 export default function OrgPublicPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const { user } = useAuthStore();
+  const returnTo = safeReturnTo(searchParams.get("returnTo"));
+  const backHref = returnTo ?? (user ? "/dashboard/organizaciones" : "/");
+  const backLabel = (returnTo || user) ? "Volver" : "Inicio";
   const qc = useQueryClient();
   const [aceptoTerminos, setAceptoTerminos] = useState(false);
   const [mensaje, setMensaje] = useState("");
@@ -112,11 +128,11 @@ export default function OrgPublicPage() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6" style={{ background: "var(--bg)", color: "var(--text)" }}>
         <p style={{ color: "var(--text-muted)" }}>Organización no encontrada.</p>
         <Link
-          href="/"
+          href={user ? "/dashboard/organizaciones" : "/"}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
           style={{ background: "var(--accent)", color: "white" }}
         >
-          <ArrowLeft className="w-4 h-4" /> Volver al inicio
+          <ArrowLeft className="w-4 h-4" /> {user ? "Volver" : "Volver al inicio"}
         </Link>
       </div>
     );
@@ -144,8 +160,8 @@ export default function OrgPublicPage() {
       {/* Header simple */}
       <header className="sticky top-0 z-10 border-b" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-            <ArrowLeft className="w-4 h-4" /> Volver
+          <Link href={backHref} className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+            <ArrowLeft className="w-4 h-4" /> {backLabel}
           </Link>
           {user ? (
             <Link href="/dashboard" className="text-sm font-medium" style={{ color: "var(--accent)" }}>

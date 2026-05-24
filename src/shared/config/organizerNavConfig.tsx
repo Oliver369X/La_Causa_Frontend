@@ -65,7 +65,7 @@ export const ORGANIZER_NAV_SECTIONS: OrganizerNavSection[] = [
       { href: "/dashboard/events", icon: Calendar, label: "Eventos", permissionAction: "viewEvents" },
       { href: "/dashboard/tasks", icon: CheckSquare, label: "Tareas", permissionAction: "viewTasks" },
       { href: "/dashboard/volunteers", icon: Users, label: "Voluntarios", permissionAction: "viewMembers" },
-      { href: "/dashboard/matching", icon: UserSearch, label: "Recomendaciones", permissionAction: "viewMembers" },
+      { href: "/dashboard/matching", icon: UserSearch, label: "Recomendaciones", permissionAction: "viewMembers", paidOnly: true },
       { href: "/dashboard/roles", icon: Shield, label: "Roles (plataforma)", superAdminOnly: true },
       { href: "/dashboard/teams", icon: Users2, label: "Equipos", permissionAction: "assignTasks" },
       { href: "/dashboard/staff", icon: UserCheck, label: "Miembros", permissionAction: "viewMembers" },

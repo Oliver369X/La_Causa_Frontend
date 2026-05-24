@@ -25,9 +25,9 @@ function isValidHttpUrl(s: string): boolean {
 
 export default function ManualesPage() {
   const { user, activeOrgId } = useAuthStore();
-  const { can, isSuperAdmin } = usePermissions();
+  const { can, isSuperAdmin, canManageOrg } = usePermissions();
   const qc = useQueryClient();
-  const isOrganizer = user?.tipo === "organizador";
+  const isOrganizer = canManageOrg;
   const canCreateManual = isSuperAdmin || can("createEvents") || can("editOrg");
   const [search, setSearch] = useState("");
 

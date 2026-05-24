@@ -29,6 +29,7 @@ import {
 import { formatDate } from "@/shared/utils/utils";
 import { useState } from "react";
 import { toast } from "sonner";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 type EventDetailTab = "general" | "solicitudes" | "tareas" | "equipos" | "retrospectiva" | "config";
 
@@ -70,7 +71,8 @@ export default function EventDetailPage() {
   const params = useParams();
   const eventId = params.eventId as string;
   const { activeOrgId, user } = useAuthStore();
-  const isVolunteer = user?.tipo === "voluntario";
+  const { isVolunteerExperience } = usePermissions();
+  const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
   const [tab, setTab] = useState<EventDetailTab>("general");
   const [appFilter, setAppFilter] = useState<string>("todos");

@@ -6,6 +6,8 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, CheckCircle, Sparkles } from "lucide-react";
 import { eventsApi } from "@/features/events/api/eventsApi";
+import { extractApiDetail } from "@/shared/utils/apiError";
+import { toast } from "sonner";
 import { Card } from "@/shared/ui/Card";
 import { Button } from "@/shared/ui/Button";
 import { TopBar } from "@/shared/ui/Sidebar";
@@ -41,6 +43,9 @@ export default function RetroVoluntarioPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["feedback-obligations", eventId] });
+    },
+    onError: (err: unknown) => {
+      toast.error(extractApiDetail(err, "No se pudo enviar la retrospectiva."));
     },
   });
 
@@ -132,7 +137,9 @@ export default function RetroVoluntarioPage() {
                 />
               </div>
               {submitMutation.isError && (
-                <p className="text-xs text-red-400">No se pudo enviar. Intentá de nuevo.</p>
+                <p className="text-xs text-red-400">
+                  {extractApiDetail(submitMutation.error, "No se pudo enviar. Intentá de nuevo.")}
+                </p>
               )}
               <Button type="submit" className="w-full" loading={submitMutation.isPending}>
                 <Send className="w-4 h-4" /> Enviar retrospectiva

@@ -53,6 +53,18 @@ export default function StaffPage() {
     load();
   };
 
+  const handleRoleChange = async (userId: string, rol_slug: InviteMemberData["rol_slug"]) => {
+    if (!activeOrgId || !rol_slug) return;
+    setSaving(true);
+    try {
+      await staffApi.update(activeOrgId, userId, { rol_slug });
+      load();
+    } catch {
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const ROL_VARIANT: Record<string, "success" | "info" | "purple" | "default"> = {
     owner:       "purple",
     admin:       "info",
@@ -68,6 +80,15 @@ export default function StaffPage() {
     organizador: "Organizador",
     staff:       "Colaborador",
     volunteer:   "Voluntario",
+  };
+
+  const ROL_SLUG_BY_MEMBER: Record<string, string> = {
+    owner: "organizador",
+    volunteer: "voluntario",
+    organizador: "organizador",
+    coordinador: "coordinador",
+    admin: "admin",
+    staff: "organizador",
   };
 
   return (
@@ -115,18 +136,39 @@ export default function StaffPage() {
                 </div>
                 <Badge label={ROL_LABEL[m.rol] ?? m.rol} variant={ROL_VARIANT[m.rol] ?? "default"} />
               </div>
-              <div className="mt-3 flex items-center justify-between">
+              <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   Desde {new Date(m.fecha_ingreso).toLocaleDateString("es-ES")}
                 </p>
-                {canManage && !m.es_propietario && (
-                  <button
-                    onClick={() => handleRemove(m.usuario_id)}
-                    className="text-xs text-red-400 hover:text-red-500 transition-colors"
-                  >
-                    Remover
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {canManage && !m.es_propietario && m.rol !== "owner" && (
+                    <select
+                      value={ROL_SLUG_BY_MEMBER[m.rol] ?? "voluntario"}
+                      disabled={saving}
+                      onChange={(e) =>
+                        handleRoleChange(
+                          m.usuario_id,
+                          e.target.value as InviteMemberData["rol_slug"]
+                        )
+                      }
+                      className="h-7 px-2 text-xs rounded-lg outline-none"
+                      style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                    >
+                      <option value="voluntario">Voluntario</option>
+                      <option value="organizador">Organizador</option>
+                      <option value="coordinador">Coordinador</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  )}
+                  {canManage && !m.es_propietario && (
+                    <button
+                      onClick={() => handleRemove(m.usuario_id)}
+                      className="text-xs text-red-400 hover:text-red-500 transition-colors"
+                    >
+                      Remover
+                    </button>
+                  )}
+                </div>
               </div>
             </Card>
           ))}

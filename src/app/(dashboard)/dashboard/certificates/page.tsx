@@ -22,8 +22,8 @@ function formatDate(str: string) {
 
 export default function CertificatesPage() {
   const { user, activeOrgId } = useAuthStore();
-  const { can } = usePermissions();
-  const isOrganizer = user?.tipo === "organizador";
+  const { can, canManageOrg } = usePermissions();
+  const isOrganizer = canManageOrg;
   const canManageCerts = isOrganizer && activeOrgId && can("createEvents");
 
   const [certs, setCerts] = useState<Certificate[]>([]);

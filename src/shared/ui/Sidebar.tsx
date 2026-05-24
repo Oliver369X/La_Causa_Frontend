@@ -58,8 +58,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { theme, toggle } = useTheme();
   const { user, logout, activeOrgId, setActiveOrg } = useAuthStore();
   const setCollapsed = useSidebarLayoutStore((s) => s.setCollapsed);
-  const { can } = usePermissions();
-  const isVolunteer = user?.tipo === "voluntario";
+  const { can, isVolunteerExperience } = usePermissions();
+  const isVolunteer = isVolunteerExperience;
   const canSeeGlobalAdmin = Boolean(user?.is_super_admin);
 
   const { data: agentAccess } = useQuery({

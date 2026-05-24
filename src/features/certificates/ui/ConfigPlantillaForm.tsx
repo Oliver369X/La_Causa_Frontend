@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, PenTool, Building2, Stamp, Plus, Trash2, ChevronDown } from "lucide-react";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
 import { toast } from "sonner";
+import { extractUploadError } from "@/shared/utils/apiError";
 import {
   newPlacedImage,
   type PlacedImage,
@@ -130,8 +131,8 @@ function ImageUploadSlot({
       toast.error("Solo se permiten imágenes (JPG, PNG, WebP)");
       return;
     }
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error("Máximo 5 MB");
+    if (f.size > 10 * 1024 * 1024) {
+      toast.error("La imagen no puede superar 10 MB.");
       return;
     }
     onUploadingChange(true);
@@ -139,8 +140,8 @@ function ImageUploadSlot({
       const { url: uploadedUrl } = await uploadImage(f);
       onUrlChange(uploadedUrl);
       toast.success("Imagen subida correctamente");
-    } catch {
-      toast.error("Error al subir. Verifica que Cloudinary esté configurado.");
+    } catch (err) {
+      toast.error(extractUploadError(err));
     } finally {
       onUploadingChange(false);
       e.target.value = "";

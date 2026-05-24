@@ -5,6 +5,8 @@ import { assignmentsApi } from "@/features/assignments/api/assignmentsApi";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
 import { ImagePlus, X } from "lucide-react";
 import { TaskInstructionsDisplay } from "./TaskInstructionsDisplay";
+import { extractApiDetail, extractUploadError } from "@/shared/utils/apiError";
+import { formatImageSize } from "@/shared/utils/prepareImageForUpload";
 
 interface DeliveryUploadProps {
   assignmentId: string;
@@ -25,6 +27,7 @@ export function DeliveryUpload({
   const [preview, setPreview] = useState<string | null>(null);
   const [comentario, setComentario] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState<"idle" | "optimizing" | "uploading" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -37,12 +40,12 @@ export function DeliveryUpload({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (!f.type.startsWith("image/")) {
-      setError("Solo se permiten imágenes (JPG, PNG)");
+    if (!f.type.startsWith("image/") && !/\.(jpe?g|png|webp|gif)$/i.test(f.name)) {
+      setError("Solo se permiten imágenes (JPG, PNG, WebP o GIF).");
       return;
     }
-    if (f.size > 5 * 1024 * 1024) {
-      setError("Máximo 5MB");
+    if (f.size > 10 * 1024 * 1024) {
+      setError(`La imagen pesa ${formatImageSize(f.size)}. El máximo permitido es 10 MB.`);
       return;
     }
     setError(null);
@@ -53,24 +56,55 @@ export function DeliveryUpload({
     });
   };
 
+  const uploadStatusLabel =
+    uploadStep === "optimizing"
+      ? "Optimizando imagen..."
+      : uploadStep === "uploading"
+        ? "Subiendo imagen..."
+        : uploadStep === "saving"
+          ? "Registrando entrega..."
+          : "Enviando...";
+
   const handleSubmit = async () => {
     if (!file) {
-      setError("Selecciona una imagen");
+      setError("Selecciona una imagen de evidencia.");
       return;
     }
     setUploading(true);
     setError(null);
     try {
-      const { url } = await uploadImage(file);
+      let evidenceUrl: string;
+      try {
+        setUploadStep("optimizing");
+        // uploadImage comprime y redimensiona antes de enviar
+        setUploadStep("uploading");
+        const uploaded = await uploadImage(file);
+        evidenceUrl = uploaded.url?.trim() ?? "";
+        if (!evidenceUrl) {
+          setError("La subida terminó pero no recibimos la URL de la imagen. Intentá de nuevo.");
+          return;
+        }
+      } catch (uploadErr) {
+        setError(extractUploadError(uploadErr));
+        return;
+      }
+
+      setUploadStep("saving");
       await assignmentsApi.submitDelivery(assignmentId, {
-        evidencia_url: url,
-        comentario: comentario.trim() || undefined,
+        evidencia_url: evidenceUrl,
+        ...(comentario.trim() ? { comentario: comentario.trim() } : {}),
       });
       onSuccess();
     } catch (err: unknown) {
-      setError((err as { message?: string })?.message ?? "Error al subir");
+      setError(
+        extractApiDetail(
+          err,
+          "La imagen se subió, pero no se pudo registrar la entrega. Contactá al organizador."
+        )
+      );
     } finally {
       setUploading(false);
+      setUploadStep("idle");
     }
   };
 
@@ -147,7 +181,7 @@ export function DeliveryUpload({
                   Click o arrastra una imagen aquí
                 </p>
                 <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                  JPG, PNG (máx 5MB)
+                  JPG, PNG o WebP (máx. 10 MB). Se optimiza automáticamente al enviar.
                 </p>
               </>
             )}
@@ -167,7 +201,14 @@ export function DeliveryUpload({
         </div>
 
         {error && (
-          <p className="text-sm text-red-500 mb-4">{error}</p>
+          <div
+            className="text-sm mb-4 p-3 rounded-xl"
+            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.35)", color: "#ef4444" }}
+            role="alert"
+          >
+            <p className="font-medium">No se pudo completar la entrega</p>
+            <p className="mt-1 text-xs leading-relaxed opacity-95">{error}</p>
+          </div>
         )}
 
         <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
@@ -181,7 +222,7 @@ export function DeliveryUpload({
             className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
             style={{ background: "var(--accent)", color: "white" }}
           >
-            {uploading ? "Enviando..." : "Enviar entrega"}
+            {uploading ? uploadStatusLabel : "Enviar entrega"}
           </button>
           <button
             onClick={onClose}

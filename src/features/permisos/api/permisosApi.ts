@@ -6,11 +6,15 @@ import type { UUID } from "@/shared/types";
 export interface PermisosContextResponse {
   permisos: string[];
   es_propietario: boolean;
+  rol_slug?: string | null;
+  puede_gestionar?: boolean;
 }
 
 export interface PermisosContext {
   permisos: string[];
   esPropietario: boolean;
+  rolSlug: string | null;
+  puedeGestionar: boolean;
 }
 
 export const permisosApi = {
@@ -19,6 +23,8 @@ export const permisosApi = {
     return {
       permisos: data.permisos ?? [],
       esPropietario: Boolean(data.es_propietario),
+      rolSlug: data.rol_slug ?? null,
+      puedeGestionar: Boolean(data.puede_gestionar),
     };
   },
 };

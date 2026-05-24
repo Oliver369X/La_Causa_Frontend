@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { suspend401SessionRedirect } from "@/shared/api/client";
 import { authApi } from "@/features/auth/api/authApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { AuthCard, Field, Input, SubmitBtn } from "@/shared/ui/AuthCard";
@@ -36,17 +37,30 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    const fd = new FormData(e.currentTarget);
+    const nombreVal = String(fd.get("nombre") ?? "").trim() || nombre.trim();
+    const emailVal = String(fd.get("email") ?? "").trim() || email.trim();
+    const passwordVal = String(fd.get("password") ?? "") || password;
+    const release401Guard = suspend401SessionRedirect();
     try {
-      await authApi.register({ nombre, email, password, tipo });
+      if (!nombreVal || !emailVal || !passwordVal) {
+        setError("Completá todos los campos.");
+        return;
+      }
+      if (passwordVal.length < 8) {
+        setError("La contraseña debe tener al menos 8 caracteres.");
+        return;
+      }
+      await authApi.register({ nombre: nombreVal, email: emailVal, password: passwordVal, tipo });
 
       // Auto-login después del registro
-      const { access_token } = await authApi.login({ email, password });
+      const { access_token } = await authApi.login({ email: emailVal, password: passwordVal });
       setAuthSessionCookie(access_token);
-      useAuthStore.getState().setAuth(access_token, { id: "", email, nombre, is_active: true });
+      useAuthStore.getState().setAuth(access_token, { id: "", email: emailVal, nombre: nombreVal, is_active: true });
 
       // Cargar perfil completo (fallo tolerado — el token ya está en el store)
       try {
@@ -61,6 +75,7 @@ export default function RegisterPage() {
     } catch {
       setError("No se pudo crear tu cuenta. El email puede estar en uso.");
     } finally {
+      release401Guard();
       setLoading(false);
     }
   };
@@ -109,18 +124,18 @@ export default function RegisterPage() {
         })}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <Field label="Nombre completo">
-          <Input data-testid="nombre-input" type="text" value={nombre}
-            onChange={(e) => setNombre(e.target.value)} required placeholder="Ana García" />
+          <Input data-testid="nombre-input" name="nombre" type="text" autoComplete="name" value={nombre}
+            onChange={(e) => setNombre(e.target.value)} placeholder="Ana García" />
         </Field>
         <Field label="Email">
-          <Input data-testid="email-input" type="email" value={email}
-            onChange={(e) => setEmail(e.target.value)} required placeholder="tu@email.com" />
+          <Input data-testid="email-input" name="email" type="email" autoComplete="email" value={email}
+            onChange={(e) => setEmail(e.target.value)} placeholder="tu@email.com" />
         </Field>
         <Field label="Contraseña">
-          <Input data-testid="password-input" type="password" value={password}
-            onChange={(e) => setPassword(e.target.value)} required minLength={8} placeholder="Mínimo 8 caracteres" />
+          <Input data-testid="password-input" name="password" type="password" autoComplete="new-password"
+            value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
         </Field>
         <SubmitBtn data-testid="submit-register" loading={loading}
           label={tipo === "voluntario" ? "Ser Voluntario" : "Crear mi ONG"}

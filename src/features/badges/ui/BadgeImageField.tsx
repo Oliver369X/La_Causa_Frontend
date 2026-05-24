@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
+import { extractUploadError } from "@/shared/utils/apiError";
 import { Button } from "@/shared/ui/Button";
 import { cn } from "@/shared/utils/utils";
 
@@ -36,8 +37,8 @@ export function BadgeImageField({
       try {
         const { url } = await uploadImage(file);
         onChange(url);
-      } catch {
-        onError("No se pudo subir la imagen. Probá de nuevo.");
+      } catch (err) {
+        onError(extractUploadError(err));
       } finally {
         onUploadingChange(false);
       }

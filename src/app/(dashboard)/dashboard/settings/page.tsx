@@ -39,6 +39,8 @@ import { VolunteerProfileBasicsCard } from "@/features/volunteers/ui/VolunteerPr
 import { VolunteerPersonalizationCard } from "@/features/volunteers/ui/VolunteerPersonalizationCard";
 import { VolunteerAvailabilitySelector } from "@/features/volunteers/ui/VolunteerAvailabilitySelector";
 import { VolunteerSkillsManager } from "@/features/volunteers/ui/VolunteerSkillsManager";
+import { usePermissions } from "@/shared/hooks/usePermissions";
+import { extractApiDetail, extractUploadError } from "@/shared/utils/apiError";
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const PRIVATE_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i;
@@ -297,10 +299,13 @@ function VolunteerProfile({
   };
 
   const handleAvatarChange = (file: File) => {
-    if (!file || !file.type.startsWith("image/")) return;
+    if (!file || !file.type.startsWith("image/")) {
+      toast.error("Elegí una imagen JPG, PNG, WebP o GIF.");
+      return;
+    }
     uploadImage(file)
       .then((res) => updateAvatar.mutate(res.url))
-      .catch(() => {});
+      .catch((err) => toast.error(extractUploadError(err)));
   };
 
   return (
@@ -496,7 +501,13 @@ function VolunteerProfile({
 }
 
 /* ── Logo de la organización (Cloudinary) ────────────────────── */
-function OrgLogoSection({ activeOrgId }: { activeOrgId: string }) {
+function OrgLogoSection({
+  activeOrgId,
+  canManageOrg,
+}: {
+  activeOrgId: string;
+  canManageOrg: boolean;
+}) {
   const qc = useQueryClient();
   const { data: org } = useQuery({
     queryKey: ["org", activeOrgId],
@@ -513,17 +524,37 @@ function OrgLogoSection({ activeOrgId }: { activeOrgId: string }) {
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) return;
+    if (!canManageOrg) {
+      toast.error("No tienes permiso para editar la organización.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("La imagen no puede superar 10 MB.");
+      return;
+    }
     uploadImage(file)
-      .then((res) => updateLogo.mutate(res.url))
-      .catch(() => {});
+      .then((res) =>
+        updateLogo.mutate(res.url, {
+          onSuccess: () => toast.success("Logo actualizado"),
+          onError: (err) =>
+            toast.error(extractApiDetail(err, "No se pudo guardar el logo en la organización.")),
+        })
+      )
+      .catch((err) => toast.error(extractUploadError(err)));
     e.target.value = "";
   };
 
   return (
     <Section id="settings-logo" title="Logo de la organización" icon={Image}>
       <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
-        El logo se muestra en el perfil público y al explorar organizaciones. JPG, PNG. Máx. 5 MB.
+        El logo se muestra en el perfil público y al explorar organizaciones. JPG, PNG o WebP. Máx. 10 MB
+        (mín. 200×200 px).
       </p>
+      {!canManageOrg && (
+        <p className="text-xs mb-3 text-amber-600">
+          Solo lectura: necesitas permiso de gestión de la organización para cambiar el logo.
+        </p>
+      )}
       <div className="flex items-center gap-4">
         <div
           className="w-20 h-20 rounded-xl flex items-center justify-center overflow-hidden shrink-0"
@@ -544,9 +575,9 @@ function OrgLogoSection({ activeOrgId }: { activeOrgId: string }) {
             {updateLogo.isPending ? "Subiendo..." : "Cambiar logo"}
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={handleLogoChange}
-              disabled={updateLogo.isPending}
+              disabled={updateLogo.isPending || !canManageOrg}
               className="hidden"
             />
           </label>
@@ -889,7 +920,13 @@ function OrgVisibilidadSection({ activeOrgId }: { activeOrgId: string }) {
 }
 
 /* ── Personalización: colores, banner ───────────────────────── */
-function OrgPersonalizacionSection({ activeOrgId }: { activeOrgId: string }) {
+function OrgPersonalizacionSection({
+  activeOrgId,
+  canManageOrg,
+}: {
+  activeOrgId: string;
+  canManageOrg: boolean;
+}) {
   const qc = useQueryClient();
   const { data: org } = useQuery({
     queryKey: ["org", activeOrgId],
@@ -946,6 +983,14 @@ function OrgPersonalizacionSection({ activeOrgId }: { activeOrgId: string }) {
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) return;
+    if (!canManageOrg) {
+      toast.error("No tienes permiso para editar la organización.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("La imagen no puede superar 10 MB.");
+      return;
+    }
     uploadImage(file)
       .then((res) => {
         setBannerUrl(res.url);
@@ -957,9 +1002,13 @@ function OrgPersonalizacionSection({ activeOrgId }: { activeOrgId: string }) {
             banner_url: res.url,
           },
         };
-        updateNormas.mutate(normas);
+        updateNormas.mutate(normas, {
+          onSuccess: () => toast.success("Banner actualizado"),
+          onError: (err) =>
+            toast.error(extractApiDetail(err, "No se pudo guardar el banner.")),
+        });
       })
-      .catch(() => {});
+      .catch((err) => toast.error(extractUploadError(err)));
     e.target.value = "";
   };
 
@@ -1020,12 +1069,20 @@ function OrgPersonalizacionSection({ activeOrgId }: { activeOrgId: string }) {
             </div>
           ) : null}
           <label
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer w-fit"
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium w-fit ${
+              canManageOrg ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+            }`}
             style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
           >
             <Camera className="w-4 h-4" />
             {bannerUrl ? "Cambiar banner" : "Subir banner"}
-            <input type="file" accept="image/*" onChange={handleBannerChange} className="hidden" />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleBannerChange}
+              disabled={!canManageOrg}
+              className="hidden"
+            />
           </label>
         </div>
         <button
@@ -1327,8 +1384,17 @@ function SettingsOrganizerNav() {
 /* ── Main page ────────────────────────────────────────────── */
 export default function SettingsPage() {
   const { activeOrgId, user, setAuth, token } = useAuthStore();
-  const isVolunteer = user?.tipo === "voluntario";
+  const { can, esPropietario, isSuperAdmin, permisosLoaded, isVolunteerExperience } = usePermissions();
+  const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
+  const canManageOrg =
+    isSuperAdmin ||
+    esPropietario ||
+    (permisosLoaded &&
+      (can("editOrg") ||
+        can("createEvents") ||
+        can("manageMembers") ||
+        can("assignTasks")));
 
   /* Org name update */
   const [orgName, setOrgName]           = useState("");
@@ -1465,7 +1531,10 @@ export default function SettingsPage() {
           ubicacion: data.ubicacion ?? user.ubicacion,
         });
       }
+      toast.success("Foto de perfil actualizada");
     },
+    onError: (err) =>
+      toast.error(extractApiDetail(err, "No se pudo guardar la foto en tu perfil.")),
   });
 
   const updateUbicacion = useMutation({
@@ -1622,7 +1691,7 @@ export default function SettingsPage() {
         </Section>
 
         {/* Logo de la organización (Cloudinary) */}
-        <OrgLogoSection activeOrgId={activeOrgId!} />
+        <OrgLogoSection activeOrgId={activeOrgId!} canManageOrg={canManageOrg} />
 
         {/* Perfil público (lo que ven los voluntarios al explorar organizaciones) */}
         <OrgPerfilPublicoSection activeOrgId={activeOrgId!} />
@@ -1631,7 +1700,7 @@ export default function SettingsPage() {
         <OrgVisibilidadSection activeOrgId={activeOrgId!} />
 
         {/* Personalización: colores, banner, identidad */}
-        <OrgPersonalizacionSection activeOrgId={activeOrgId!} />
+        <OrgPersonalizacionSection activeOrgId={activeOrgId!} canManageOrg={canManageOrg} />
 
         {/* Términos y políticas (aceptación obligatoria antes de unirse) */}
         <OrgTerminosSection activeOrgId={activeOrgId!} />
@@ -1696,7 +1765,10 @@ export default function SettingsPage() {
             <p className="text-sm text-center py-4" style={{ color: "var(--text-muted)" }}>Sin miembros.</p>
           ) : (
             <div className="space-y-2">
-              {members.map((m) => (
+              {members.map((m) => {
+                const displayName = (m.usuario_nombre && m.usuario_nombre.trim()) || m.usuario_email || "Miembro";
+                const initial = (displayName[0] || "?").toUpperCase();
+                return (
                 <div
                   key={m.id}
                   className="flex items-center justify-between px-4 py-3 rounded-xl"
@@ -1704,11 +1776,12 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                      {m.usuario_id.slice(0, 1).toUpperCase()}
+                      {initial}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{m.usuario_id}</p>
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      <p className="text-sm font-medium truncate">{displayName}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                        {m.usuario_email && m.usuario_email !== displayName ? `${m.usuario_email} · ` : ""}
                         {m.es_propietario ? "Propietario" : "Miembro"} · {m.estado_membresia}
                       </p>
                     </div>
@@ -1717,13 +1790,15 @@ export default function SettingsPage() {
                     <button
                       onClick={() => removeMember.mutate(m.usuario_id)}
                       disabled={removeMember.isPending}
+                      title="Quitar miembro"
                       className="p-2 rounded-xl opacity-40 hover:opacity-100 hover:text-red-500 transition-all"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Section>

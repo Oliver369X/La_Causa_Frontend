@@ -24,6 +24,7 @@ export interface InviteMemberData {
 }
 
 export interface UpdateMemberData {
+  rol_slug?: "admin" | "coordinador" | "organizador" | "voluntario";
   rol?: "admin" | "staff" | "volunteer";
   estado_membresia?: "active" | "suspended";
 }
@@ -45,7 +46,11 @@ export const staffApi = {
     return staffApi.normalizeMember(data);
   },
   normalizeMember: (m: StaffMember & { rol_slug?: string; usuario_nombre?: string; usuario_email?: string }): StaffMember => {
-    const rol = m.es_propietario ? "owner" : (m.rol_slug ?? m.rol ?? "volunteer");
+    const rawRol = m.es_propietario ? "owner" : (m.rol_slug ?? m.rol ?? "volunteer");
+    const rol =
+      rawRol === "voluntario"
+        ? "volunteer"
+        : (rawRol as StaffMember["rol"]);
     return {
       ...m,
       rol,
@@ -55,8 +60,11 @@ export const staffApi = {
   },
 
   update: async (orgId: UUID, userId: UUID, payload: UpdateMemberData): Promise<StaffMember> => {
-    const { data } = await apiClient.patch<StaffMember>(EP.ORG_MEMBER(orgId, userId), payload);
-    return data;
+    const body = payload.rol_slug
+      ? { rol_slug: payload.rol_slug }
+      : payload;
+    const { data } = await apiClient.patch<StaffMember & { rol_slug?: string }>(EP.ORG_MEMBER(orgId, userId), body);
+    return staffApi.normalizeMember(data);
   },
 
   remove: async (orgId: UUID, userId: UUID): Promise<void> => {

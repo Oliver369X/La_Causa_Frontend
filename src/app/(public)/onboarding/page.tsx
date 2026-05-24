@@ -12,6 +12,7 @@ import { VolunteerOnboardingWizard } from "@/features/onboarding/ui/VolunteerOnb
 import { OrganizerOnboardingWizard } from "@/features/onboarding/ui/OrganizerOnboardingWizard";
 import { skillsApi } from "@/features/skills/api/skillsApi";
 import { uploadImage } from "@/features/uploads/api/uploadApi";
+import { extractUploadError } from "@/shared/utils/apiError";
 import { apiClient } from "@/shared/api/client";
 import { buildVolunteerOnboardingProgress } from "@/features/onboarding/lib/volunteerOnboarding";
 import {
@@ -385,10 +386,13 @@ export default function OnboardingPage() {
   });
 
   const handleAvatarChange = (file: File) => {
-    if (!file.type.startsWith("image/")) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Elegí una imagen JPG, PNG, WebP o GIF.");
+      return;
+    }
     uploadImage(file)
       .then((res) => updateAvatar.mutate(res.url))
-      .catch(() => toast.error("No se pudo subir la imagen."));
+      .catch((err) => toast.error(extractUploadError(err)));
   };
 
   const handleUsarMiUbicacion = () => {

@@ -6,164 +6,16 @@
  * Cada test incluye interacciones visuales para que los videos sean legibles.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { installBackendMocks, setAuthenticated } from "./mock-backend";
 
-// ─── Datos de mock ────────────────────────────────────────────────────────────
-
-const MOCK_USER = {
-  id: "user-demo-001",
-  email: "admin@lacausa.dev",
-  nombre: "Admin Demo",
-  is_active: true,
-  rol: "admin",
-  tipo: "organizador",
-  is_super_admin: false,
-};
-const MOCK_ORG_ID = "org-demo-001";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Inyecta cookie + localStorage para simular sesión autenticada */
-async function setAuthenticated(page: Page) {
-  await page.context().addCookies([
-    {
-      name: "auth-session",
-      value: "mock.jwt.token.for.testing",
-      domain: "localhost",
-      path: "/",
-      expires: Math.floor(Date.now() / 1000) + 7200,
-    },
-  ]);
-  await page.addInitScript(
-    ({ user, orgId }) => {
-      localStorage.setItem(
-        "auth-storage",
-        JSON.stringify({
-          state: { token: "mock.jwt.token.for.testing", user, activeOrgId: orgId },
-          version: 0,
-        })
-      );
-    },
-    { user: MOCK_USER, orgId: MOCK_ORG_ID }
-  );
-}
-
-/** Intercepta todas las llamadas al backend y devuelve datos de demo */
+/** Intercepta llamadas al backend (cualquier host de API) con datos de demo */
 async function mockBackendApis(page: Page) {
-  await page.route("http://localhost:8000/**", async (route) => {
-    const url    = route.request().url();
-    const method = route.request().method();
-
-    if (url.includes("/permisos/mis"))
-      return route.fulfill({
-        json: {
-          permisos: [
-            "view_events",
-            "create_events",
-            "assign_tasks",
-            "view_members",
-            "view_analytics",
-            "edit_org",
-          ],
-          es_propietario: true,
-        },
-      });
-    if (url.includes("/analytics/dashboard"))
-      return route.fulfill({ json: { total_volunteers: 12, total_events: 5, total_tasks: 23, tasks_completed: 17 } });
-    if (url.includes("/mis-obligaciones-feedback"))
-      return route.fulfill({
-        json: [{ evento_id: "ev-1", tipo: "ml_eval", estado: "pendiente" }],
-      });
-    if (url.match(/\/eventos\/[^/]+\/solicitudes/) && method === "GET")
-      return route.fulfill({
-        json: [
-          {
-            id: "s1",
-            usuario_id: "u-vol-1",
-            usuario_nombre: "Voluntario Demo",
-            usuario_email: "vol@demo.org",
-            evento_id: "ev-1",
-            estado: "aprobado",
-            fecha_solicitud: "2026-01-01T00:00:00",
-            fecha_respuesta: "2026-01-02T00:00:00",
-            mensaje_solicitud: null,
-            nota_interna_organizador: null,
-            horas_acreditadas: 0,
-            calificacion: null,
-          },
-        ],
-      });
-    if (url.match(/\/eventos\/[^/?]+$/) && method === "GET" && !url.includes("solicitudes") && !url.includes("mis-obligaciones"))
-      return route.fulfill({
-        json: {
-          id: "ev-1",
-          titulo: "Maratón Solidaria",
-          descripcion: "Carrera benéfica anual",
-          fecha_inicio: "2026-03-01T09:00:00",
-          fecha_fin: "2026-03-01T13:00:00",
-          estado: "finalizado",
-          cupo_maximo: 100,
-          organizacion_id: MOCK_ORG_ID,
-          creador_id: null,
-          ubicacion_geo: null,
-          created_at: "2026-01-01T00:00:00",
-          updated_at: "2026-01-01T00:00:00",
-        },
-      });
-    if (url.includes("/eventos") && method === "GET")
-      return route.fulfill({
-        json: [
-          { id: "ev-1", titulo: "Maratón Solidaria",     descripcion: "Carrera benéfica anual", fecha_inicio: "2026-03-01T09:00", fecha_fin: "2026-03-01T13:00", estado: "publicado",  cupo_maximo: 100, organizacion_id: MOCK_ORG_ID, creador_id: null, ubicacion_geo: null, created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" },
-          { id: "ev-2", titulo: "Feria de Voluntariado", descripcion: "Stand de la org",        fecha_inicio: "2026-03-15T10:00", fecha_fin: "2026-03-15T18:00", estado: "en_curso",   cupo_maximo: 50,  organizacion_id: MOCK_ORG_ID, creador_id: null, ubicacion_geo: null, created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" },
-        ],
-      });
-    if (url.includes("/api/feedback") && method === "POST")
-      return route.fulfill({ json: { total_labeled_matches: 1, mensaje: "ok", actualizado: true } });
-    if (url.includes("/tareas"))
-      return route.fulfill({
-        json: [
-          { id: "t-1", titulo: "Registrar participantes", estado: "pending",     organizacion_id: MOCK_ORG_ID },
-          { id: "t-2", titulo: "Coordinar logística",     estado: "in_progress", organizacion_id: MOCK_ORG_ID },
-          { id: "t-3", titulo: "Enviar notificaciones",   estado: "completed",   organizacion_id: MOCK_ORG_ID },
-        ],
-      });
-    if (url.includes("/perfil") && url.includes("/competitivo"))
-      return route.fulfill({ json: { usuario_id: MOCK_USER.id, nombre: MOCK_USER.nombre, puntos_elo: 1420, rango: "Oro", nivel: 7, racha_entregas: 14, eventos_completados: 8, tareas_completadas: 31, insignias_total: 5 } });
-    if (url.includes("/perfil") && url.includes("/insignias"))
-      return route.fulfill({
-        json: [
-          { id: "b-1", nombre: "Primer Evento",          rareza: "common",    puntos: 10,  descripcion: "Completó su primer evento",        criterio: "1_event"   },
-          { id: "b-2", nombre: "Colaborador Dedicado",   rareza: "uncommon",  puntos: 50,  descripcion: "10 eventos completados",           criterio: "10_events" },
-          { id: "b-3", nombre: "Héroe del Voluntariado", rareza: "rare",      puntos: 200, descripcion: "50 tareas completadas",            criterio: "50_tasks"  },
-          { id: "b-4", nombre: "Campeón Épico",          rareza: "epic",      puntos: 500, descripcion: "Racha de 30 días",                 criterio: "30_streak" },
-          { id: "b-5", nombre: "Leyenda Viva",           rareza: "legendary", puntos: 999, descripcion: "Top 1 del ranking durante un mes", criterio: "top1_month"},
-        ],
-      });
-    if (url.includes("/ranking") && !url.includes("historico"))
-      return route.fulfill({
-        json: [
-          { posicion: 1, usuario_id: "u-a",        nombre: "Ana García",     puntos_elo: 1850, rango: "Diamante", eventos_mes: 4, avatar_url: null },
-          { posicion: 2, usuario_id: "u-b",        nombre: "Carlos López",   puntos_elo: 1720, rango: "Platino",  eventos_mes: 3, avatar_url: null },
-          { posicion: 3, usuario_id: MOCK_USER.id, nombre: MOCK_USER.nombre, puntos_elo: 1420, rango: "Oro",      eventos_mes: 2, avatar_url: null },
-        ],
-      });
-    if (url.includes("/notificaciones"))
-      return route.fulfill({
-        json: [
-          { id: "n-1", titulo: "Nuevo evento asignado", cuerpo: "Maratón Solidaria",       leida: false, created_at: new Date().toISOString() },
-          { id: "n-2", titulo: "Tarea completada",       cuerpo: "Registrar participantes", leida: true,  created_at: new Date().toISOString() },
-        ],
-      });
-    if (url.includes("/api/agent/chat"))
-      return route.fulfill({ json: { respuesta: "¡Hola! Soy el agente IA de La Causa.", acciones_ejecutadas: [], pending_confirmation: null } });
-    if (url.includes("/roles"))
-      return route.fulfill({ json: [{ id: "r-1", nombre: "Coordinador", permisos: ["manage_events"] }, { id: "r-2", nombre: "Voluntario Senior", permisos: ["view_events"] }] });
-    if (url.includes("/organizaciones"))
-      return route.fulfill({ json: [{ id: MOCK_ORG_ID, nombre: "Fundación Demo", descripcion: "Organización de prueba" }] });
-    if (url.includes("/planes") || url.includes("/suscripciones"))
-      return route.fulfill({ json: [{ id: "p-1", nombre: "Iniciativa", precio: 0, max_voluntarios: 20 }, { id: "p-2", nombre: "Organización IA", precio: 49, max_voluntarios: 200 }] });
-    return route.fulfill({ json: [] });
-  });
+  await installBackendMocks(page);
 }
+
+test.beforeEach(async ({ page }) => {
+  await mockBackendApis(page);
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Landing Page
@@ -175,7 +27,7 @@ test.describe("Landing Page", () => {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(500);
 
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Gestión inteligente");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("LA CAUSA Premium");
     await expect(page.getByRole("link", { name: /Prueba gratuita/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Iniciar Sesión/i  })).toBeVisible();
 
@@ -209,8 +61,10 @@ test.describe("Landing Page", () => {
     await page.locator("#pricing").scrollIntoViewIfNeeded();
     await page.waitForTimeout(600);
 
-    await expect(page.getByText("Iniciativa"      )).toBeVisible();
-    await expect(page.getByText("Organización IA" )).toBeVisible();
+    await expect(page.getByText("Plan Semilla")).toBeVisible();
+    await expect(page.getByText("Plan Pro")).toBeVisible();
+    await expect(page.getByText("Plan Corporativo")).toBeVisible();
+    await expect(page.getByText("Bs 140")).toBeVisible();
 
     for (const card of await page.locator("#pricing [class*=rounded-3xl], #pricing [class*=rounded-2xl]").all()) {
       await card.hover();
@@ -406,9 +260,11 @@ test.describe("Páginas autenticadas (smoke)", () => {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(800);
 
-    await expect(page.getByText("Todos los eventos"   )).toBeVisible();
-    await expect(page.getByText("Maratón Solidaria"   )).toBeVisible();
+    await expect(page.getByText("Todos los eventos")).toBeVisible();
+    await page.getByRole("button", { name: "En curso" }).click();
     await expect(page.getByText("Feria de Voluntariado")).toBeVisible();
+    await page.getByRole("button", { name: "Próximos" }).click();
+    await expect(page.getByText("Maratón Solidaria")).toBeVisible();
     await page.waitForTimeout(400);
   });
 
@@ -419,6 +275,8 @@ test.describe("Páginas autenticadas (smoke)", () => {
 
     await expect(page.getByRole("heading", { name: /Mi perfil competitivo/i })).toBeVisible();
     await expect(page.getByText("Sonidos")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Activados|Desactivados/i })).toBeVisible();
+    await expect(page.getByText("variante A / B / C")).not.toBeVisible();
     await page.waitForTimeout(500);
   });
 
@@ -471,7 +329,7 @@ test.describe("Páginas autenticadas (smoke)", () => {
     await page.waitForTimeout(600);
 
     await expect(page.getByRole("heading", { name: "Agente IA" })).toBeVisible();
-    await expect(page.locator('input[placeholder="Escribe tu mensaje\u2026"]')).toBeVisible();
+    await expect(page.getByPlaceholder(/Escribe, dicta o adjunta/i)).toBeVisible();
     await page.waitForTimeout(400);
   });
 });

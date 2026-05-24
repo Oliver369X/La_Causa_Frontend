@@ -88,7 +88,7 @@ export default function VoluntarioPublicoPage() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6" style={{ background: "var(--bg)", color: "var(--text)" }}>
         <p style={{ color: "var(--text-muted)" }}>No se encontró el perfil.</p>
         <Link
-          href={returnTo ?? "/"}
+          href={returnTo ?? (user ? "/dashboard" : "/")}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
           style={{ background: "var(--accent)", color: "white" }}
         >
@@ -117,11 +117,11 @@ export default function VoluntarioPublicoPage() {
       <header className="border-b" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link
-            href={returnTo ?? "/"}
+            href={returnTo ?? (user ? "/dashboard" : "/")}
             className="flex items-center gap-2 text-sm"
             style={{ color: "var(--text-muted)" }}
           >
-            <ArrowLeft className="w-4 h-4" /> {returnTo ? "Volver" : "Inicio"}
+            <ArrowLeft className="w-4 h-4" /> {(returnTo || user) ? "Volver" : "Inicio"}
           </Link>
           {user ? (
             <Link href="/dashboard" className="text-sm font-medium" style={{ color: "var(--accent)" }}>
