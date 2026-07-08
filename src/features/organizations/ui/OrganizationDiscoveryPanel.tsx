@@ -98,7 +98,31 @@ export function OrganizationDiscoveryPanel({
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-sm">{org.nombre}</h4>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-semibold text-sm">{org.nombre}</h4>
+                      {yaEsMiembro(org.id) ? (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: "rgba(34,197,94,.15)", color: "#16a34a" }}
+                        >
+                          Miembro
+                        </span>
+                      ) : tieneSolicitud(org.id) ? (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: "var(--bg-card)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
+                        >
+                          Solicitud pendiente
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                        >
+                          Disponible
+                        </span>
+                      )}
+                    </div>
                     {org.sector ? (
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{org.sector}</p>
                     ) : null}
@@ -143,20 +167,20 @@ export function OrganizationDiscoveryPanel({
                       className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-medium"
                       style={{ background: "var(--accent)", color: "white" }}
                     >
-                      <UserPlus className="w-3 h-3" /> Unirme
+                      <UserPlus className="w-3 h-3" /> Solicitar unirme
                     </button>
                   ) : tieneSolicitud(org.id) ? (
-                    <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-card)" }}>
+                    <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                       Solicitud enviada
                     </span>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Link
                         href={`/dashboard/organizaciones/${org.id}`}
                         className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-medium"
                         style={{ background: "rgba(34,197,94,.15)", color: "#16a34a" }}
                       >
-                        <Trophy className="w-3 h-3" /> Ver ranking
+                        <Trophy className="w-3 h-3" /> Ver como miembro
                       </Link>
                       {onLeave ? (
                         <button

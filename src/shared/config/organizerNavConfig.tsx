@@ -1,13 +1,12 @@
 /**
- * Navegación lateral del dashboard para cuenta tipo organizador.
+ * Navegación lateral del dashboard para experiencia de gestión de organización.
  *
  * - **Orden**: el array `ORGANIZER_NAV_SECTIONS` define secciones e ítems en el orden mostrado.
- * - **Permisos**: `permissionAction` opcional; si falta, el enlace se muestra a todo organizador
- *   con org activa (tras cargar `/permisos/mis`). Ver `usePermissions` y `ACTION_TO_PERM`.
+ * - **Permisos**: `permissionAction` opcional; si falta, el enlace se muestra a quien gestiona
+ *   la org activa (tras cargar `/permisos/mis`). Ver `usePermissions` y `ACTION_TO_PERM`.
  * - **Otros flags**: `paidOnly` (agente con plan), `superAdminOnly` (panel global).
  *
- * Para cambiar qué permiso exige un ítem, edita el `permissionAction` aquí y,
- * si hace falta, el mapeo en `shared/hooks/usePermissions.ts`.
+ * El menú se muestra según permisos de la org activa, no según `usuario.tipo`.
  */
 import type { LucideIcon } from "lucide-react";
 import {
@@ -30,6 +29,7 @@ import {
   History,
   Wrench,
   FileText,
+  Building2,
 } from "lucide-react";
 import type { PermissionAction } from "@/shared/hooks/usePermissions";
 
@@ -55,7 +55,10 @@ export const ORGANIZER_NAV_SECTIONS: OrganizerNavSection[] = [
     key: "principal",
     label: "Principal",
     icon: LayoutDashboard,
-    items: [{ href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" }],
+    items: [
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+      { href: "/dashboard/organizaciones", icon: Building2, label: "Explorar orgs" },
+    ],
   },
   {
     key: "operaciones",

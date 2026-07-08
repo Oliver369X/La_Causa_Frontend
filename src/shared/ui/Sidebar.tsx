@@ -23,7 +23,7 @@ import {
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { useAuthStore } from "@/shared/store/authStore";
@@ -34,7 +34,7 @@ import { createPortal } from "react-dom";
 
 import { clearAuthSessionCookie } from "@/shared/auth/sessionCookie";
 import { NotificationBell } from "@/features/communications/components/NotificationBell";
-import { usePermissions, type PermissionAction } from "@/shared/hooks/usePermissions";
+import { usePermissions, type PermissionAction, roleLabelFromSlug } from "@/shared/hooks/usePermissions";
 import { ORGANIZER_NAV_SECTIONS } from "@/shared/config/organizerNavConfig";
 import { useSidebarLayoutStore } from "@/shared/store/sidebarLayoutStore";
 import { OrgLogoBox } from "@/shared/ui/OrgLogoBox";
@@ -55,10 +55,11 @@ const volunteerNavItemsBase = [
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router   = useRouter();
+  const qc = useQueryClient();
   const { theme, toggle } = useTheme();
   const { user, logout, activeOrgId, setActiveOrg } = useAuthStore();
   const setCollapsed = useSidebarLayoutStore((s) => s.setCollapsed);
-  const { can, isVolunteerExperience } = usePermissions();
+  const { can, isVolunteerExperience, rolLabel, rolSlug, esPropietario, refreshPermisos, permisosLoaded } = usePermissions();
   const isVolunteer = isVolunteerExperience;
   const canSeeGlobalAdmin = Boolean(user?.is_super_admin);
 
@@ -84,27 +85,42 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const navBase = isVolunteer ? volunteerNavItemsBase : null;
   const showAgentQuickAccess = !isVolunteer && agentCanUse;
 
-  const { data: volunteerOrgs = [] } = useQuery({
+  // Una sola lista de membresías: el menú cambia según el rol en la org activa.
+  const { data: myOrgs = [] } = useQuery({
     queryKey: ["orgs"],
     queryFn: () => organizationsApi.list(),
-    enabled: !!user?.id && isVolunteer,
-  });
-  const { data: managedOrgs = [] } = useQuery({
-    queryKey: ["orgs-managed"],
-    queryFn: () => organizationsApi.list(),
-    enabled: !!user?.id && !isVolunteer,
+    enabled: !!user?.id,
   });
 
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
-  const selectedOrg = (isVolunteer ? volunteerOrgs : managedOrgs).find((o) => o.id === activeOrgId);
+  const selectedOrg = myOrgs.find((o) => o.id === activeOrgId);
+  const activeRoleLabel =
+    selectedOrg
+      ? roleLabelFromSlug(selectedOrg.mi_rol_slug ?? rolSlug, Boolean(selectedOrg.soy_propietario ?? esPropietario))
+      : rolLabel;
 
   useEffect(() => {
     if (activeOrgId || !user?.id) return;
-    const fallbackOrg = isVolunteer ? volunteerOrgs[0] : managedOrgs[0];
-    if (fallbackOrg) {
-      setActiveOrg(fallbackOrg.id);
+    if (myOrgs[0]) setActiveOrg(myOrgs[0].id);
+  }, [activeOrgId, myOrgs, setActiveOrg, user?.id]);
+
+  const switchOrganization = (orgId: string) => {
+    if (orgId === activeOrgId) {
+      setOrgDropdownOpen(false);
+      onClose?.();
+      return;
     }
-  }, [activeOrgId, isVolunteer, managedOrgs, setActiveOrg, user?.id, volunteerOrgs]);
+    setActiveOrg(orgId);
+    setOrgDropdownOpen(false);
+    onClose?.();
+    // Refrescar permisos y datos acotados a org para que el nav/páginas cambien de inmediato.
+    void refreshPermisos();
+    void qc.invalidateQueries({ queryKey: ["agent-access"] });
+    void qc.invalidateQueries({ queryKey: ["events"] });
+    void qc.invalidateQueries({ queryKey: ["members"] });
+    void qc.invalidateQueries({ queryKey: ["tasks"] });
+    router.push("/dashboard");
+  };
 
   const handleLogout = () => {
     logout();
@@ -156,9 +172,9 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-      {/* Org / Perfil */}
+      {/* Org / Perfil — selector unificado (gestión o voluntario según rol en la org) */}
       <div className="p-4" style={{ borderBottom: "1px solid var(--border)" }}>
-        {isVolunteer && volunteerOrgs.length > 0 ? (
+        {myOrgs.length > 0 ? (
           <div className="relative">
             <button
               onClick={() => setOrgDropdownOpen((v) => !v)}
@@ -168,6 +184,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               <OrgLogoBox logoUrl={selectedOrg?.logo_url} size="md" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{selectedOrg?.nombre ?? "Seleccionar organización"}</p>
+                <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                  {permisosLoaded || selectedOrg?.mi_rol_slug
+                    ? activeRoleLabel
+                    : "Cargando rol…"}
+                  {isVolunteer ? " · Participante" : " · Gestión"}
+                </p>
               </div>
               <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", orgDropdownOpen && "rotate-180")} style={{ color: "var(--text-muted)" }} />
             </button>
@@ -175,30 +197,32 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setOrgDropdownOpen(false)} aria-hidden />
                 <div
-                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-xl py-1"
+                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-xl py-1"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}
                 >
-                  {volunteerOrgs.map((org) => (
-                    <button
-                      key={org.id}
-                      onClick={() => {
-                        setActiveOrg(org.id);
-                        setOrgDropdownOpen(false);
-                        onClose?.();
-                        if (pathname === "/dashboard/organizaciones") {
-                          router.push(`/dashboard/organizaciones/${org.id}`);
-                        }
-                      }}
-                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:opacity-90"
-                      style={{
-                        background: activeOrgId === org.id ? "var(--accent-soft)" : "transparent",
-                        color: "var(--text)",
-                      }}
-                    >
-                      <OrgLogoBox logoUrl={org.logo_url} size="sm" />
-                      <span className="min-w-0 flex-1 truncate">{org.nombre}</span>
-                    </button>
-                  ))}
+                  {myOrgs.map((org) => {
+                    const label = roleLabelFromSlug(org.mi_rol_slug, Boolean(org.soy_propietario));
+                    const manages = Boolean(org.puedo_gestionar || org.soy_propietario);
+                    return (
+                      <button
+                        key={org.id}
+                        onClick={() => switchOrganization(org.id)}
+                        className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:opacity-90"
+                        style={{
+                          background: activeOrgId === org.id ? "var(--accent-soft)" : "transparent",
+                          color: "var(--text)",
+                        }}
+                      >
+                        <OrgLogoBox logoUrl={org.logo_url} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{org.nombre}</span>
+                          <span className="block truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                            {label}{manages ? " · Gestión" : " · Participante"}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -208,22 +232,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             className="flex items-center gap-3 rounded-xl px-3 py-2.5"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
-            {isVolunteer ? (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--accent-soft)" }}>
-                <Sparkles className="h-5 w-5" style={{ color: "var(--accent)" }} />
-              </div>
-            ) : (
-              <OrgLogoBox logoUrl={selectedOrg?.logo_url} size="md" />
-            )}
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--accent-soft)" }}>
+              <Sparkles className="h-5 w-5" style={{ color: "var(--accent)" }} />
+            </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">
-                {isVolunteer ? "Voluntario" : selectedOrg?.nombre ?? "Sin organización"}
+              <p className="truncate text-sm font-semibold">Sin organización</p>
+              <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                Explora y únete a una org
               </p>
-              {isVolunteer && (
-                <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                  Perfil personal
-                </p>
-              )}
             </div>
           </div>
         )}

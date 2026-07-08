@@ -65,7 +65,7 @@ interface AuthState {
   activeOrgId: string | null;
   volunteerOnboarding: VolunteerOnboardingState;
   setAuth: (token: string, user: User) => void;
-  setActiveOrg: (orgId: string) => void;
+  setActiveOrg: (orgId: string | null) => void;
   updateVolunteerOnboarding: (patch: Partial<VolunteerOnboardingState>) => void;
   resetVolunteerOnboarding: () => void;
   logout: () => void;

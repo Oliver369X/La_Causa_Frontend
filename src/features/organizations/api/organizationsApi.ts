@@ -11,6 +11,10 @@ export interface Organization {
   sitio_web?: string;
   logo_url?: string;
   normas?: OrgNormas;
+  /** Rol del usuario autenticado en esta org (solo en list/get autenticados). */
+  mi_rol_slug?: string | null;
+  soy_propietario?: boolean | null;
+  puedo_gestionar?: boolean | null;
 }
 
 export interface MembershipRequest {

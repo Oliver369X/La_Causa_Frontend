@@ -43,9 +43,11 @@ export default function ExplorarOrganizacionesPage() {
 
   const dejarOrgMutation = useMutation({
     mutationFn: (orgId: string) => organizationsApi.leaveOrganization(orgId, user!.id),
-    onSuccess: () => {
+    onSuccess: (_data, orgId) => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
       qc.invalidateQueries({ queryKey: ["orgs-publicas"] });
+      const { activeOrgId, setActiveOrg } = useAuthStore.getState();
+      if (activeOrgId === orgId) setActiveOrg(null);
       toast.success("Saliste de la organización");
     },
     onError: () => toast.error("No se pudo salir de la organización."),

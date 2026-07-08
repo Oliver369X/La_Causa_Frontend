@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/shared/store/authStore";
 import { permisosApi } from "@/features/permisos/api/permisosApi";
 
@@ -49,8 +49,25 @@ export type PermissionAction =
   | "managePlans"
   | "manageTenants";
 
+export function roleLabelFromSlug(slug: string | null | undefined, esPropietario = false): string {
+  if (esPropietario) return "Propietario";
+  switch ((slug || "").toLowerCase()) {
+    case "organizador":
+      return "Organizador";
+    case "coordinador":
+      return "Coordinador";
+    case "admin":
+      return "Admin";
+    case "voluntario":
+      return "Voluntario";
+    default:
+      return slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : "Miembro";
+  }
+}
+
 /**
  * Permisos desde GET /permisos/mis (rol y permisos efectivos por organización).
+ * La experiencia UI (voluntario vs gestión) depende de la org activa, no de usuario.tipo.
  */
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
@@ -60,9 +77,10 @@ export function usePermissions() {
   const [rolSlug, setRolSlug] = useState<string | null>(null);
   const [puedeGestionar, setPuedeGestionar] = useState(false);
   const [permisosLoaded, setPermisosLoaded] = useState(false);
+  /** Evita parpadeo al cambiar de org: conserva el modo anterior hasta cargar permisos. */
+  const lastVolunteerModeRef = useRef<boolean | null>(null);
 
   const isSuperAdmin = Boolean(user?.is_super_admin);
-  const isOrganizerAccount = user?.tipo === "organizador";
 
   const loadPermisos = useCallback(() => {
     if (!activeOrgId || !user) {
@@ -74,25 +92,34 @@ export function usePermissions() {
       return;
     }
     setPermisosLoaded(false);
+    let cancelled = false;
     permisosApi
       .getMis(activeOrgId)
       .then((ctx) => {
+        if (cancelled) return;
         setPermisos(ctx.permisos);
         setEsPropietario(ctx.esPropietario);
         setRolSlug(ctx.rolSlug);
         setPuedeGestionar(ctx.puedeGestionar);
       })
       .catch(() => {
+        if (cancelled) return;
         setPermisos([]);
         setEsPropietario(false);
         setRolSlug(null);
         setPuedeGestionar(false);
       })
-      .finally(() => setPermisosLoaded(true));
+      .finally(() => {
+        if (!cancelled) setPermisosLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [activeOrgId, user]);
 
   useEffect(() => {
-    loadPermisos();
+    const cleanup = loadPermisos();
+    return typeof cleanup === "function" ? cleanup : undefined;
   }, [loadPermisos]);
 
   useEffect(() => {
@@ -102,20 +129,30 @@ export function usePermissions() {
   }, [loadPermisos]);
 
   const canManageOrg =
+    isSuperAdmin ||
     puedeGestionar ||
     esPropietario ||
     MANAGEMENT_CAPABILITY_PERMS.some((p) => permisos.includes(p));
 
   /**
    * Experiencia de voluntario: menú y pantallas de participante.
-   * Un voluntario promovido a organizador/coordinador en la org activa deja de serlo.
+   * Depende del rol/permisos en la organización activa (no de usuario.tipo).
+   * Ejemplo: cofundador en org A → menú de gestión; mentor/voluntario en org B → menú reducido.
    */
   const isVolunteerExperience = (() => {
     if (isSuperAdmin) return false;
-    if (isOrganizerAccount) return false;
-    if (!activeOrgId) return user?.tipo === "voluntario";
-    if (!permisosLoaded) return user?.tipo === "voluntario";
-    return !canManageOrg;
+    if (!activeOrgId) {
+      // Sin org: experiencia de exploración / perfil (no back-office).
+      return true;
+    }
+    if (!permisosLoaded) {
+      // Mantener el modo anterior mientras cargan permisos de la nueva org.
+      if (lastVolunteerModeRef.current !== null) return lastVolunteerModeRef.current;
+      return true;
+    }
+    const mode = !canManageOrg;
+    lastVolunteerModeRef.current = mode;
+    return mode;
   })();
 
   const can = (action: PermissionAction): boolean => {
@@ -139,6 +176,7 @@ export function usePermissions() {
     esPropietario,
     /** Rol principal en la org activa (organizador, coordinador, admin, voluntario). */
     rolSlug,
+    rolLabel: roleLabelFromSlug(rolSlug, esPropietario),
     /** Puede operar la gestión de la org activa (eventos, miembros, etc.). */
     canManageOrg,
     /** Menú/pantallas de voluntario vs gestión de organización. */

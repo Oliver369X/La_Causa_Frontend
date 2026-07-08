@@ -1384,17 +1384,9 @@ function SettingsOrganizerNav() {
 /* ── Main page ────────────────────────────────────────────── */
 export default function SettingsPage() {
   const { activeOrgId, user, setAuth, token } = useAuthStore();
-  const { can, esPropietario, isSuperAdmin, permisosLoaded, isVolunteerExperience } = usePermissions();
+  const { isVolunteerExperience, canManageOrg } = usePermissions();
   const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
-  const canManageOrg =
-    isSuperAdmin ||
-    esPropietario ||
-    (permisosLoaded &&
-      (can("editOrg") ||
-        can("createEvents") ||
-        can("manageMembers") ||
-        can("assignTasks")));
 
   /* Org name update */
   const [orgName, setOrgName]           = useState("");
