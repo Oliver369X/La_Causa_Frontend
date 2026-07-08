@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 import { volunteersApi, type Member } from "@/features/volunteers/api/volunteersApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
@@ -74,13 +75,16 @@ interface Solicitud {
 
 export default function VolunteersPage() {
   const { activeOrgId } = useAuthStore();
+  const { can, permisosLoaded } = usePermissions();
+  const canViewMembers = can("viewMembers");
+  const canManageMembers = can("manageMembers");
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
 
   const { data: solicitudes = [], isLoading: loadingSolicitudes } = useQuery({
     queryKey: ["solicitudes", activeOrgId],
     queryFn: () => organizationsApi.listSolicitudes(activeOrgId!),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canManageMembers,
   });
 
   const reviewMutation = useMutation({
@@ -97,7 +101,7 @@ export default function VolunteersPage() {
   const { data: members = [], isLoading } = useQuery({
     queryKey: ["members", activeOrgId],
     queryFn: () => volunteersApi.listMembers(activeOrgId!),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && canViewMembers,
   });
 
   const filtered = members.filter((m) => {
@@ -108,6 +112,32 @@ export default function VolunteersPage() {
       (m.usuario_id || "").toLowerCase().includes(q)
     );
   });
+
+  if (!permisosLoaded) {
+    return (
+      <>
+        <TopBar title="Voluntarios" />
+        <div className="flex-1 p-8 flex items-center justify-center">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando permisos…</p>
+        </div>
+      </>
+    );
+  }
+
+  if (!canViewMembers) {
+    return (
+      <>
+        <TopBar title="Voluntarios" />
+        <div className="flex-1 p-8 flex flex-col items-center justify-center text-center max-w-md mx-auto">
+          <Users className="w-10 h-10 mb-3" style={{ color: "var(--text-muted)" }} />
+          <p className="font-semibold mb-1">Sin acceso</p>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            No tienes permiso para ver los miembros de esta organización.
+          </p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -179,7 +209,7 @@ export default function VolunteersPage() {
         </div>
 
         {/* Solicitudes pendientes */}
-        {activeOrgId && pendientes.length > 0 && (
+        {activeOrgId && canManageMembers && pendientes.length > 0 && (
           <div className="mb-8 p-5 rounded-2xl" style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}>
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <UserPlus className="w-4 h-4" /> Solicitudes pendientes ({pendientes.length})

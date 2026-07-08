@@ -11,7 +11,7 @@ export interface StaffMember {
   nombre?: string;
   email?: string;
   es_propietario: boolean;
-  estado_membresia: "active" | "suspended" | "left";
+  estado_membresia: "activo" | "suspendido" | "invitado";
   fecha_ingreso: string;
   rol_slug?: string;
 }
@@ -37,7 +37,7 @@ export const staffApi = {
   },
 
   invite: async (orgId: UUID, payload: InviteMemberData): Promise<StaffMember> => {
-    const rol_slug = payload.rol_slug ?? (payload.rol === "admin" ? "admin" : payload.rol === "organizador" ? "organizador" : "organizador");
+    const rol_slug = payload.rol_slug ?? (payload.rol === "admin" ? "admin" : payload.rol === "organizador" ? "organizador" : "voluntario");
     const { data } = await apiClient.post<StaffMember>(EP.ORG_MEMBERS(orgId), {
       email: payload.email,
       rol_slug,

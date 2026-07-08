@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_EXACT_PATHS = ["/", "/login", "/register", "/forgot-password", "/reset-password"];
-const PUBLIC_PREFIX_PATHS = ["/org/"];
+const PUBLIC_PREFIX_PATHS = ["/org/", "/voluntario/", "/verificar/"];
 
 // ── JWT HS256 verification using the Edge-compatible Web Crypto API ───────
 

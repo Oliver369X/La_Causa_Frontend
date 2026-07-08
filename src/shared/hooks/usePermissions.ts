@@ -62,7 +62,6 @@ export function usePermissions() {
   const [permisosLoaded, setPermisosLoaded] = useState(false);
 
   const isSuperAdmin = Boolean(user?.is_super_admin);
-  const isOrganizerAccount = user?.tipo === "organizador";
 
   const loadPermisos = useCallback(() => {
     if (!activeOrgId || !user) {
@@ -108,11 +107,10 @@ export function usePermissions() {
 
   /**
    * Experiencia de voluntario: menú y pantallas de participante.
-   * Un voluntario promovido a organizador/coordinador en la org activa deja de serlo.
+   * Se basa en permisos de la org activa, no solo en el tipo global de cuenta.
    */
   const isVolunteerExperience = (() => {
     if (isSuperAdmin) return false;
-    if (isOrganizerAccount) return false;
     if (!activeOrgId) return user?.tipo === "voluntario";
     if (!permisosLoaded) return user?.tipo === "voluntario";
     return !canManageOrg;

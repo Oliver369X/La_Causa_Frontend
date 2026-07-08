@@ -26,6 +26,6 @@ export interface OrgMembership extends Timestamps {
   organizacion_id: UUID;
   rol: UserRole;
   es_propietario: boolean;
-  estado_membresia: "active" | "suspended" | "left";
+  estado_membresia: "activo" | "suspendido" | "invitado";
   fecha_ingreso: string;
 }

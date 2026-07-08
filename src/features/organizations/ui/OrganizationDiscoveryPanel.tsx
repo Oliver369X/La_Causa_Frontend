@@ -59,7 +59,7 @@ export function OrganizationDiscoveryPanel({
 
   const yaEsMiembro = (orgId: string) => misOrgs.some((org) => org.id === orgId);
   const tieneSolicitud = (orgId: string) =>
-    misSolicitudes.some((solicitud) => solicitud.organizacion_id === orgId && ["pendiente", "aprobada"].includes(solicitud.estado));
+    misSolicitudes.some((solicitud) => solicitud.organizacion_id === orgId && solicitud.estado === "pendiente");
 
   const puedeUnirse = (org: Organization) => !yaEsMiembro(org.id) && !tieneSolicitud(org.id);
 

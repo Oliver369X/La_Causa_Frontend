@@ -107,9 +107,7 @@ export default function OrgPublicPage() {
 
   const yaEsMiembro = (orgId: string) => misOrgs.some((o) => o.id === orgId);
   const tieneSolicitud = (orgId: string) =>
-    misSolicitudes.some(
-      (s) => s.organizacion_id === orgId && (s.estado === "pendiente" || s.estado === "aprobada")
-    );
+    misSolicitudes.some((s) => s.organizacion_id === orgId && s.estado === "pendiente");
   const puedeUnirse = (org: Organization) =>
     !yaEsMiembro(org.id) && !tieneSolicitud(org.id);
 

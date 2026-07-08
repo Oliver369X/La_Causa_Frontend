@@ -19,6 +19,8 @@ export interface Member {
   es_propietario: boolean;
   fecha_ingreso: string;
   estado_membresia: string;
+  rol_slug?: string;
+  categoria_competitiva?: string;
   usuario_nombre?: string;
   usuario_email?: string;
 }
