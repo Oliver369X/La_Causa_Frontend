@@ -4,14 +4,6 @@ import Link from "next/link";
 import { useAuthStore } from "@/shared/store/authStore";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { KeyRound, Mail, Shield, ArrowLeft } from "lucide-react";
-import { toast } from "sonner";
-
-function copyTextToClipboard(text: string, successMessage = "Copiado al portapapeles") {
-  void navigator.clipboard.writeText(text).then(
-    () => toast.success(successMessage),
-    () => toast.error("No se pudo copiar. Copia manualmente.")
-  );
-}
 
 export default function VolunteerAccountSettingsPage() {
   const { user } = useAuthStore();
@@ -52,7 +44,7 @@ export default function VolunteerAccountSettingsPage() {
             Cuenta y seguridad
           </h2>
           <p className="text-sm mt-2 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            Correo, identificador y contraseña. El tema y cerrar sesión siguen en el pie del menú lateral.
+            Correo y contraseña. El tema y cerrar sesión siguen en el pie del menú lateral.
           </p>
         </div>
 
@@ -72,7 +64,7 @@ export default function VolunteerAccountSettingsPage() {
             <Mail className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--accent)" }} />
             <div className="min-w-0">
               <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Correo de acceso</p>
-              <p className="text-sm font-mono break-all">{user.email}</p>
+              <p className="text-sm break-all">{user.email}</p>
             </div>
           </div>
 
@@ -83,14 +75,6 @@ export default function VolunteerAccountSettingsPage() {
             >
               Cuenta de voluntario
             </span>
-            <button
-              type="button"
-              onClick={() => copyTextToClipboard(user.id, "ID de usuario copiado")}
-              className="text-xs px-3 py-1.5 rounded-lg font-mono"
-              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-            >
-              Copiar mi ID
-            </button>
           </div>
 
           <Link

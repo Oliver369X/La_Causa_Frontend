@@ -342,7 +342,7 @@ function AddMemberModal({
                     />
                     <div>
                       <span className="text-sm">
-                        {a.usuario_nombre || a.usuario_email || `Usuario ${a.usuario_id.slice(0, 8)}…`}
+                        {a.usuario_nombre || a.usuario_email || "Participante"}
                       </span>
                       {a.usuario_email && (
                         <span className="text-xs block" style={{ color: "var(--text-muted)" }}>{a.usuario_email}</span>

@@ -333,7 +333,7 @@ export default function EmitirCertificadosPage() {
                   className="rounded border"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{m.usuario_nombre ?? m.usuario_id}</p>
+                  <p className="text-sm font-medium truncate">{m.usuario_nombre ?? m.usuario_email ?? "Voluntario"}</p>
                   <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                     {m.usuario_email ?? "—"}
                   </p>
@@ -368,12 +368,16 @@ export default function EmitirCertificadosPage() {
               <ClipboardCopy className="w-4 h-4" /> Copiar solo enlaces
             </Button>
           </div>
-          <ul className="text-xs space-y-1 max-h-32 overflow-y-auto font-mono" style={{ color: "var(--text-muted)" }}>
-            {ultimaEmision.slice(0, 15).map((c) => (
-              <li key={c.id}>
-                {c.titulo} · {c.codigo_validacion?.slice(0, 8)}…
-              </li>
-            ))}
+          <ul className="text-xs space-y-1 max-h-32 overflow-y-auto" style={{ color: "var(--text-muted)" }}>
+            {ultimaEmision.slice(0, 15).map((c) => {
+              const member = members.find((m) => m.usuario_id === c.usuario_id);
+              const who = member?.usuario_nombre || member?.usuario_email || "Voluntario";
+              return (
+                <li key={c.id}>
+                  {c.titulo} · {who}
+                </li>
+              );
+            })}
             {ultimaEmision.length > 15 && <li>…</li>}
           </ul>
         </Card>

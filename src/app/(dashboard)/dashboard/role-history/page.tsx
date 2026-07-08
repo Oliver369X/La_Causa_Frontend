@@ -60,6 +60,7 @@ export default function RoleHistoryPage() {
               <thead>
                 <tr style={{ background: "var(--bg-subtle)" }}>
                   <th className="text-left p-3 font-semibold">Fecha</th>
+                  <th className="text-left p-3 font-semibold">Quién</th>
                   <th className="text-left p-3 font-semibold">Acción</th>
                   <th className="text-left p-3 font-semibold">Resultado</th>
                   <th className="text-left p-3 font-semibold">Detalle</th>
@@ -71,7 +72,8 @@ export default function RoleHistoryPage() {
                     <td className="p-3 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
                       {formatDate(row.created_at)}
                     </td>
-                    <td className="p-3 font-mono text-xs break-all">{row.action}</td>
+                    <td className="p-3 text-xs">{row.actor_nombre || "Sistema"}</td>
+                    <td className="p-3 text-xs break-all">{row.action}</td>
                     <td className="p-3">
                       <span
                         className="text-xs px-2 py-0.5 rounded-full"

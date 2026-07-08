@@ -119,16 +119,16 @@ export default function AuditPage() {
                 {logs.map((log) => (
                   <tr key={log.id} className="transition-colors hover:opacity-90" style={{ borderBottom: "1px solid var(--border)" }}>
                     <td className="px-5 py-3 text-xs whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{formatDate(log.created_at)}</td>
-                    <td className="px-5 py-3 text-xs font-mono">{log.actor_user_id?.slice(0, 8) ?? "—"}…</td>
+                    <td className="px-5 py-3 text-xs">{log.actor_nombre || (log.actor_user_id ? "Usuario" : "Sistema")}</td>
                     <td className="px-5 py-3">
-                      <span className="px-2 py-1 rounded-md text-xs font-mono" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
+                      <span className="px-2 py-1 rounded-md text-xs" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
                         {log.action}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{log.entity_type}</td>
                     {isSuperAdmin && (
-                      <td className="px-5 py-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-                        {log.organizacion_id?.slice(0, 8) ?? "—"}…
+                      <td className="px-5 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                        {log.organizacion_nombre || (log.organizacion_id ? "Organización" : "—")}
                       </td>
                     )}
                     <td className="px-5 py-3">

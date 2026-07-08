@@ -532,7 +532,7 @@ function ApplicationsTab({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-medium text-sm">
-                    {app.usuario_nombre || app.usuario_email || `Usuario ${app.usuario_id.slice(0, 8)}…`}
+                    {app.usuario_nombre || app.usuario_email || "Solicitante"}
                   </p>
                   {app.usuario_email && app.usuario_nombre && (
                     <p className="text-xs" style={{ color: "var(--text-muted)" }}>{app.usuario_email}</p>

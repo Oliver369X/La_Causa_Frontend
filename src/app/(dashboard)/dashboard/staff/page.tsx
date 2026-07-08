@@ -127,11 +127,11 @@ export default function StaffPage() {
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-sm font-bold"
                        style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
-                    {(m.nombre ?? m.usuario_id)[0]?.toUpperCase()}
+                    {(m.nombre ?? m.email ?? "M")[0]?.toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{m.nombre ?? "—"}</p>
-                    <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{m.email ?? m.usuario_id}</p>
+                    <p className="text-sm font-semibold truncate">{m.nombre ?? m.email ?? "Miembro"}</p>
+                    <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{m.email ?? "Sin email"}</p>
                   </div>
                 </div>
                 <Badge label={ROL_LABEL[m.rol] ?? m.rol} variant={ROL_VARIANT[m.rol] ?? "default"} />

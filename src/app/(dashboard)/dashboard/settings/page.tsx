@@ -26,7 +26,6 @@ import {
   Copy,
   LayoutList,
   Sparkles,
-  Hash,
   History,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -98,45 +97,40 @@ function copyTextToClipboard(text: string, successMessage = "Copiado al portapap
   );
 }
 
-/** ID y URL pública de la org (soporte / integraciones) */
-function OrgTechnicalIds({ activeOrgId }: { activeOrgId: string }) {
+/** Enlace público de la org (sin mostrar UUID al usuario). */
+function OrgPublicLink({ activeOrgId }: { activeOrgId: string }) {
   const { data: org } = useQuery({
     queryKey: ["org", activeOrgId],
     queryFn: () => organizationsApi.get(activeOrgId),
     enabled: !!activeOrgId,
   });
   if (!org) return null;
+  const publicUrl =
+    typeof window !== "undefined" && org.slug
+      ? `${window.location.origin}/org/${org.slug}`
+      : org.slug
+        ? `/org/${org.slug}`
+        : null;
   return (
     <div className="mt-5 pt-5 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
-      <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Referencia técnica</p>
-      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => copyTextToClipboard(org.id, "ID de organización copiado")}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono w-full sm:w-auto justify-start text-left"
-          style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-        >
-          <Hash className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">{org.id.slice(0, 8)}… · Copiar ID completo</span>
-        </button>
-        {org.slug ? (
+      <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Enlace público</p>
+      {publicUrl ? (
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              if (typeof window === "undefined") return;
-              copyTextToClipboard(`${window.location.origin}/org/${org.slug}`);
-            }}
+            onClick={() => copyTextToClipboard(publicUrl, "Enlace público copiado")}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs w-full sm:w-auto justify-start text-left"
             style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
           >
             <Globe className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">/org/{org.slug} · Copiar URL pública</span>
+            <span className="truncate">/org/{org.slug} · Copiar enlace</span>
           </button>
-        ) : null}
-      </div>
-      <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-        El ID puede pedirlo soporte o integraciones. La URL pública requiere guardar el subenlace en «Perfil público».
-      </p>
+        </div>
+      ) : (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          Define un subenlace en «Perfil público» para compartir la página de la organización.
+        </p>
+      )}
     </div>
   );
 }
@@ -1681,7 +1675,7 @@ export default function SettingsPage() {
           {updateOrg.isError && (
             <p className="text-xs mt-2 text-red-500">Error al actualizar.</p>
           )}
-          <OrgTechnicalIds activeOrgId={activeOrgId!} />
+          <OrgPublicLink activeOrgId={activeOrgId!} />
         </Section>
 
         {/* Logo de la organización (Cloudinary) */}

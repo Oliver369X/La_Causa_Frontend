@@ -8,6 +8,7 @@ import { organizationsApi } from "@/features/organizations/api/organizationsApi"
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy } from "lucide-react";
 import Link from "next/link";
+import { displayPersonName } from "@/shared/utils/utils";
 
 function roleLabel(member: Member): string {
   if (member.es_propietario) return "Propietario";
@@ -19,10 +20,13 @@ function roleLabel(member: Member): string {
 }
 
 function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
-  const displayName = member.usuario_nombre || member.usuario_email || member.usuario_id;
-  const initials = member.usuario_nombre
-    ? member.usuario_nombre.split(/\s+/).map((n) => n[0]).join("").slice(0, 2).toUpperCase()
-    : (member.usuario_email || member.usuario_id).slice(0, 2).toUpperCase();
+  const displayName = displayPersonName(member.usuario_nombre, member.usuario_email, "Voluntario");
+  const initials = displayName
+    .split(/\s+/)
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   const joined = new Date(member.fecha_ingreso).toLocaleDateString("es-BO", {
     year: "numeric", month: "short", day: "numeric",
   });
@@ -121,8 +125,7 @@ export default function VolunteersPage() {
     const q = search.toLowerCase();
     return (
       (m.usuario_nombre || "").toLowerCase().includes(q) ||
-      (m.usuario_email || "").toLowerCase().includes(q) ||
-      (m.usuario_id || "").toLowerCase().includes(q)
+      (m.usuario_email || "").toLowerCase().includes(q)
     );
   });
 
@@ -212,7 +215,7 @@ export default function VolunteersPage() {
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
                   <div>
-                    <p className="text-sm font-medium">{s.usuario_nombre || s.usuario_email || s.usuario_id}</p>
+                    <p className="text-sm font-medium">{displayPersonName(s.usuario_nombre, s.usuario_email, "Solicitante")}</p>
                     {s.usuario_email && s.usuario_nombre && (
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{s.usuario_email}</p>
                     )}

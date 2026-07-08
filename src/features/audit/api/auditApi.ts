@@ -3,7 +3,9 @@ import { apiClient } from "@/shared/api/client";
 export interface AuditLog {
   id: string;
   actor_user_id?: string;
+  actor_nombre?: string | null;
   organizacion_id?: string;
+  organizacion_nombre?: string | null;
   action: string;
   entity_type: string;
   entity_id?: string;
