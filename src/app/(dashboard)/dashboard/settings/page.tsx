@@ -1408,8 +1408,9 @@ export default function SettingsPage() {
   const [github, setGithub] = useState("");
 
   /* Invite member */
-  const [inviteUserId, setInviteUserId] = useState("");
-  const [inviteOwner, setInviteOwner]   = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"voluntario" | "coordinador" | "admin" | "organizador">("voluntario");
+  const [inviteOwner, setInviteOwner] = useState(false);
 
   /* Members list */
   const { data: members = [], isLoading: loadingMembers } = useQuery({
@@ -1459,19 +1460,20 @@ export default function SettingsPage() {
   /* Invite member */
   const addMember = useMutation({
     mutationFn: async () => {
-      const { data } = await apiClient.post(`/organizaciones/${activeOrgId}/miembros`, {
-        usuario_id: inviteUserId.trim(),
+      return organizationsApi.addMember(activeOrgId!, {
+        email: inviteEmail.trim(),
+        rol_slug: inviteOwner ? "organizador" : inviteRole,
         es_propietario: inviteOwner,
       });
-      return data;
     },
     onSuccess: () => {
       toast.success("Miembro invitado correctamente");
-      setInviteUserId("");
+      setInviteEmail("");
+      setInviteRole("voluntario");
       setInviteOwner(false);
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
     },
-    onError: () => toast.error("No se pudo invitar. Comprueba el UUID y permisos."),
+    onError: () => toast.error("No se pudo invitar. Comprueba el email y permisos."),
   });
 
   /* Remove member */
@@ -1715,17 +1717,29 @@ export default function SettingsPage() {
           id="settings-invite"
           title="Invitar miembro"
           icon={UserPlus}
-          description="Añade a alguien que ya tenga cuenta en la plataforma. Necesitas su ID de usuario (UUID)."
+          description="Añade a alguien que ya tenga cuenta en la plataforma usando su email y el rol en la organización."
         >
           <div className="space-y-3">
             <input
-              type="text"
-              value={inviteUserId}
-              onChange={(e) => setInviteUserId(e.target.value)}
-              placeholder="UUID del usuario (ej. desde administración o soporte)"
-              className="w-full px-4 py-2.5 rounded-xl outline-none font-mono text-xs"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="email@ejemplo.com"
+              className="w-full px-4 py-2.5 rounded-xl outline-none text-sm"
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as typeof inviteRole)}
+              disabled={inviteOwner}
+              className="w-full px-4 py-2.5 rounded-xl outline-none text-sm"
+              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+            >
+              <option value="voluntario">Voluntario</option>
+              <option value="coordinador">Coordinador</option>
+              <option value="admin">Admin</option>
+              <option value="organizador">Organizador</option>
+            </select>
             <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text-muted)" }}>
               <input
                 type="checkbox"
@@ -1737,7 +1751,7 @@ export default function SettingsPage() {
             </label>
             <button
               onClick={() => addMember.mutate()}
-              disabled={!inviteUserId.trim() || addMember.isPending}
+              disabled={!inviteEmail.trim() || addMember.isPending}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-all hover:scale-105"
               style={{ background: "var(--accent)", color: "white" }}
             >

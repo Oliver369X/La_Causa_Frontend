@@ -98,7 +98,7 @@ export const eventsApi = {
     return toEvent(data);
   },
 
-  /** Lista eventos. Si orgId es undefined, devuelve todos (para voluntario ver públicos). */
+  /** Lista eventos. Sin orgId solo muestra eventos no-borrador (públicos). */
   list: async (orgId?: string): Promise<Event[]> => {
     const params = orgId ? { org_id: orgId } : {};
     const { data } = await apiClient.get<BackendEvent[]>('/eventos', { params });

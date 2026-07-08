@@ -3,11 +3,20 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
-import { volunteersApi, type Member } from "@/features/volunteers/api/volunteersApi";
+import { volunteersApi, type Member, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy } from "lucide-react";
 import Link from "next/link";
+
+function roleLabel(member: Member): string {
+  if (member.es_propietario) return "Propietario";
+  const slug = (member.rol_slug || "voluntario").toLowerCase();
+  if (slug === "organizador") return "Organizador";
+  if (slug === "coordinador") return "Coordinador";
+  if (slug === "admin") return "Admin";
+  return "Voluntario";
+}
 
 function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
   const displayName = member.usuario_nombre || member.usuario_email || member.usuario_id;
@@ -47,6 +56,12 @@ function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
         {member.es_propietario
           ? <Crown className="w-4 h-4 text-yellow-500" />
           : <User2 className="w-4 h-4" style={{ color: "var(--text-muted)" }} />}
+        <span
+          className="text-xs px-2 py-0.5 rounded-full"
+          style={{ background: "var(--bg-subtle)", color: "var(--text-muted)" }}
+        >
+          {roleLabel(member)}
+        </span>
         <span
           className="text-xs px-2 py-0.5 rounded-full"
           style={{
@@ -100,7 +115,9 @@ export default function VolunteersPage() {
     enabled: !!activeOrgId,
   });
 
-  const filtered = members.filter((m) => {
+  const volunteers = filterVolunteerMembers(members);
+
+  const filtered = volunteers.filter((m) => {
     const q = search.toLowerCase();
     return (
       (m.usuario_nombre || "").toLowerCase().includes(q) ||
@@ -116,9 +133,12 @@ export default function VolunteersPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h2 className="text-xl font-bold">Miembros de la organización</h2>
+            <h2 className="text-xl font-bold">Voluntarios de la organización</h2>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              {members.length} voluntario{members.length !== 1 ? "s" : ""} registrados
+              {volunteers.length} voluntario{volunteers.length !== 1 ? "s" : ""} activos
+              {members.length !== volunteers.length
+                ? ` · ${members.length - volunteers.length} en staff`
+                : ""}
             </p>
           </div>
           <input
@@ -137,12 +157,12 @@ export default function VolunteersPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Total miembros</p>
-            <p className="text-2xl font-bold mt-1">{members.length}</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Voluntarios</p>
+            <p className="text-2xl font-bold mt-1">{volunteers.length}</p>
           </div>
           <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Activos</p>
-            <p className="text-2xl font-bold mt-1">{members.filter((m) => m.estado_membresia === "activo").length}</p>
+            <p className="text-2xl font-bold mt-1">{volunteers.filter((m) => m.estado_membresia === "activo").length}</p>
           </div>
           <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Solicitudes pendientes</p>

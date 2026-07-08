@@ -13,6 +13,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import {
   volunteersApi,
+  filterVolunteerMembers,
   type MatchResponse,
   type VolunteerMatchResult,
 } from "@/features/volunteers/api/volunteersApi";
@@ -134,7 +135,10 @@ export default function MatchingPage() {
     enabled: canView && hasPaidAccess,
   });
 
-  const candidatosIds = useMemo(() => members.map((m) => m.usuario_id), [members]);
+  const candidatosIds = useMemo(
+    () => filterVolunteerMembers(members).map((m) => m.usuario_id),
+    [members]
+  );
 
   const addSkill = () => {
     const selected = allSkills.find((s) => s.id === selectedSkillId);

@@ -11,14 +11,15 @@ export interface StaffMember {
   nombre?: string;
   email?: string;
   es_propietario: boolean;
-  estado_membresia: "active" | "suspended" | "left";
+  /** Backend: activo | suspendido | retirado (también acepta legacy EN) */
+  estado_membresia: "activo" | "suspendido" | "retirado" | "active" | "suspended" | "left";
   fecha_ingreso: string;
   rol_slug?: string;
 }
 
 export interface InviteMemberData {
   email: string;
-  rol_slug?: "admin" | "coordinador" | "organizador";
+  rol_slug?: "admin" | "coordinador" | "organizador" | "voluntario";
   rol?: "admin" | "staff" | "organizador"; // legacy, se mapea a rol_slug
   es_propietario?: boolean;
 }
@@ -26,8 +27,17 @@ export interface InviteMemberData {
 export interface UpdateMemberData {
   rol_slug?: "admin" | "coordinador" | "organizador" | "voluntario";
   rol?: "admin" | "staff" | "volunteer";
-  estado_membresia?: "active" | "suspended";
+  estado_membresia?: "activo" | "suspendido" | "active" | "suspended";
 }
+
+const MEMBERSHIP_STATUS_MAP: Record<string, StaffMember["estado_membresia"]> = {
+  active: "activo",
+  suspended: "suspendido",
+  left: "retirado",
+  activo: "activo",
+  suspendido: "suspendido",
+  retirado: "retirado",
+};
 
 // ─ API ────────────────────────────────────────────────────────────────────
 export const staffApi = {
@@ -51,9 +61,12 @@ export const staffApi = {
       rawRol === "voluntario"
         ? "volunteer"
         : (rawRol as StaffMember["rol"]);
+    const rawStatus = (m.estado_membresia || "activo").toLowerCase();
+    const estado_membresia = MEMBERSHIP_STATUS_MAP[rawStatus] ?? "activo";
     return {
       ...m,
       rol,
+      estado_membresia,
       nombre: m.nombre ?? m.usuario_nombre,
       email: m.email ?? m.usuario_email,
     } as StaffMember;

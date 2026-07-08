@@ -12,7 +12,7 @@ import {
   type DeliveryReviewResponse,
 } from "@/features/assignments/api/assignmentsApi";
 import { eventsApi } from "@/features/events/api/eventsApi";
-import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
+import { volunteersApi, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
 import { ArrowLeft, UserPlus, Clock, AlertTriangle, Check, X } from "lucide-react";
@@ -507,11 +507,8 @@ function AssignModal({
   );
   const alreadyAssigned = new Set(assignedUserIds);
 
-  const candidates = members.filter(
-    (m) =>
-      m.estado_membresia === "activo" &&
-      !m.es_propietario &&
-      !alreadyAssigned.has(m.usuario_id)
+  const candidates = filterVolunteerMembers(members).filter(
+    (m) => !alreadyAssigned.has(m.usuario_id)
   );
 
   const [selected, setSelected] = useState<string>("");

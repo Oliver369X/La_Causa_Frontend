@@ -157,9 +157,9 @@ export default function EventsPage() {
   }, [ubicacionGeo?.lat, ubicacionGeo?.lng, ubicacionGeo?.direccion]);
 
   const { data: events = [], isLoading } = useQuery({
-    queryKey: ["events", isVolunteer ? "all" : activeOrgId, isVolunteer ? activeOrgId : null],
-    queryFn: () => eventsApi.list(isVolunteer ? (activeOrgId ?? undefined) : activeOrgId ?? undefined),
-    enabled: isVolunteer || !!activeOrgId,
+    queryKey: ["events", isVolunteer ? "volunteer" : "org", activeOrgId],
+    queryFn: () => eventsApi.list(activeOrgId!),
+    enabled: !!activeOrgId,
   });
 
   const createMutation = useMutation({
@@ -246,6 +246,11 @@ export default function EventsPage() {
           {!isVolunteer && !activeOrgId && (
             <p className="text-sm w-full sm:w-auto" style={{ color: "var(--text-muted)" }}>
               Selecciona una organización en la barra lateral para crear eventos.
+            </p>
+          )}
+          {isVolunteer && !activeOrgId && (
+            <p className="text-sm w-full sm:w-auto" style={{ color: "var(--text-muted)" }}>
+              Únete a una organización o selecciónala en la barra lateral para ver sus eventos.
             </p>
           )}
           {!isVolunteer && activeOrgId && (
@@ -404,6 +409,15 @@ export default function EventsPage() {
 
         {isLoading ? (
           <div className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando eventos...</div>
+        ) : !activeOrgId ? (
+          <div className="text-center py-20">
+            <Calendar className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--text-muted)" }} />
+            <p style={{ color: "var(--text-muted)" }}>
+              {isVolunteer
+                ? "Selecciona o únete a una organización para ver sus eventos."
+                : "Selecciona una organización para gestionar eventos."}
+            </p>
+          </div>
         ) : displayedEvents.length === 0 ? (
           <div className="text-center py-20">
             <Calendar className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--text-muted)" }} />

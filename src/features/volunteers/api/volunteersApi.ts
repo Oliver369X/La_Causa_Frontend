@@ -18,12 +18,28 @@ export interface Member {
   organizacion_id: string;
   es_propietario: boolean;
   fecha_ingreso: string;
+  /** Backend usa español: activo | suspendido | retirado */
   estado_membresia: string;
+  /** Rol en la org: voluntario | coordinador | admin | organizador */
+  rol_slug?: string | null;
   usuario_nombre?: string;
   usuario_email?: string;
 }
 
 export type Volunteer = Member;
+
+/** Miembros con rol de voluntario (excluye staff/propietarios). */
+export function isVolunteerMember(m: Member): boolean {
+  if (m.es_propietario) return false;
+  const slug = (m.rol_slug || "voluntario").toLowerCase();
+  return slug === "voluntario";
+}
+
+export function filterVolunteerMembers(members: Member[]): Member[] {
+  return members.filter(
+    (m) => m.estado_membresia === "activo" && isVolunteerMember(m)
+  );
+}
 
 export interface SkillRequirement {
   skill_id: string;

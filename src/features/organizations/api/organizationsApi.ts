@@ -121,8 +121,18 @@ export const organizationsApi = {
     return data;
   },
 
-  addMember: async (orgId: string, userId: string) => {
-    const { data } = await apiClient.post(`/organizaciones/${orgId}/miembros`, { usuario_id: userId });
+  addMember: async (orgId: string, payload: {
+    usuario_id?: string;
+    email?: string;
+    rol_slug?: string;
+    es_propietario?: boolean;
+  }) => {
+    const { data } = await apiClient.post(`/organizaciones/${orgId}/miembros`, {
+      usuario_id: payload.usuario_id,
+      email: payload.email,
+      rol_slug: payload.rol_slug ?? "voluntario",
+      es_propietario: payload.es_propietario ?? false,
+    });
     return data;
   },
 
