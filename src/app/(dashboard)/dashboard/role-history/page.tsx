@@ -5,9 +5,11 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { auditApi } from "@/features/audit/api/auditApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { History, Shield } from "lucide-react";
+import { History, Shield, Download } from "lucide-react";
 import { formatDate } from "@/shared/utils/utils";
 import Link from "next/link";
+import { downloadCsv } from "@/shared/lib/csvExport";
+import { toast } from "sonner";
 
 export default function RoleHistoryPage() {
   const { activeOrgId } = useAuthStore();
@@ -20,25 +22,50 @@ export default function RoleHistoryPage() {
     enabled: !!activeOrgId && canView,
   });
 
+  const exportCsv = () => {
+    downloadCsv(
+      `historial-roles-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["fecha", "actor", "accion", "resultado", "detalle"],
+      logs.map((row) => [
+        row.created_at,
+        row.actor_nombre || "Sistema",
+        row.action,
+        row.outcome,
+        row.detail ?? "",
+      ]),
+    );
+    toast.success("CSV de historial de roles descargado");
+  };
+
   return (
     <>
       <TopBar title="Historial de roles" />
       <div className="flex-1 p-8">
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <History className="w-6 h-6" style={{ color: "var(--accent)" }} />
-            Asignación y creación de roles
-          </h2>
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Registro de <code className="text-xs px-1 rounded" style={{ background: "var(--bg-subtle)" }}>rbac.role.assign</code>{" "}
-            y <code className="text-xs px-1 rounded" style={{ background: "var(--bg-subtle)" }}>rbac.role.create</code> en la
-            organización activa.
-          </p>
-          <p className="text-xs mt-2">
-            <Link href="/dashboard/audit" className="underline font-medium" style={{ color: "var(--accent)" }}>
-              Ver auditoría completa
-            </Link>
-          </p>
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <History className="w-6 h-6" style={{ color: "var(--accent)" }} />
+              Asignación y creación de roles
+            </h2>
+            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+              Movimiento de roles y membresía en la organización activa: asignación RBAC, altas/bajas de miembros y
+              cambios de rol desde Staff. Útil para quien administra el plan y audita quién gestiona qué.
+            </p>
+            <p className="text-xs mt-2">
+              <Link href="/dashboard/audit" className="underline font-medium" style={{ color: "var(--accent)" }}>
+                Ver auditoría completa
+              </Link>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={logs.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            <Download className="w-3.5 h-3.5" /> Exportar CSV
+          </button>
         </div>
 
         {!activeOrgId ? (

@@ -43,7 +43,7 @@ export const auditApi = {
     return data;
   },
 
-  /** CU20 — Solo eventos rbac.role.assign / rbac.role.create */
+  /** Historial de roles/membresía: rbac + org.member.* */
   listRoleHistory: async (
     orgId: string,
     opts: { limit?: number; offset?: number } = {},

@@ -25,19 +25,19 @@ export default function OrganizacionDetallePage() {
     enabled: !!orgId,
   });
 
-  const { data: ranking = [], isLoading: loadingRanking } = useQuery({
-    queryKey: ["ranking", orgId],
-    queryFn: () => gamificationApi.getRanking(orgId),
-    enabled: !!orgId,
-  });
-
-  const { data: misOrgs = [] } = useQuery({
+  const { data: misOrgs = [], isLoading: loadingMisOrgs } = useQuery({
     queryKey: ["orgs"],
     queryFn: () => organizationsApi.list(),
     enabled: !!user?.id,
   });
 
   const soyMiembro = misOrgs.some((o) => o.id === orgId);
+
+  const { data: ranking = [], isLoading: loadingRanking } = useQuery({
+    queryKey: ["ranking", orgId],
+    queryFn: () => gamificationApi.getRanking(orgId),
+    enabled: !!orgId && soyMiembro,
+  });
 
   const dejarOrgMutation = useMutation({
     mutationFn: () => organizationsApi.leaveOrganization(orgId, user!.id),
@@ -49,7 +49,7 @@ export default function OrganizacionDetallePage() {
     },
   });
 
-  if (loadingOrg || !orgId) {
+  if (loadingOrg || !orgId || (user?.id && loadingMisOrgs)) {
     return (
       <>
         <TopBar title="Organización" />
@@ -67,9 +67,9 @@ export default function OrganizacionDetallePage() {
         <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4 px-5 text-center">
           <Building2 className="w-12 h-12" style={{ color: "var(--text-muted)" }} />
           <div>
-            <p className="font-medium mb-1">No eres miembro de esta organización</p>
+            <p className="font-medium mb-1">No puedes ver el detalle privado</p>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Explora el perfil público o solicita unirte desde el catálogo.
+              Si no eres miembro, usa el perfil público o solicita unirte desde el catálogo.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 justify-center">
@@ -79,6 +79,41 @@ export default function OrganizacionDetallePage() {
               style={{ background: "var(--accent)", color: "white" }}
             >
               <ArrowLeft className="w-4 h-4" /> Explorar organizaciones
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!soyMiembro) {
+    return (
+      <>
+        <TopBar title={org.nombre} />
+        <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4 px-5 text-center">
+          <Building2 className="w-12 h-12" style={{ color: "var(--text-muted)" }} />
+          <div>
+            <p className="font-medium mb-1">{org.nombre}</p>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              No eres miembro. Puedes ver el perfil público o unirte desde el catálogo.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {org.slug ? (
+              <Link
+                href={`/org/${org.slug}`}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white"
+                style={{ background: "var(--accent)" }}
+              >
+                <ExternalLink className="w-4 h-4" /> Ver perfil público
+              </Link>
+            ) : null}
+            <button
+              onClick={() => router.push("/dashboard/organizaciones")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+              style={{ background: "var(--bg-subtle)", color: "var(--text)", border: "1px solid var(--border)" }}
+            >
+              <ArrowLeft className="w-4 h-4" /> Catálogo
             </button>
           </div>
         </div>

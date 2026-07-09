@@ -263,7 +263,9 @@ export default function MatchingPage() {
             )}
             {!needsPlan && !noOrg && (
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Esta función está disponible solo para organizadores con plan de pago.
+                {access.reason === "sin_permiso_gestion" || access.reason === "voluntario"
+                  ? "Las recomendaciones con IA son para quien gestiona esta organización (coordinador/admin) con plan de pago."
+                  : "Esta función está disponible solo para organizadores con plan de pago."}
               </p>
             )}
           </div>

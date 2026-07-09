@@ -6,9 +6,11 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { volunteersApi, type Member, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy } from "lucide-react";
+import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy, Download } from "lucide-react";
 import Link from "next/link";
 import { displayPersonName } from "@/shared/utils/utils";
+import { downloadCsv } from "@/shared/lib/csvExport";
+import { toast } from "sonner";
 
 function roleLabel(member: Member): string {
   if (member.es_propietario) return "Propietario";
@@ -129,6 +131,22 @@ export default function VolunteersPage() {
     );
   });
 
+  const exportVolunteersCsv = () => {
+    downloadCsv(
+      `voluntarios-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["nombre", "email", "rol", "estado", "fecha_ingreso", "es_propietario"],
+      filtered.map((m) => [
+        m.usuario_nombre ?? "",
+        m.usuario_email ?? "",
+        roleLabel(m),
+        m.estado_membresia,
+        m.fecha_ingreso,
+        m.es_propietario,
+      ]),
+    );
+    toast.success("CSV de voluntarios descargado");
+  };
+
   return (
     <>
       <TopBar title="Voluntarios" />
@@ -144,18 +162,29 @@ export default function VolunteersPage() {
                 : ""}
             </p>
           </div>
-          <input
-            type="text"
-            placeholder="Buscar por nombre o email…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="px-4 py-2 rounded-xl text-sm outline-none w-full sm:w-56"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-          />
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={exportVolunteersCsv}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
+            >
+              <Download className="w-3.5 h-3.5" /> Exportar CSV
+            </button>
+            <input
+              type="text"
+              placeholder="Buscar por nombre o email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="px-4 py-2 rounded-xl text-sm outline-none w-full sm:w-56"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

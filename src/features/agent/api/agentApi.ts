@@ -73,7 +73,7 @@ export interface ChatResponse {
 
 export interface AgentAccessResponse {
   can_use: boolean;
-  reason?: "voluntario" | "sin_plan_pago" | "sin_organizacion";
+  reason?: "voluntario" | "sin_permiso_gestion" | "sin_plan_pago" | "sin_organizacion";
 }
 
 export interface ConversationSummary {

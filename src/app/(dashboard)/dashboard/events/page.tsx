@@ -6,7 +6,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { eventsApi, type CreateEventData, type Event } from "@/features/events/api/eventsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
-import { Plus, Calendar, Clock, Send, MessageSquare, Award, Brain } from "lucide-react";
+import { Plus, Calendar, Clock, Send, MessageSquare, Award, Brain, Download } from "lucide-react";
 import { LocationMapPicker, type LocationPoint } from "@/shared/ui/LocationMapPicker";
 import { formatDate } from "@/shared/utils/utils";
 import { geocodeWithNominatim, reverseGeocodeWithNominatim } from "@/shared/utils/geocoding";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { extractApiDetail } from "@/shared/utils/apiError";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { usePermissions } from "@/shared/hooks/usePermissions";
+import { downloadCsv } from "@/shared/lib/csvExport";
 
 type EventTab = "proximos" | "curso" | "pasados";
 
@@ -254,14 +255,39 @@ export default function EventsPage() {
             </p>
           )}
           {!isVolunteer && activeOrgId && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium hover:opacity-80 transition-opacity"
-              style={{ background: "var(--text)", color: "var(--bg)" }}
-            >
-              <Plus className="w-4 h-4" />
-              Nuevo evento
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  downloadCsv(
+                    `eventos-${new Date().toISOString().slice(0, 10)}.csv`,
+                    ["nombre", "estado", "fecha_inicio", "fecha_fin", "cupo", "campana"],
+                    events.map((e) => [
+                      e.nombre,
+                      e.estado,
+                      e.fecha_inicio,
+                      e.fecha_fin,
+                      e.cupo_maximo,
+                      e.campana ?? "",
+                    ]),
+                  );
+                  toast.success("CSV de eventos descargado");
+                }}
+                disabled={events.length === 0}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
+              >
+                <Download className="w-3.5 h-3.5" /> Exportar CSV
+              </button>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium hover:opacity-80 transition-opacity"
+                style={{ background: "var(--text)", color: "var(--bg)" }}
+              >
+                <Plus className="w-4 h-4" />
+                Nuevo evento
+              </button>
+            </div>
           )}
         </div>
 

@@ -6,8 +6,10 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { auditApi } from "@/features/audit/api/auditApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { ShieldCheck, Search } from "lucide-react";
+import { ShieldCheck, Search, Download } from "lucide-react";
 import { formatDate } from "@/shared/utils/utils";
+import { downloadCsv } from "@/shared/lib/csvExport";
+import { toast } from "sonner";
 
 export default function AuditPage() {
   const { activeOrgId } = useAuthStore();
@@ -29,11 +31,28 @@ export default function AuditPage() {
     error:   "#f59e0b",
   };
 
+  const exportAuditCsv = () => {
+    downloadCsv(
+      `auditoria-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["fecha", "actor", "accion", "entidad", "organizacion", "resultado", "detalle"],
+      logs.map((log) => [
+        log.created_at,
+        log.actor_nombre || log.actor_user_id || "Sistema",
+        log.action,
+        log.entity_type,
+        log.organizacion_nombre || log.organizacion_id || "",
+        log.outcome,
+        log.detail ?? "",
+      ]),
+    );
+    toast.success("CSV de auditoría descargado");
+  };
+
   return (
     <>
       <TopBar title="Auditoría" />
       <div className="flex-1 p-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
           <div>
             <h2 className="text-xl font-semibold">
               Bitácora de Auditoría{isSuperAdmin ? " (Global)" : ""}
@@ -44,6 +63,15 @@ export default function AuditPage() {
                 : "Registro de todas las acciones críticas de tu organización"}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={exportAuditCsv}
+            disabled={logs.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            <Download className="w-3.5 h-3.5" /> Exportar CSV
+          </button>
         </div>
 
         {/* Filters */}
@@ -53,6 +81,7 @@ export default function AuditPage() {
               { label: "Todos", value: "" },
               { label: "Asig. roles", value: "rbac.role.assign" },
               { label: "Crear rol", value: "rbac.role.create" },
+              { label: "Miembros", value: "org.member." },
               { label: "Eventos", value: "event." },
               { label: "Tareas", value: "task." },
               { label: "Usuarios", value: "user." },
