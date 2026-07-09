@@ -3,17 +3,32 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
-import { volunteersApi, type Member } from "@/features/volunteers/api/volunteersApi";
+import { volunteersApi, type Member, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy } from "lucide-react";
+import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy, Download } from "lucide-react";
 import Link from "next/link";
+import { displayPersonName } from "@/shared/utils/utils";
+import { downloadCsv } from "@/shared/lib/csvExport";
+import { toast } from "sonner";
+
+function roleLabel(member: Member): string {
+  if (member.es_propietario) return "Propietario";
+  const slug = (member.rol_slug || "voluntario").toLowerCase();
+  if (slug === "organizador") return "Organizador";
+  if (slug === "coordinador") return "Coordinador";
+  if (slug === "admin") return "Admin";
+  return "Voluntario";
+}
 
 function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
-  const displayName = member.usuario_nombre || member.usuario_email || member.usuario_id;
-  const initials = member.usuario_nombre
-    ? member.usuario_nombre.split(/\s+/).map((n) => n[0]).join("").slice(0, 2).toUpperCase()
-    : (member.usuario_email || member.usuario_id).slice(0, 2).toUpperCase();
+  const displayName = displayPersonName(member.usuario_nombre, member.usuario_email, "Voluntario");
+  const initials = displayName
+    .split(/\s+/)
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   const joined = new Date(member.fecha_ingreso).toLocaleDateString("es-BO", {
     year: "numeric", month: "short", day: "numeric",
   });
@@ -47,6 +62,12 @@ function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
         {member.es_propietario
           ? <Crown className="w-4 h-4 text-yellow-500" />
           : <User2 className="w-4 h-4" style={{ color: "var(--text-muted)" }} />}
+        <span
+          className="text-xs px-2 py-0.5 rounded-full"
+          style={{ background: "var(--bg-subtle)", color: "var(--text-muted)" }}
+        >
+          {roleLabel(member)}
+        </span>
         <span
           className="text-xs px-2 py-0.5 rounded-full"
           style={{
@@ -100,14 +121,31 @@ export default function VolunteersPage() {
     enabled: !!activeOrgId,
   });
 
-  const filtered = members.filter((m) => {
+  const volunteers = filterVolunteerMembers(members);
+
+  const filtered = volunteers.filter((m) => {
     const q = search.toLowerCase();
     return (
       (m.usuario_nombre || "").toLowerCase().includes(q) ||
-      (m.usuario_email || "").toLowerCase().includes(q) ||
-      (m.usuario_id || "").toLowerCase().includes(q)
+      (m.usuario_email || "").toLowerCase().includes(q)
     );
   });
+
+  const exportVolunteersCsv = () => {
+    downloadCsv(
+      `voluntarios-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["nombre", "email", "rol", "estado", "fecha_ingreso", "es_propietario"],
+      filtered.map((m) => [
+        m.usuario_nombre ?? "",
+        m.usuario_email ?? "",
+        roleLabel(m),
+        m.estado_membresia,
+        m.fecha_ingreso,
+        m.es_propietario,
+      ]),
+    );
+    toast.success("CSV de voluntarios descargado");
+  };
 
   return (
     <>
@@ -116,33 +154,47 @@ export default function VolunteersPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h2 className="text-xl font-bold">Miembros de la organización</h2>
+            <h2 className="text-xl font-bold">Voluntarios de la organización</h2>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              {members.length} voluntario{members.length !== 1 ? "s" : ""} registrados
+              {volunteers.length} voluntario{volunteers.length !== 1 ? "s" : ""} activos
+              {members.length !== volunteers.length
+                ? ` · ${members.length - volunteers.length} en staff`
+                : ""}
             </p>
           </div>
-          <input
-            type="text"
-            placeholder="Buscar por nombre o email…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="px-4 py-2 rounded-xl text-sm outline-none w-full sm:w-56"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-          />
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={exportVolunteersCsv}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
+            >
+              <Download className="w-3.5 h-3.5" /> Exportar CSV
+            </button>
+            <input
+              type="text"
+              placeholder="Buscar por nombre o email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="px-4 py-2 rounded-xl text-sm outline-none w-full sm:w-56"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Total miembros</p>
-            <p className="text-2xl font-bold mt-1">{members.length}</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>Voluntarios</p>
+            <p className="text-2xl font-bold mt-1">{volunteers.length}</p>
           </div>
           <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Activos</p>
-            <p className="text-2xl font-bold mt-1">{members.filter((m) => m.estado_membresia === "activo").length}</p>
+            <p className="text-2xl font-bold mt-1">{volunteers.filter((m) => m.estado_membresia === "activo").length}</p>
           </div>
           <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>Solicitudes pendientes</p>
@@ -192,7 +244,7 @@ export default function VolunteersPage() {
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
                   <div>
-                    <p className="text-sm font-medium">{s.usuario_nombre || s.usuario_email || s.usuario_id}</p>
+                    <p className="text-sm font-medium">{displayPersonName(s.usuario_nombre, s.usuario_email, "Solicitante")}</p>
                     {s.usuario_email && s.usuario_nombre && (
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{s.usuario_email}</p>
                     )}

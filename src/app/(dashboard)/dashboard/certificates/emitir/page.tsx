@@ -21,7 +21,7 @@ import {
   plantillasCertificadoApi,
   type Certificate,
 } from "@/features/certificates/api/certificatesApi";
-import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
+import { volunteersApi, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
 import { gamificationApi, type Season } from "@/features/gamification/api/gamificationApi";
 import {
   buildCertificadosEmisionCsv,
@@ -67,15 +67,17 @@ export default function EmitirCertificadosPage() {
     enabled: !!activeOrgId && isOrganizer,
   });
 
+  const voluntarios = useMemo(() => filterVolunteerMembers(miembros), [miembros]);
+
   const miembrosFiltrados = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return miembros;
-    return miembros.filter(
+    if (!q) return voluntarios;
+    return voluntarios.filter(
       (m) =>
         (m.usuario_nombre?.toLowerCase().includes(q) ?? false) ||
         (m.usuario_email?.toLowerCase().includes(q) ?? false)
     );
-  }, [miembros, filter]);
+  }, [voluntarios, filter]);
 
   const toggleOne = (usuarioId: string) => {
     setSelected((prev) => {
@@ -153,7 +155,7 @@ export default function EmitirCertificadosPage() {
 
   const exportarCsv = () => {
     if (!ultimaEmision?.length || !origin) return;
-    const csv = buildCertificadosEmisionCsv(ultimaEmision, miembros, origin);
+    const csv = buildCertificadosEmisionCsv(ultimaEmision, voluntarios, origin);
     const safe = gestionPeriodo.replace(/[^\w-]+/g, "_");
     downloadTextFile(`certificados-${safe}-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv;charset=utf-8");
     toast.success("CSV descargado");
@@ -207,8 +209,8 @@ export default function EmitirCertificadosPage() {
           Emisión por gestión
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-          Al cerrar una gestión, emite certificados a muchas personas a la vez. Luego exporta un CSV con emails y
-          enlaces para enviar por correo o imprimir usando los enlaces de verificación.
+          Al cerrar una gestión, emite certificados solo a voluntarios activos (no staff). Cada PDF se firma por
+          software. Luego exporta un CSV con emails y enlaces de verificación.
         </p>
       </div>
 
@@ -287,6 +289,9 @@ export default function EmitirCertificadosPage() {
           <h2 className="text-sm font-semibold">Voluntarios de la organización</h2>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             {selected.size} seleccionado(s)
+            {miembros.length !== voluntarios.length
+              ? ` · ${miembros.length - voluntarios.length} staff omitidos`
+              : ""}
           </span>
         </div>
         <input
@@ -314,7 +319,7 @@ export default function EmitirCertificadosPage() {
             </div>
           ) : miembrosFiltrados.length === 0 ? (
             <p className="p-4 text-sm" style={{ color: "var(--text-muted)" }}>
-              No hay miembros que coincidan.
+              No hay voluntarios que coincidan.
             </p>
           ) : (
             miembrosFiltrados.map((m) => (
@@ -333,7 +338,7 @@ export default function EmitirCertificadosPage() {
                   className="rounded border"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{m.usuario_nombre ?? m.usuario_id}</p>
+                  <p className="text-sm font-medium truncate">{m.usuario_nombre ?? m.usuario_email ?? "Voluntario"}</p>
                   <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                     {m.usuario_email ?? "—"}
                   </p>
@@ -368,12 +373,16 @@ export default function EmitirCertificadosPage() {
               <ClipboardCopy className="w-4 h-4" /> Copiar solo enlaces
             </Button>
           </div>
-          <ul className="text-xs space-y-1 max-h-32 overflow-y-auto font-mono" style={{ color: "var(--text-muted)" }}>
-            {ultimaEmision.slice(0, 15).map((c) => (
-              <li key={c.id}>
-                {c.titulo} · {c.codigo_validacion?.slice(0, 8)}…
-              </li>
-            ))}
+          <ul className="text-xs space-y-1 max-h-32 overflow-y-auto" style={{ color: "var(--text-muted)" }}>
+            {ultimaEmision.slice(0, 15).map((c) => {
+              const member = voluntarios.find((m) => m.usuario_id === c.usuario_id);
+              const who = member?.usuario_nombre || member?.usuario_email || "Voluntario";
+              return (
+                <li key={c.id}>
+                  {c.titulo} · {who}
+                </li>
+              );
+            })}
             {ultimaEmision.length > 15 && <li>…</li>}
           </ul>
         </Card>

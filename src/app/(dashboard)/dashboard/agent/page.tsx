@@ -825,7 +825,8 @@ export default function AgentPage() {
 
   // Restricción: solo organizadores con plan de pago
   if (!access.can_use) {
-    const isVolunteer = access.reason === "voluntario";
+    const isVolunteer =
+      access.reason === "voluntario" || access.reason === "sin_permiso_gestion";
     const needsPlan = access.reason === "sin_plan_pago";
     const noOrg = access.reason === "sin_organizacion";
     return (
@@ -840,7 +841,8 @@ export default function AgentPage() {
             <h2 className="text-lg font-semibold">Acceso restringido</h2>
             {isVolunteer && (
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                El Agente IA está disponible solo para organizadores con plan de pago. Como voluntario no tienes acceso a esta función.
+                El Agente IA es para quien gestiona esta organización (coordinador/admin/organizador) con plan de pago.
+                En esta organización tu rol no tiene acceso.
               </p>
             )}
             {needsPlan && (

@@ -225,7 +225,7 @@ export default function CertificatesPage() {
             value={verifyCode}
             onChange={(e) => setVerifyCode(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-            placeholder="Código de validación (UUID) …"
+            placeholder="Código de validación del certificado…"
             className="flex-1 h-10 px-4 text-sm rounded-xl outline-none"
             style={{
               background: "var(--bg-subtle)",

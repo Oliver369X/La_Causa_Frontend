@@ -19,7 +19,9 @@ export default function EventMedallasPage() {
 
   const [event, setEvent] = useState<{ id: string; nombre: string } | null>(null);
   const [medals, setMedals] = useState<Array<{ id: string; nombre: string }>>([]);
-  const [participants, setParticipants] = useState<Array<{ id: string; usuario_id: string }>>([]);
+  const [participants, setParticipants] = useState<
+    Array<{ id: string; usuario_id: string; usuario_nombre?: string; usuario_email?: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showAward, setShowAward] = useState(false);
@@ -41,7 +43,15 @@ export default function EventMedallasPage() {
       .then(([ev, m, p]) => {
         setEvent(ev);
         setMedals(Array.isArray(m) ? m : []);
-        setParticipants(p.filter((a: { estado: string }) => a.estado === "APROBADO" || a.estado === "ASISTIO"));
+        setParticipants(
+          p.filter(
+            (a: { estado: string }) =>
+              a.estado === "APROBADO" ||
+              a.estado === "ASISTIO" ||
+              a.estado === "aprobado" ||
+              a.estado === "asistio"
+          )
+        );
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -193,7 +203,9 @@ export default function EventMedallasPage() {
                 >
                   <option value="">Seleccionar…</option>
                   {participants.map((p) => (
-                    <option key={p.id} value={p.usuario_id}>{p.usuario_id.slice(0, 8)}…</option>
+                    <option key={p.id} value={p.usuario_id}>
+                      {p.usuario_nombre || p.usuario_email || "Participante"}
+                    </option>
                   ))}
                 </select>
               </div>

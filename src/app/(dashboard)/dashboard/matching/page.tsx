@@ -13,6 +13,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import {
   volunteersApi,
+  filterVolunteerMembers,
   type MatchResponse,
   type VolunteerMatchResult,
 } from "@/features/volunteers/api/volunteersApi";
@@ -134,7 +135,10 @@ export default function MatchingPage() {
     enabled: canView && hasPaidAccess,
   });
 
-  const candidatosIds = useMemo(() => members.map((m) => m.usuario_id), [members]);
+  const candidatosIds = useMemo(
+    () => filterVolunteerMembers(members).map((m) => m.usuario_id),
+    [members]
+  );
 
   const addSkill = () => {
     const selected = allSkills.find((s) => s.id === selectedSkillId);
@@ -259,7 +263,9 @@ export default function MatchingPage() {
             )}
             {!needsPlan && !noOrg && (
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Esta función está disponible solo para organizadores con plan de pago.
+                {access.reason === "sin_permiso_gestion" || access.reason === "voluntario"
+                  ? "Las recomendaciones con IA son para quien gestiona esta organización (coordinador/admin) con plan de pago."
+                  : "Esta función está disponible solo para organizadores con plan de pago."}
               </p>
             )}
           </div>

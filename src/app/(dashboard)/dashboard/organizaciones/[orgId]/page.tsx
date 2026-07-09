@@ -25,13 +25,7 @@ export default function OrganizacionDetallePage() {
     enabled: !!orgId,
   });
 
-  const { data: ranking = [], isLoading: loadingRanking } = useQuery({
-    queryKey: ["ranking", orgId],
-    queryFn: () => gamificationApi.getRanking(orgId),
-    enabled: !!orgId,
-  });
-
-  const { data: misOrgs = [] } = useQuery({
+  const { data: misOrgs = [], isLoading: loadingMisOrgs } = useQuery({
     queryKey: ["orgs"],
     queryFn: () => organizationsApi.list(),
     enabled: !!user?.id,
@@ -39,15 +33,23 @@ export default function OrganizacionDetallePage() {
 
   const soyMiembro = misOrgs.some((o) => o.id === orgId);
 
+  const { data: ranking = [], isLoading: loadingRanking } = useQuery({
+    queryKey: ["ranking", orgId],
+    queryFn: () => gamificationApi.getRanking(orgId),
+    enabled: !!orgId && soyMiembro,
+  });
+
   const dejarOrgMutation = useMutation({
     mutationFn: () => organizationsApi.leaveOrganization(orgId, user!.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs"] });
+      const { activeOrgId, setActiveOrg } = useAuthStore.getState();
+      if (activeOrgId === orgId) setActiveOrg(null);
       router.push("/dashboard/organizaciones");
     },
   });
 
-  if (loadingOrg || !orgId) {
+  if (loadingOrg || !orgId || (user?.id && loadingMisOrgs)) {
     return (
       <>
         <TopBar title="Organización" />
@@ -62,15 +64,58 @@ export default function OrganizacionDetallePage() {
     return (
       <>
         <TopBar title="Organización" />
-        <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4">
-          <p style={{ color: "var(--text-muted)" }}>No se encontró la organización o no tienes acceso.</p>
-          <button
-            onClick={() => router.push("/dashboard/organizaciones")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
-            style={{ background: "var(--accent)", color: "white" }}
-          >
-            <ArrowLeft className="w-4 h-4" /> Volver
-          </button>
+        <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4 px-5 text-center">
+          <Building2 className="w-12 h-12" style={{ color: "var(--text-muted)" }} />
+          <div>
+            <p className="font-medium mb-1">No puedes ver el detalle privado</p>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Si no eres miembro, usa el perfil público o solicita unirte desde el catálogo.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 justify-center">
+            <button
+              onClick={() => router.push("/dashboard/organizaciones")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+              style={{ background: "var(--accent)", color: "white" }}
+            >
+              <ArrowLeft className="w-4 h-4" /> Explorar organizaciones
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!soyMiembro) {
+    return (
+      <>
+        <TopBar title={org.nombre} />
+        <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4 px-5 text-center">
+          <Building2 className="w-12 h-12" style={{ color: "var(--text-muted)" }} />
+          <div>
+            <p className="font-medium mb-1">{org.nombre}</p>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              No eres miembro. Puedes ver el perfil público o unirte desde el catálogo.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {org.slug ? (
+              <Link
+                href={`/org/${org.slug}`}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white"
+                style={{ background: "var(--accent)" }}
+              >
+                <ExternalLink className="w-4 h-4" /> Ver perfil público
+              </Link>
+            ) : null}
+            <button
+              onClick={() => router.push("/dashboard/organizaciones")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+              style={{ background: "var(--bg-subtle)", color: "var(--text)", border: "1px solid var(--border)" }}
+            >
+              <ArrowLeft className="w-4 h-4" /> Catálogo
+            </button>
+          </div>
         </div>
       </>
     );
@@ -101,7 +146,20 @@ export default function OrganizacionDetallePage() {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold mb-2">{org.nombre}</h1>
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <h1 className="text-xl font-bold">{org.nombre}</h1>
+              {soyMiembro && (
+                <span
+                  className="text-xs px-2.5 py-0.5 rounded-full font-medium"
+                  style={{ background: "rgba(34,197,94,.15)", color: "#16a34a" }}
+                >
+                  Eres miembro
+                  {org.mi_rol_slug || org.soy_propietario
+                    ? ` · ${org.soy_propietario ? "Propietario" : org.mi_rol_slug === "organizador" ? "Organizador" : org.mi_rol_slug === "coordinador" ? "Coordinador" : org.mi_rol_slug === "admin" ? "Admin" : "Voluntario"}`
+                    : ""}
+                </span>
+              )}
+            </div>
             {org.sector && (
               <p className="text-sm mb-2" style={{ color: "var(--text-muted)" }}>{org.sector}</p>
             )}

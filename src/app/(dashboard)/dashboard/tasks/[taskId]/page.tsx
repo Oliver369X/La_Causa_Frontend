@@ -12,7 +12,7 @@ import {
   type DeliveryReviewResponse,
 } from "@/features/assignments/api/assignmentsApi";
 import { eventsApi } from "@/features/events/api/eventsApi";
-import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
+import { volunteersApi, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
 import { ArrowLeft, UserPlus, Clock, AlertTriangle, Check, X } from "lucide-react";
@@ -258,7 +258,7 @@ function AssignmentCard({
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">
-          {assignment.usuario_nombre || assignment.usuario_email || (assignment.usuario_id ? `Usuario ${assignment.usuario_id.slice(0, 8)}…` : "—")}
+          {assignment.usuario_nombre || assignment.usuario_email || "Participante"}
         </span>
         <span
           className="text-xs px-2 py-1 rounded-full"
@@ -507,11 +507,8 @@ function AssignModal({
   );
   const alreadyAssigned = new Set(assignedUserIds);
 
-  const candidates = members.filter(
-    (m) =>
-      m.estado_membresia === "activo" &&
-      !m.es_propietario &&
-      !alreadyAssigned.has(m.usuario_id)
+  const candidates = filterVolunteerMembers(members).filter(
+    (m) => !alreadyAssigned.has(m.usuario_id)
   );
 
   const [selected, setSelected] = useState<string>("");
@@ -560,7 +557,7 @@ function AssignModal({
                   onChange={() => setSelected(m.usuario_id)}
                 />
                 <span className="text-sm flex-1 min-w-0">
-                  {m.usuario_nombre || m.usuario_email || `Usuario ${m.usuario_id.slice(0, 8)}…`}
+                  {m.usuario_nombre || m.usuario_email || "Voluntario"}
                   {!approvedInEvent.has(m.usuario_id) && (
                     <span className="block text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                       Se inscribirá en el evento al asignar

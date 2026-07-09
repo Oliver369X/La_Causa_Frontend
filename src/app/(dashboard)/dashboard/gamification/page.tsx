@@ -19,20 +19,27 @@ import { motionSpring, staggerFast } from "@/shared/lib/motion";
 const XP_PER_LEVEL = 100;
 
 export default function GamificationPage() {
-  const { user } = useAuthStore();
+  const { user, activeOrgId } = useAuthStore();
 
   const [profile, setProfile] = useState<CompetitiveProfile | null>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
+  const [rankingOrg, setRankingOrg] = useState<RankingEntry[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"badges" | "certificados" | "ranking">("badges");
+  const [rankingScope, setRankingScope] = useState<"org" | "global">(activeOrgId ? "org" : "global");
   const [shareBadgeId, setShareBadgeId] = useState<string | null>(null);
   const [shareCertId, setShareCertId] = useState<string | null>(null);
   const [shareProfileOpen, setShareProfileOpen] = useState(false);
 
   const activeSeason = seasons.find((s) => s.activa);
+
+  useEffect(() => {
+    if (activeOrgId) setRankingScope("org");
+    else setRankingScope("global");
+  }, [activeOrgId]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -41,26 +48,29 @@ export default function GamificationPage() {
       gamificationApi.getProfile(user.id),
       gamificationApi.getBadges(user.id),
       gamificationApi.getRanking(),
-      gamificationApi.getSeasons(),
+      activeOrgId ? gamificationApi.getRanking(activeOrgId) : Promise.resolve([] as RankingEntry[]),
+      gamificationApi.getSeasons(activeOrgId ?? undefined),
       gamificationApi.listCertificates(user.id),
     ])
-      .then(([p, b, r, s, c]) => {
+      .then(([p, b, rGlobal, rOrg, s, c]) => {
         setProfile(p);
         setBadges(b);
-        setRanking(r);
+        setRanking(rGlobal);
+        setRankingOrg(rOrg);
         setSeasons(s ?? []);
         setCertificates(c ?? []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [user?.id]);
+  }, [user?.id, activeOrgId]);
 
   const xpTotal = profile?.xp_total ?? 0;
   const nivel = profile?.nivel ?? Math.floor(xpTotal / XP_PER_LEVEL) + 1;
   const xpEnNivel = xpTotal % XP_PER_LEVEL;
   const xpFaltante = XP_PER_LEVEL - xpEnNivel;
   const recentBadges = badges.slice(0, 3);
-  const myRank = ranking.findIndex((e) => e.usuario_id === user?.id) + 1;
+  const visibleRanking = rankingScope === "org" && activeOrgId ? rankingOrg : ranking;
+  const myRank = visibleRanking.findIndex((e) => e.usuario_id === user?.id) + 1;
 
   return (
     <div className="p-5 md:p-8 space-y-6" style={{ color: "var(--text)" }}>
@@ -89,7 +99,7 @@ export default function GamificationPage() {
             Mi perfil competitivo
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Tu nivel, XP, medallas e insignias. Certificados por temporada. Ranking global.
+            Tu nivel, XP, medallas e insignias. Certificados por temporada. Ranking global y por organización.
           </p>
           <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
             Para ver <strong style={{ color: "var(--text)" }}>todas las medallas que podés ganar en cada organización</strong>, entrá a{" "}
@@ -208,7 +218,7 @@ export default function GamificationPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                {t === "badges" ? "Mis medallas" : t === "certificados" ? "Mis certificados" : "Ranking global"}
+                {t === "badges" ? "Mis medallas" : t === "certificados" ? "Mis certificados" : "Ranking"}
               </motion.button>
             ))}
           </motion.div>
@@ -223,25 +233,52 @@ export default function GamificationPage() {
                 exit={{ opacity: 0, x: -8 }}
                 transition={motionSpring.tab}
               >
+                {activeOrgId && (
+                  <div className="flex gap-1 mb-4 p-1 rounded-xl w-fit" style={{ background: "var(--bg-subtle)" }}>
+                    {(["org", "global"] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setRankingScope(s)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                        style={{
+                          background: rankingScope === s ? "var(--bg-card)" : "transparent",
+                          color: rankingScope === s ? "var(--text)" : "var(--text-muted)",
+                          boxShadow: rankingScope === s ? "0 1px 4px rgba(0,0,0,.12)" : undefined,
+                        }}
+                      >
+                        {s === "org" ? "Mi organización" : "Global"}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <ProgressCard>
-                  {ranking.length === 0 ? (
-                    <EmptyState title="Sin datos de ranking" description="El ranking global se actualiza al finalizar cada evento." />
+                  {visibleRanking.length === 0 ? (
+                    <EmptyState
+                      title="Sin datos de ranking"
+                      description={
+                        rankingScope === "org"
+                          ? "El ranking de la organización se actualiza al completar tareas en la temporada activa."
+                          : "El ranking global se actualiza al finalizar cada evento."
+                      }
+                    />
                   ) : (
                     <>
                       {myRank > 0 && (
                         <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-                          Tu posición: <span className="font-medium" style={{ color: "var(--g-progreso)" }}>#{myRank}</span>
+                          Tu posición ({rankingScope === "org" && activeOrgId ? "org" : "global"}):{" "}
+                          <span className="font-medium" style={{ color: "var(--g-progreso)" }}>#{myRank}</span>
                         </p>
                       )}
                       <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
-                        {ranking.map((entry, i) => (
+                        {visibleRanking.map((entry, i) => (
                           <motion.li
                             key={entry.usuario_id}
                             initial={{ opacity: 0, x: -8 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: staggerFast * i }}
                             className="first:pt-0"
-                            style={{ borderBottom: i < ranking.length - 1 ? "1px solid var(--border)" : undefined }}
+                            style={{ borderBottom: i < visibleRanking.length - 1 ? "1px solid var(--border)" : undefined }}
                           >
                             <Link
                               href={`/voluntario/${entry.usuario_id}?returnTo=${encodeURIComponent("/dashboard/gamification")}`}
