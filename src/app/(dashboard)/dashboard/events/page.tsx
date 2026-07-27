@@ -195,7 +195,8 @@ export default function EventsPage() {
   const displayedEvents = tab === "proximos" ? proximos : tab === "curso" ? curso : pasados;
 
   const canPostular = (e: Event) =>
-    isVolunteer && (e.estado === "publicado" || e.estado === "en_curso") && !e.mi_estado_solicitud;
+    isVolunteer && (e.estado === "publicado" || e.estado === "en_curso") &&
+    (!e.mi_estado_solicitud || e.mi_estado_solicitud === "rechazado");
 
   const statusColors: Record<string, { background: string; color: string }> = {
     borrador:   { background: "var(--bg-subtle)",      color: "var(--text-muted)" },
@@ -501,7 +502,7 @@ export default function EventsPage() {
                       style={{ background: "var(--accent)", color: "white" }}
                     >
                       <Send className="w-3.5 h-3.5" />
-                      Postular
+                      {event.mi_estado_solicitud === "rechazado" ? "Volver a postularse" : "Postular"}
                     </button>
                   )}
                   {event.mi_estado_solicitud === "aprobado" && (
@@ -520,7 +521,7 @@ export default function EventsPage() {
                       Pendiente de aprobación
                     </span>
                   )}
-                  {event.mi_estado_solicitud === "rechazado" && (
+                  {event.mi_estado_solicitud === "rechazado" && !canPostular(event) && (
                     <span
                       className="flex items-center gap-1 text-xs px-3 py-2 rounded-xl font-medium"
                       style={{ background: "rgba(239,68,68,.15)", color: "#f87171", border: "1px solid rgba(239,68,68,.2)" }}

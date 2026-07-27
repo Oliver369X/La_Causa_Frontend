@@ -59,7 +59,9 @@ export function OrganizationDiscoveryPanel({
     };
   }, [modalOrg]);
 
-  const yaEsMiembro = (orgId: string) => misOrgs.some((org) => org.id === orgId);
+  const yaEsMiembro = (orgId: string) =>
+    misOrgs.some((org) => org.id === orgId) ||
+    misSolicitudes.some((solicitud) => solicitud.organizacion_id === orgId && solicitud.estado === "aprobada");
   const tieneSolicitud = (orgId: string) =>
     misSolicitudes.some((solicitud) => solicitud.organizacion_id === orgId && ["pendiente", "aprobada"].includes(solicitud.estado));
 

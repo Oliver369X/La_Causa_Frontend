@@ -24,6 +24,11 @@ export interface CompetitiveProfile {
   /** Backend raw fields */
   elo_score?: number;
   xp_total?: number;
+  xp_en_nivel?: number;
+  xp_para_siguiente_nivel?: number;
+  elo_puntos_min?: number | null;
+  elo_puntos_max?: number | null;
+  elo_para_siguiente_rango?: number | null;
 }
 
 export interface PerformanceMetrics {
@@ -163,8 +168,10 @@ export const gamificationApi = {
     return data;
   },
 
-  getProfile: async (userId: UUID): Promise<CompetitiveProfile> => {
-    const { data } = await apiClient.get(EP.PROFILE_COMPETITIVE(userId));
+  getProfile: async (userId: UUID, organizacionId?: string): Promise<CompetitiveProfile> => {
+    const { data } = await apiClient.get(EP.PROFILE_COMPETITIVE(userId), {
+      params: organizacionId ? { organizacion_id: organizacionId } : undefined,
+    });
     const raw = data as Record<string, unknown>;
     return {
       usuario_id: raw.usuario_id as UUID,
@@ -173,13 +180,18 @@ export const gamificationApi = {
       bio: raw.bio as string | undefined,
       puntos_elo: (raw.puntos_elo ?? raw.elo_score ?? 0) as number,
       rango: (raw.rango ?? "Principiante") as string,
-      nivel: (raw.nivel ?? Math.floor(((raw.xp_total as number) ?? 0) / 100) + 1) as number,
       racha_entregas: (raw.racha_entregas ?? raw.racha_dias ?? 0) as number,
       eventos_completados: (raw.eventos_completados ?? 0) as number,
       tareas_completadas: (raw.tareas_completadas ?? 0) as number,
       insignias_total: (raw.insignias_total ?? 0) as number,
       elo_score: raw.elo_score as number | undefined,
       xp_total: raw.xp_total as number | undefined,
+      nivel: (raw.nivel ?? 1) as number,
+      xp_en_nivel: (raw.xp_en_nivel ?? 0) as number,
+      xp_para_siguiente_nivel: (raw.xp_para_siguiente_nivel ?? 100) as number,
+      elo_puntos_min: raw.elo_puntos_min as number | null | undefined,
+      elo_puntos_max: raw.elo_puntos_max as number | null | undefined,
+      elo_para_siguiente_rango: raw.elo_para_siguiente_rango as number | null | undefined,
     };
   },
 

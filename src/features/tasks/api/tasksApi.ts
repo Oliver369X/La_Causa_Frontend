@@ -14,6 +14,7 @@ export interface Task {
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
+  insignia_id?: string;
   created_at?: string;
 }
 
@@ -30,6 +31,7 @@ export interface CreateTaskData {
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
+  insignia_id?: string;
 }
 
 type BackendTaskStatus = "pendiente" | "en_progreso" | "revision" | "completada" | "bloqueada";
@@ -90,6 +92,7 @@ export interface MyAssignment {
   estado: string;
   fecha_asignacion: string;
   instrucciones?: string;
+  fecha_vencimiento?: string;
 }
 
 export interface TaskAvailable {
@@ -159,6 +162,7 @@ export const tasksApi = {
       fecha_vencimiento: payload.fecha_vencimiento,
       multiplicador_elo: payload.multiplicador_elo ?? 1,
       requiere_revision_manual: payload.requiere_revision_manual ?? false,
+      insignia_id: payload.insignia_id,
     });
     return toTask(data);
   },
@@ -178,6 +182,22 @@ export const tasksApi = {
   updateStatus: async (taskId: string, estado: Task["estado"]): Promise<Task> => {
     const { data } = await apiClient.put<BackendTask>(`/tareas/${taskId}`, {
       estado: toBackendStatus(estado),
+    });
+    return toTask(data);
+  },
+
+  update: async (taskId: string, payload: Partial<CreateTaskData> & { estado?: Task["estado"] }): Promise<Task> => {
+    const { data } = await apiClient.put<BackendTask>(`/tareas/${taskId}`, {
+      titulo: payload.titulo,
+      descripcion: payload.descripcion,
+      instrucciones: payload.instrucciones,
+      dificultad: payload.dificultad,
+      vacantes: payload.vacantes,
+      fecha_inicio: payload.fecha_inicio,
+      fecha_vencimiento: payload.fecha_vencimiento,
+      multiplicador_elo: payload.multiplicador_elo,
+      requiere_revision_manual: payload.requiere_revision_manual,
+      estado: payload.estado ? toBackendStatus(payload.estado) : undefined,
     });
     return toTask(data);
   },

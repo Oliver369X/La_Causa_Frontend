@@ -15,6 +15,9 @@ export interface StaffMember {
   estado_membresia: "activo" | "suspendido" | "retirado" | "active" | "suspended" | "left";
   fecha_ingreso: string;
   rol_slug?: string;
+  xp_total?: number;
+  elo_score?: number;
+  tareas_completadas?: number;
 }
 
 export interface InviteMemberData {

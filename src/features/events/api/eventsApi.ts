@@ -18,6 +18,15 @@ export interface EventApplication {
   usuario_email?: string;
 }
 
+export interface VolunteerRetrospective {
+  evento_id: string;
+  usuario_id: string;
+  que_bien: string;
+  que_mejorar: string;
+  accion: string;
+  completado_at?: string | null;
+}
+
 export interface Event {
   id: string;
   organizacion_id: string;
@@ -197,6 +206,13 @@ export const eventsApi = {
     payload: { que_bien: string; que_mejorar: string; accion: string }
   ): Promise<void> => {
     await apiClient.post(`/eventos/${eventId}/retro-voluntario`, payload);
+  },
+
+  listVolunteerRetrospectives: async (eventId: string): Promise<VolunteerRetrospective[]> => {
+    const { data } = await apiClient.get<VolunteerRetrospective[]>(
+      `/eventos/${eventId}/retros-voluntarios`
+    );
+    return data;
   },
 
   delete: async (eventId: string): Promise<void> => {

@@ -16,14 +16,13 @@ interface Props {
   certificatesCount?: number;
 }
 
-const XP_PER_LEVEL = 100;
-
 export function ProfileBanner({ profile, compact = false, showcase = false, metrics, certificatesCount = 0 }: Props) {
   const xpTotal = profile.xp_total ?? 0;
-  const nivel = profile.nivel ?? Math.floor(xpTotal / XP_PER_LEVEL) + 1;
-  const xpEnNivel = xpTotal % XP_PER_LEVEL;
-  const progresoXP = (xpEnNivel / XP_PER_LEVEL) * 100;
-  const xpFaltante = XP_PER_LEVEL - xpEnNivel;
+  const nivel = profile.nivel ?? 1;
+  const xpEnNivel = profile.xp_en_nivel ?? 0;
+  const xpParaSiguienteNivel = profile.xp_para_siguiente_nivel ?? 100;
+  const progresoXP = (xpEnNivel / xpParaSiguienteNivel) * 100;
+  const xpFaltante = xpParaSiguienteNivel - xpEnNivel;
 
   const stats = [
     { icon: Trophy, label: "ELO", value: profile.puntos_elo ?? 0, color: "var(--g-energia)" },
@@ -124,6 +123,29 @@ export function ProfileBanner({ profile, compact = false, showcase = false, metr
             </div>
           </div>
 
+          {profile.elo_puntos_min != null && profile.elo_puntos_max != null && (
+            <div className="rounded-xl p-3" style={{ background: "var(--bg-subtle)" }}>
+              <div className="flex justify-between text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>
+                <span className="font-medium">Progreso del rango ELO</span>
+                <span>{profile.puntos_elo ?? profile.elo_score ?? 0}/{profile.elo_puntos_max}</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-card)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(100, Math.max(0, (((profile.puntos_elo ?? profile.elo_score ?? 0) - profile.elo_puntos_min) / (profile.elo_puntos_max - profile.elo_puntos_min)) * 100))}%`,
+                    background: "var(--g-energia)",
+                  }}
+                />
+              </div>
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+                {profile.elo_para_siguiente_rango != null
+                  ? `${Math.max(0, profile.elo_para_siguiente_rango - (profile.puntos_elo ?? profile.elo_score ?? 0))} ELO para el siguiente rango`
+                  : "Rango máximo alcanzado"}
+              </p>
+            </div>
+          )}
+
           {/* Racha por entregas impecables */}
           {streak > 0 && (
             <motion.div
@@ -215,7 +237,7 @@ export function ProfileBanner({ profile, compact = false, showcase = false, metr
             <div className="flex justify-between text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>
               <span className="font-medium">Experiencia · Nivel {nivel}</span>
               <span className="tabular-nums font-semibold" style={{ color: "var(--g-progreso)" }}>
-                {xpEnNivel}/{XP_PER_LEVEL} XP
+                {xpEnNivel}/{xpParaSiguienteNivel} XP
               </span>
             </div>
             <motion.div
@@ -236,7 +258,7 @@ export function ProfileBanner({ profile, compact = false, showcase = false, metr
             </motion.div>
             <div className="flex justify-between text-[10px] mt-1.5" style={{ color: "var(--text-muted)" }}>
               <span>{profile.tareas_completadas ?? 0} tareas · {profile.eventos_completados ?? 0} eventos</span>
-              {xpFaltante > 0 && xpFaltante < XP_PER_LEVEL && (
+                {xpFaltante > 0 && (
                 <span className="flex items-center gap-1 font-medium" style={{ color: "var(--g-logro)" }}>
                   <Target className="w-3 h-3" />
                   {xpFaltante} XP para subir

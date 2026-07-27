@@ -16,8 +16,8 @@ import { toast } from "sonner";
 
 export default function StaffPage() {
   const { activeOrgId }  = useAuthStore();
-  const { can }          = usePermissions();
-  const canManage        = can("manageMembers");
+  const { can, isOwner, rolSlug, isSuperAdmin } = usePermissions();
+  const canManage        = can("manageMembers") && (isOwner || rolSlug === "admin" || isSuperAdmin);
 
   const [members, setMembers]     = useState<StaffMember[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -25,6 +25,7 @@ export default function StaffPage() {
   const [saving, setSaving]         = useState(false);
   const [form, setForm] = useState<InviteMemberData>({ email: "", rol_slug: "organizador" });
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "xp" | "elo" | "tasks">("recent");
   
   const qc = useQueryClient();
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
@@ -82,6 +83,11 @@ export default function StaffPage() {
     const emailMatch = (m.email || "").toLowerCase().includes(term);
     const roleMatch = (m.rol || "").toLowerCase().includes(term);
     return nameMatch || emailMatch || roleMatch;
+  }).sort((a, b) => {
+    if (sortBy === "xp") return (b.xp_total ?? 0) - (a.xp_total ?? 0);
+    if (sortBy === "elo") return (b.elo_score ?? 1000) - (a.elo_score ?? 1000);
+    if (sortBy === "tasks") return (b.tareas_completadas ?? 0) - (a.tareas_completadas ?? 0);
+    return new Date(b.fecha_ingreso).getTime() - new Date(a.fecha_ingreso).getTime();
   });
 
   const load = () => {
@@ -197,6 +203,17 @@ export default function StaffPage() {
               }}
             />
           </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="h-10 px-3 text-sm rounded-xl outline-none"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+          >
+            <option value="recent">Ordenar por ingreso reciente</option>
+            <option value="xp">Más experiencia</option>
+            <option value="elo">Mayor ELO</option>
+            <option value="tasks">Más tareas completadas</option>
+          </select>
 
           {filteredMembers.length === 0 ? (
             <div className="text-center py-12 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -233,6 +250,10 @@ export default function StaffPage() {
                         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                           Desde {new Date(m.fecha_ingreso).toLocaleDateString("es-ES")}
                         </p>
+                        <div className="text-[10px] text-right" style={{ color: "var(--text-muted)" }}>
+                          <div>{m.xp_total ?? 0} XP · {m.elo_score ?? 1000} ELO</div>
+                          <div>{m.tareas_completadas ?? 0} tareas completadas</div>
+                        </div>
                         <div className="flex items-center gap-2">
                           {canManage && !isOwnerOrSelf && (
                             <span className="text-[10px]" style={{ color: "var(--accent)" }}>

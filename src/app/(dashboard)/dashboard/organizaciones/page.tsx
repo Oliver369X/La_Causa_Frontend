@@ -22,6 +22,9 @@ export default function ExplorarOrganizacionesPage() {
     queryKey: ["mis-solicitudes"],
     queryFn: () => organizationsApi.listMySolicitudes(),
     enabled: !!user?.id,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 
   const { data: misOrgs = [] } = useQuery({

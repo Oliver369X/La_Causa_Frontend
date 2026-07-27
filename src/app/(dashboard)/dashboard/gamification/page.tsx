@@ -45,7 +45,7 @@ export default function GamificationPage() {
     if (!user?.id) return;
     setLoading(true);
     Promise.all([
-      gamificationApi.getProfile(user.id),
+      gamificationApi.getProfile(user.id, activeOrgId ?? undefined),
       gamificationApi.getBadges(user.id),
       gamificationApi.getRanking(),
       activeOrgId ? gamificationApi.getRanking(activeOrgId) : Promise.resolve([] as RankingEntry[]),

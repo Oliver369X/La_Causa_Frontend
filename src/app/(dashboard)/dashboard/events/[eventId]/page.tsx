@@ -756,7 +756,7 @@ function ApplicationsTab({
                 <div className="mt-3 flex flex-wrap gap-2 items-end">
                   <input
                     type="text"
-                    placeholder="Nota interna (opcional)"
+                    placeholder="Mensaje o motivo para el voluntario (opcional)"
                     value={notaMap[app.id] ?? ""}
                     onChange={(e) => setNotaMap((p) => ({ ...p, [app.id]: e.target.value }))}
                     className="flex-1 min-w-[200px] px-3 py-2 rounded-lg text-sm outline-none"

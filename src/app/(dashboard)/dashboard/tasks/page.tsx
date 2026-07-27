@@ -1,22 +1,22 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
-import { useCelebrationStore } from "@/shared/store/celebrationStore";
 import { tasksApi, type Task, type CreateTaskData, type MyAssignment, type TaskAvailable } from "@/features/tasks/api/tasksApi";
 import { eventsApi, type Event } from "@/features/events/api/eventsApi";
 import { DeliveryUpload } from "@/features/tasks/ui/DeliveryUpload";
 import { TaskInstructionsDisplay } from "@/features/tasks/ui/TaskInstructionsDisplay";
 import { InstructionTemplateLibrary } from "@/features/tasks/ui/InstructionTemplateLibrary";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { formatDate } from "@/shared/utils/utils";
+import { formatDate, parseUTC, toLocalDateTimeString } from "@/shared/utils/utils";
 import Link from "next/link";
 import { toast } from "sonner";
 import { extractApiDetail } from "@/shared/utils/apiError";
 import { Plus, CheckSquare, Check, X, Clock, UserPlus, ImagePlus, AlertTriangle } from "lucide-react";
 import { usePermissions } from "@/shared/hooks/usePermissions";
+import { gamificationApi, type OrgBadgeCatalogItem } from "@/features/gamification/api/gamificationApi";
 
 const STATUSES: Task["estado"][] = ["pending", "in_progress", "completed", "cancelled"];
 
@@ -50,7 +50,7 @@ function nowForDatetimeLocal(): string {
 function isTaskVencida(task: Task): boolean {
   if (!task.fecha_vencimiento) return false;
   if (task.estado === "completed" || task.estado === "cancelled") return false;
-  return new Date(task.fecha_vencimiento) < new Date();
+  return parseUTC(task.fecha_vencimiento) < new Date();
 }
 
 function validateTaskDueDate(fechaVencimiento: string): string | null {
@@ -159,11 +159,19 @@ function TasksPageContent() {
     queryKey: ["myAssignments"],
     queryFn: () => tasksApi.listMyAssignments(),
     enabled: isVolunteer,
+    refetchInterval: isVolunteer ? 15000 : false,
+    refetchOnWindowFocus: true,
   });
 
   const { data: events = [] } = useQuery({
     queryKey: ["events", activeOrgId],
     queryFn: () => eventsApi.list(activeOrgId!),
+    enabled: !!activeOrgId && !isVolunteer,
+  });
+
+  const { data: badges = [] } = useQuery<OrgBadgeCatalogItem[]>({
+    queryKey: ["org-badges-for-task", activeOrgId],
+    queryFn: () => gamificationApi.listOrgBadgeCatalog(activeOrgId!, { soloVisiblesCatalogo: false }),
     enabled: !!activeOrgId && !isVolunteer,
   });
 
@@ -220,24 +228,6 @@ function TasksPageContent() {
       qc.invalidateQueries({ queryKey: ["tasksAvailable", activeOrgId] });
     },
   });
-
-  const prevEstadosRef = useRef<Record<string, string>>({});
-  const celebratedRef = useRef<Set<string>>(new Set());
-  const showCelebration = useCelebrationStore((s) => s.show);
-
-  useEffect(() => {
-    if (!isVolunteer || loadingAssignments) return;
-    for (const a of myAssignments) {
-      if (a.estado !== "aprobada") continue;
-      const prev = prevEstadosRef.current[a.id];
-      if (prev != null && prev !== "aprobada" && !celebratedRef.current.has(a.id)) {
-        celebratedRef.current.add(a.id);
-        showCelebration({ tarea_titulo: a.tarea_titulo, delta_elo: 50, delta_xp: 100 });
-        break;
-      }
-    }
-    prevEstadosRef.current = Object.fromEntries(myAssignments.map((a) => [a.id, a.estado]));
-  }, [isVolunteer, loadingAssignments, myAssignments, showCelebration]);
 
   const columns = STATUSES.filter((s) => s !== "cancelled");
   const minDateTimeLocal = nowForDatetimeLocal();
@@ -449,6 +439,18 @@ function TasksPageContent() {
                 )}
               </div>
               <div>
+                <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Medalla por completar (opcional)</label>
+                <select
+                  value={(formData as Record<string, string>).insignia_id ?? ""}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, insignia_id: e.target.value || undefined }))}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  <option value="">Sin medalla</option>
+                  {badges.map((badge) => <option key={badge.id} value={badge.id}>{badge.nombre}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Título *</label>
                 <input
                   type="text"
@@ -569,8 +571,9 @@ function TasksPageContent() {
                     instrucciones: fd.instrucciones || undefined,
                     dificultad: (fd.dificultad as CreateTaskData["dificultad"]) || "media",
                     vacantes: Math.max(1, parseInt(fd.vacantes || "1", 10)),
-                    fecha_vencimiento: fd.fecha_vencimiento?.trim() || undefined,
+                    fecha_vencimiento: fd.fecha_vencimiento?.trim() ? new Date(fd.fecha_vencimiento.trim()).toISOString() : undefined,
                     requiere_revision_manual: Boolean((formData as { requiere_revision_manual?: boolean }).requiere_revision_manual),
+                    insignia_id: fd.insignia_id || undefined,
                   });
                 }}
                 disabled={!(formData as Record<string, string>).evento_id || !(formData as Record<string, string>).titulo?.trim() || createMutation.isPending}

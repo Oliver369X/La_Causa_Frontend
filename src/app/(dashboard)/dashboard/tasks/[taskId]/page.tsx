@@ -17,7 +17,7 @@ import { subscriptionsApi } from "@/features/subscriptions/api/subscriptionsApi"
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
 import { ArrowLeft, UserPlus, Clock, AlertTriangle, Check, X, Search, Sparkles, AlertCircle, CreditCard } from "lucide-react";
-import { formatDate } from "@/shared/utils/utils";
+import { formatDate, parseUTC, toLocalDateTimeString } from "@/shared/utils/utils";
 import { useState, useEffect } from "react";
 import { TaskInstructionsDisplay } from "@/features/tasks/ui/TaskInstructionsDisplay";
 import { extractApiDetail } from "@/shared/utils/apiError";
@@ -53,6 +53,7 @@ export default function TaskDetailPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [assigningMultiple, setAssigningMultiple] = useState(false);
   const setSidebarCollapsed = useSidebarLayoutStore((s) => s.setCollapsed);
 
@@ -96,6 +97,20 @@ export default function TaskDetailPage() {
     enabled: !!task?.evento_id && !!canManage,
   });
 
+  const editTaskMutation = useMutation({
+    mutationFn: (data: Parameters<typeof tasksApi.update>[1]) =>
+      tasksApi.update(taskId, data),
+    onSuccess: () => {
+      toast.success("Tarea actualizada correctamente.");
+      qc.invalidateQueries({ queryKey: ["task", taskId] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      setShowEditModal(false);
+    },
+    onError: (err) => {
+      toast.error(extractApiDetail(err, "No se pudo actualizar la tarea."));
+    },
+  });
+
   if (!taskId) return null;
 
   if (loadingTask || !task) {
@@ -111,7 +126,11 @@ export default function TaskDetailPage() {
     );
   }
 
-  const isOverdue = task.fecha_vencimiento && new Date(task.fecha_vencimiento) < new Date();
+  const isOverdue =
+    task.fecha_vencimiento &&
+    task.estado !== "completed" &&
+    task.estado !== "cancelled" &&
+    parseUTC(task.fecha_vencimiento) < new Date();
   const approvedInEvent = new Set(
     applications
       .filter((a) => a.estado === "aprobado" || a.estado === "asistio")
@@ -208,15 +227,16 @@ export default function TaskDetailPage() {
               className="p-6 rounded-2xl"
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
             >
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                {task.dificultad && (
-                  <span
-                    className="text-xs px-2 py-1 rounded-full capitalize font-medium"
-                    style={dificultadColors[task.dificultad] ?? { background: "var(--bg-subtle)", color: "var(--text-muted)" }}
-                  >
-                    {task.dificultad}
-                  </span>
-                )}
+              <div className="flex justify-between items-center mb-4 gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {task.dificultad && (
+                    <span
+                      className="text-xs px-2 py-1 rounded-full capitalize font-medium"
+                      style={dificultadColors[task.dificultad] ?? { background: "var(--bg-subtle)", color: "var(--text-muted)" }}
+                    >
+                      {task.dificultad}
+                    </span>
+                  )}
                 <span
                   className="text-xs px-2 py-1 rounded-full font-medium"
                   style={{
@@ -235,6 +255,16 @@ export default function TaskDetailPage() {
                   </span>
                 )}
               </div>
+              {canManage && (
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold border transition-all hover:scale-[1.02] shrink-0"
+                  style={{ borderColor: "var(--border)", background: "var(--bg-subtle)", color: "var(--text)" }}
+                >
+                  Editar Tarea
+                </button>
+              )}
+            </div>
 
               {task.fecha_vencimiento && (
                 <div className="flex items-center gap-2 text-sm mb-4" style={{ color: "var(--text-muted)" }}>
@@ -469,6 +499,14 @@ export default function TaskDetailPage() {
         )}
 
         {showPlansModal && <PlansModal onClose={() => setShowPlansModal(false)} />}
+        {showEditModal && (
+          <EditTaskModal
+            task={task}
+            onClose={() => setShowEditModal(false)}
+            onSave={(data) => editTaskMutation.mutate(data)}
+            isSaving={editTaskMutation.isPending}
+          />
+        )}
       </div>
     </>
   );
@@ -836,6 +874,198 @@ function PlansModal({ onClose }: { onClose: () => void }) {
           scrollbar-width: none !important;
         }
       `}</style>
+    </div>
+  );
+}
+
+interface EditTaskModalProps {
+  task: Task;
+  onClose: () => void;
+  onSave: (data: any) => void;
+  isSaving: boolean;
+}
+
+function EditTaskModal({ task, onClose, onSave, isSaving }: EditTaskModalProps) {
+  const [titulo, setTitulo] = useState(task.titulo);
+  const [descripcion, setDescripcion] = useState(task.descripcion || "");
+  const [instrucciones, setInstrucciones] = useState(task.instrucciones || "");
+  const [dificultad, setDificultad] = useState(task.dificultad || "media");
+  const [vacantes, setVacantes] = useState(task.vacantes || 1);
+  const [multiplicadorElo, setMultiplicadorElo] = useState(task.multiplicador_elo || 1);
+  const [fechaVencimiento, setFechaVencimiento] = useState(
+    toLocalDateTimeString(task.fecha_vencimiento)
+  );
+  const [requiereRevisionManual, setRequiereRevisionManual] = useState(task.requiere_revision_manual || false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim()) {
+      toast.error("El título es obligatorio.");
+      return;
+    }
+    onSave({
+      titulo,
+      descripcion: descripcion || null,
+      instrucciones: instrucciones || null,
+      dificultad,
+      vacantes: Number(vacantes),
+      multiplicador_elo: Number(multiplicadorElo),
+      fecha_vencimiento: fechaVencimiento ? new Date(fechaVencimiento).toISOString() : null,
+      requiere_revision_manual: requiereRevisionManual,
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <form
+        onSubmit={handleSubmit}
+        className="max-w-xl w-full p-8 rounded-3xl shadow-2xl relative overflow-y-auto max-h-[90vh] no-scrollbar space-y-4"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-xl hover:bg-black/5"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="text-center mb-4">
+          <span className="text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider" style={{ background: "rgba(var(--accent-rgb), 0.15)", color: "var(--accent)" }}>
+            Configuración
+          </span>
+          <h3 className="text-xl font-bold mt-2">Editar Tarea</h3>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Actualiza los parámetros, plazos o el multiplicador de ELO de la tarea.
+          </p>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          <div>
+            <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Título *</label>
+            <input
+              type="text"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border focus:outline-none transition-all"
+              style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Descripción</label>
+            <textarea
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border focus:outline-none transition-all resize-none"
+              style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Instrucciones de Entrega</label>
+            <textarea
+              value={instrucciones}
+              onChange={(e) => setInstrucciones(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border focus:outline-none transition-all resize-none"
+              style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Dificultad</label>
+              <select
+                value={dificultad}
+                onChange={(e) => setDificultad(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border focus:outline-none transition-all"
+                style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
+              >
+                <option value="baja">Baja</option>
+                <option value="media">Media</option>
+                <option value="alta">Alta</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Fecha de Vencimiento</label>
+              <input
+                type="datetime-local"
+                value={fechaVencimiento}
+                onChange={(e) => setFechaVencimiento(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border focus:outline-none transition-all"
+                style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Vacantes</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={vacantes}
+                onChange={(e) => setVacantes(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl border focus:outline-none transition-all"
+                style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Multiplicador ELO</label>
+              <input
+                type="number"
+                step={0.1}
+                min={0.1}
+                max={5.0}
+                value={multiplicadorElo}
+                onChange={(e) => setMultiplicadorElo(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl border focus:outline-none transition-all"
+                style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
+              />
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer py-1">
+            <input
+              type="checkbox"
+              checked={requiereRevisionManual}
+              onChange={(e) => setRequiereRevisionManual(e.target.checked)}
+              className="w-4 h-4 accent-[var(--accent)]"
+            />
+            <span className="text-xs font-semibold" style={{ color: "var(--text)" }}>Requiere revisión manual del organizador</span>
+          </label>
+        </div>
+
+        <div className="flex gap-2 pt-4">
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-[1.02]"
+            style={{ background: "var(--accent)" }}
+          >
+            {isSaving ? "Guardando..." : "Guardar Cambios"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border hover:bg-black/5"
+            style={{ borderColor: "var(--border)", background: "var(--bg-subtle)", color: "var(--text)" }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

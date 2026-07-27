@@ -102,6 +102,9 @@ export default function VolunteersPage() {
     queryKey: ["solicitudes", activeOrgId],
     queryFn: () => organizationsApi.listSolicitudes(activeOrgId!),
     enabled: !!activeOrgId,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 
   const reviewMutation = useMutation({
@@ -114,6 +117,7 @@ export default function VolunteersPage() {
   });
 
   const pendientes = (solicitudes as Solicitud[]).filter((s) => s.estado === "pendiente");
+  const historialSolicitudes = (solicitudes as Solicitud[]).filter((s) => s.estado !== "pendiente");
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ["members", activeOrgId],
@@ -271,6 +275,23 @@ export default function VolunteersPage() {
                       <X className="w-3 h-3" /> Rechazar
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeOrgId && historialSolicitudes.length > 0 && (
+          <div className="mb-8 p-5 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <h3 className="font-semibold mb-3">Historial de solicitudes</h3>
+            <div className="space-y-2">
+              {historialSolicitudes.slice(0, 10).map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                  <div>
+                    <p className="text-sm font-medium">{displayPersonName(s.usuario_nombre, s.usuario_email, "Solicitante")}</p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{s.mensaje || "Sin mensaje"}</p>
+                  </div>
+                  <span className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>{s.estado}</span>
                 </div>
               ))}
             </div>

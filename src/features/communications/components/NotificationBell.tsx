@@ -63,8 +63,9 @@ export function NotificationBell() {
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => communicationsApi.list(),
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
     refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 
   const handleNewNotifications = useCallback((notifs: Notification[]) => {
@@ -184,6 +185,12 @@ export function NotificationBell() {
                       ? `/dashboard/events/${n.entidad_id}/feedback-ml`
                       : n.entidad_tipo === "evento_retro_voluntario" && n.entidad_id
                         ? `/dashboard/events/${n.entidad_id}/retro-voluntario`
+                        : n.entidad_tipo === "tarea_asignacion" && n.entidad_id
+                          ? `/dashboard/tasks`
+                          : n.entidad_tipo === "evento_solicitud" && n.entidad_id
+                            ? `/dashboard/events/${n.entidad_id}`
+                            : n.entidad_tipo === "solicitud_membresia" && n.entidad_id
+                              ? `/dashboard/organizaciones/${n.entidad_id}`
                         : null;
                   const inner = (
                     <>
