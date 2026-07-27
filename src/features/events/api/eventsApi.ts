@@ -31,8 +31,10 @@ export interface Event {
   /** Campaña o proyecto (agrupación lógica, sin entidad separada). */
   campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
+  temporada_id?: string | null;
   created_at?: string;
   updated_at?: string;
+  mi_estado_solicitud?: string | null;
 }
 
 export interface CreateEventData {
@@ -69,8 +71,27 @@ interface BackendEvent {
   cupo_maximo: number;
   campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
+  temporada_id?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+/**
+ * Converts a datetime-local string ("YYYY-MM-DDTHH:mm") to a full ISO 8601
+ * string with the local timezone offset ("YYYY-MM-DDTHH:mm:ss±HH:MM").
+ * This ensures the backend (which uses UTC) receives the correct moment in time.
+ */
+function localToIso(datetimeLocal: string): string {
+  const d = new Date(datetimeLocal);
+  const off = -d.getTimezoneOffset(); // minutes
+  const sign = off >= 0 ? "+" : "-";
+  const hh = String(Math.floor(Math.abs(off) / 60)).padStart(2, "0");
+  const mm = String(Math.abs(off) % 60).padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:00${sign}${hh}:${mm}`
+  );
 }
 
 function toEvent(dto: BackendEvent): Event {
@@ -86,6 +107,7 @@ function toEvent(dto: BackendEvent): Event {
     cupo_maximo: dto.cupo_maximo,
     campana: dto.campana ?? undefined,
     ubicacion_geo: dto.ubicacion_geo,
+    temporada_id: dto.temporada_id,
     created_at: dto.created_at,
     updated_at: dto.updated_at,
   };
@@ -133,8 +155,8 @@ export const eventsApi = {
       organizacion_id: payload.organizacion_id,
       titulo: payload.nombre,
       descripcion: payload.descripcion,
-      fecha_inicio: payload.fecha_inicio,
-      fecha_fin: payload.fecha_fin,
+      fecha_inicio: localToIso(payload.fecha_inicio),
+      fecha_fin: localToIso(payload.fecha_fin),
       cupo_maximo: payload.cupo_maximo,
       campana: payload.campana?.trim() || null,
       ubicacion_geo: payload.ubicacion_geo,
@@ -147,8 +169,8 @@ export const eventsApi = {
     if (payload.nombre != null) body.titulo = payload.nombre;
     if (payload.descripcion != null) body.descripcion = payload.descripcion;
     if (payload.estado != null) body.estado = payload.estado;
-    if (payload.fecha_inicio != null) body.fecha_inicio = payload.fecha_inicio;
-    if (payload.fecha_fin != null) body.fecha_fin = payload.fecha_fin;
+    if (payload.fecha_inicio != null) body.fecha_inicio = localToIso(payload.fecha_inicio);
+    if (payload.fecha_fin != null) body.fecha_fin = localToIso(payload.fecha_fin);
     if (payload.cupo_maximo != null) body.cupo_maximo = payload.cupo_maximo;
     if (payload.campana !== undefined) body.campana = payload.campana?.trim() || null;
     if (payload.ubicacion_geo != null) body.ubicacion_geo = payload.ubicacion_geo;
@@ -175,5 +197,18 @@ export const eventsApi = {
     payload: { que_bien: string; que_mejorar: string; accion: string }
   ): Promise<void> => {
     await apiClient.post(`/eventos/${eventId}/retro-voluntario`, payload);
+  },
+
+  delete: async (eventId: string): Promise<void> => {
+    await apiClient.delete(`/eventos/${eventId}`);
+  },
+
+  addOrganizer: async (eventId: string, userId: string): Promise<any> => {
+    const { data } = await apiClient.post(`/eventos/${eventId}/organizadores/${userId}`);
+    return data;
+  },
+
+  removeOrganizer: async (eventId: string, userId: string): Promise<void> => {
+    await apiClient.delete(`/eventos/${eventId}/organizadores/${userId}`);
   },
 };

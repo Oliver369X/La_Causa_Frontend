@@ -38,7 +38,8 @@ function validateEventDates(fechaInicio: string, fechaFin: string): string | nul
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
     return "Las fechas no son válidas.";
   }
-  if (inicio < now) {
+  const nowWithMargin = new Date(now.getTime() - 30_000); // 30s margin
+  if (inicio < nowWithMargin) {
     return "La fecha de inicio no puede estar en el pasado.";
   }
   if (fin <= inicio) {
@@ -194,7 +195,7 @@ export default function EventsPage() {
   const displayedEvents = tab === "proximos" ? proximos : tab === "curso" ? curso : pasados;
 
   const canPostular = (e: Event) =>
-    isVolunteer && (e.estado === "publicado" || e.estado === "en_curso");
+    isVolunteer && (e.estado === "publicado" || e.estado === "en_curso") && !e.mi_estado_solicitud;
 
   const statusColors: Record<string, { background: string; color: string }> = {
     borrador:   { background: "var(--bg-subtle)",      color: "var(--text-muted)" },
@@ -502,6 +503,30 @@ export default function EventsPage() {
                       <Send className="w-3.5 h-3.5" />
                       Postular
                     </button>
+                  )}
+                  {event.mi_estado_solicitud === "aprobado" && (
+                    <span
+                      className="flex items-center gap-1 text-xs px-3 py-2 rounded-xl font-medium"
+                      style={{ background: "rgba(34,197,94,.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,.2)" }}
+                    >
+                      Aceptado
+                    </span>
+                  )}
+                  {event.mi_estado_solicitud === "pendiente" && (
+                    <span
+                      className="flex items-center gap-1 text-xs px-3 py-2 rounded-xl font-medium"
+                      style={{ background: "rgba(234,179,8,.15)", color: "#eab308", border: "1px solid rgba(234,179,8,.2)" }}
+                    >
+                      Pendiente de aprobación
+                    </span>
+                  )}
+                  {event.mi_estado_solicitud === "rechazado" && (
+                    <span
+                      className="flex items-center gap-1 text-xs px-3 py-2 rounded-xl font-medium"
+                      style={{ background: "rgba(239,68,68,.15)", color: "#f87171", border: "1px solid rgba(239,68,68,.2)" }}
+                    >
+                      Rechazado
+                    </span>
                   )}
                   {!isVolunteer && (event.estado === "finalizado" || event.estado === "publicado" || event.estado === "en_curso") && (
                     <Link

@@ -19,14 +19,14 @@ export interface StaffMember {
 
 export interface InviteMemberData {
   email: string;
-  rol_slug?: "admin" | "coordinador" | "organizador" | "voluntario";
-  rol?: "admin" | "staff" | "organizador"; // legacy, se mapea a rol_slug
+  rol_slug?: "organizador" | "voluntario";
+  rol?: "organizador" | "voluntario"; // legacy, se mapea a rol_slug
   es_propietario?: boolean;
 }
 
 export interface UpdateMemberData {
-  rol_slug?: "admin" | "coordinador" | "organizador" | "voluntario";
-  rol?: "admin" | "staff" | "volunteer";
+  rol_slug?: "organizador" | "voluntario";
+  rol?: "organizador" | "voluntario";
   estado_membresia?: "activo" | "suspendido" | "active" | "suspended";
 }
 
@@ -47,7 +47,7 @@ export const staffApi = {
   },
 
   invite: async (orgId: UUID, payload: InviteMemberData): Promise<StaffMember> => {
-    const rol_slug = payload.rol_slug ?? (payload.rol === "admin" ? "admin" : payload.rol === "organizador" ? "organizador" : "organizador");
+    const rol_slug = payload.rol_slug ?? (payload.rol === "organizador" ? "organizador" : "voluntario");
     const { data } = await apiClient.post<StaffMember>(EP.ORG_MEMBERS(orgId), {
       email: payload.email,
       rol_slug,

@@ -1,12 +1,13 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { eventsApi, type Event, type EventApplication } from "@/features/events/api/eventsApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { tasksApi, type Task } from "@/features/tasks/api/tasksApi";
 import { TopBar } from "@/shared/ui/Sidebar";
+import { staffApi } from "@/features/staff/api/staffApi";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -69,6 +70,7 @@ function formatDateRange(start: string, end: string): string {
 
 export default function EventDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const eventId = params.eventId as string;
   const { activeOrgId, user } = useAuthStore();
   const { isVolunteerExperience } = usePermissions();
@@ -76,6 +78,18 @@ export default function EventDetailPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<EventDetailTab>("general");
   const [appFilter, setAppFilter] = useState<string>("todos");
+
+  const deleteEventMutation = useMutation({
+    mutationFn: () => eventsApi.delete(eventId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["events"] });
+      toast.success("Evento eliminado exitosamente");
+      router.push("/dashboard/events");
+    },
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
+      toast.error(err?.response?.data?.detail ?? "Error al eliminar el evento");
+    },
+  });
 
   const { data: event, isLoading: loadingEvent } = useQuery({
     queryKey: ["event", eventId],
@@ -135,8 +149,49 @@ export default function EventDetailPage() {
     onError: () => toast.error("Error al actualizar"),
   });
 
+  const { data: members = [] } = useQuery({
+    queryKey: ["org-members", event?.organizacion_id],
+    queryFn: () => staffApi.list(event!.organizacion_id),
+    enabled: !!event?.organizacion_id && tab === "config",
+  });
+
+  const addOrganizerMutation = useMutation({
+    mutationFn: (userId: string) => eventsApi.addOrganizer(eventId, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["event-applications", eventId] });
+      toast.success("Organizador asignado al evento");
+    },
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
+      toast.error(err?.response?.data?.detail ?? "Error al asignar organizador");
+    },
+  });
+
+  const removeOrganizerMutation = useMutation({
+    mutationFn: (userId: string) => eventsApi.removeOrganizer(eventId, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["event-applications", eventId] });
+      toast.success("Organizador removido del evento");
+    },
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
+      toast.error(err?.response?.data?.detail ?? "Error al remover organizador");
+    },
+  });
+
+  const [selectedOrganizerId, setSelectedOrganizerId] = useState("");
+
   const approvedCount = applications.filter((a) => a.estado === "aprobado" || a.estado === "asistio").length;
   const pendingCount = applications.filter((a) => a.estado === "pendiente").length;
+
+  const assignedOrganizers = applications.filter((app) => {
+    const member = members.find((m) => m.usuario_id === app.usuario_id);
+    return member && (member.rol === "owner" || member.rol === "organizador");
+  });
+
+  const candidateOrganizers = members.filter((m) => {
+    const isOrgAdmin = m.rol === "owner" || m.rol === "organizador";
+    const isAlreadyAssigned = applications.some((app) => app.usuario_id === m.usuario_id);
+    return isOrgAdmin && !isAlreadyAssigned;
+  });
 
   if (!eventId) return null;
 
@@ -435,12 +490,143 @@ export default function EventDetailPage() {
 
         {tab === "config" && canManage && (
           <div
-            className="p-6 rounded-2xl"
+            className="p-6 rounded-2xl space-y-6"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Configuración del evento (editar, normas, etc.) próximamente.
-            </p>
+            <div>
+              <h3 className="font-semibold text-lg mb-1">Configuración del Evento</h3>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Administra las opciones avanzadas y el ciclo de vida del evento.
+              </p>
+            </div>
+
+            {/* Gestión de Organizadores Asignados */}
+            <div className="pt-6">
+              <h4 className="font-semibold text-base mb-1">Organizadores del Evento</h4>
+              <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+                Asigna qué organizadores de la organización participarán y gestionarán las actividades de este evento específico.
+              </p>
+
+              {/* Formulario de Asignación */}
+              <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <select
+                  value={selectedOrganizerId}
+                  onChange={(e) => setSelectedOrganizerId(e.target.value)}
+                  className="flex-1 h-10 px-3 text-sm rounded-xl outline-none"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  <option value="">Selecciona un organizador para asignar...</option>
+                  {candidateOrganizers.map((m) => (
+                    <option key={m.usuario_id} value={m.usuario_id}>
+                      {m.nombre || m.email} ({m.email})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    if (!selectedOrganizerId) return;
+                    addOrganizerMutation.mutate(selectedOrganizerId, {
+                      onSuccess: () => setSelectedOrganizerId(""),
+                    });
+                  }}
+                  disabled={!selectedOrganizerId || addOrganizerMutation.isPending}
+                  className="h-10 px-4 rounded-xl text-sm font-semibold transition-all"
+                  style={{
+                    background: selectedOrganizerId ? "var(--accent)" : "var(--bg-subtle)",
+                    color: selectedOrganizerId ? "white" : "var(--text-muted)",
+                    cursor: selectedOrganizerId ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {addOrganizerMutation.isPending ? "Asignando..." : "Asignar al Evento"}
+                </button>
+              </div>
+
+              {/* Lista de Organizadores Asignados */}
+              <div className="space-y-2">
+                <h5 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Organizadores Asignados ({assignedOrganizers.length})
+                </h5>
+                {assignedOrganizers.length === 0 ? (
+                  <p className="text-sm italic" style={{ color: "var(--text-muted)" }}>
+                    No hay organizadores adicionales asignados a este evento aún.
+                  </p>
+                ) : (
+                  <div className="grid gap-2">
+                    {assignedOrganizers.map((app) => {
+                      const member = members.find((m) => m.usuario_id === app.usuario_id);
+                      return (
+                        <div
+                          key={app.id}
+                          className="flex items-center justify-between p-3 rounded-xl"
+                          style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">
+                              {member?.nombre || app.usuario_nombre || "Miembro sin nombre"}
+                            </p>
+                            <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                              {member?.email || app.usuario_email || "Sin email"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
+                              style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                            >
+                              Organizador
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (confirm(`¿Remover a este organizador de este evento?`)) {
+                                  removeOrganizerMutation.mutate(app.usuario_id);
+                                }
+                              }}
+                              disabled={removeOrganizerMutation.isPending}
+                              className="text-xs text-red-400 hover:text-red-500 transition-colors"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-6" style={{ borderColor: "var(--border)" }}>
+              <div className="p-4 rounded-xl space-y-4" style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <div>
+                  <h4 className="font-semibold text-sm text-red-500 mb-1" style={{ color: "#ef4444" }}>Zona de Peligro</h4>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Una vez que elimines un evento, no podrás recuperar sus datos. 
+                    Por políticas del Plan y de la Plataforma, solo se pueden eliminar eventos en estado <strong>Borrador</strong> y que no tengan tareas asociadas para evitar el abuso del cupo de eventos y mantener la consistencia histórica.
+                  </p>
+                </div>
+                {event.estado === "borrador" || !event.temporada_id ? (
+                  <button
+                    onClick={() => {
+                      const msg = !event.temporada_id 
+                        ? "Este evento no está ligado a ninguna temporada (es huérfano). Al eliminarlo se borrarán en cascada todas sus tareas, equipos y postulaciones. ¿Estás seguro?"
+                        : "¿Estás completamente seguro de que deseas eliminar este evento? Esta acción es irreversible.";
+                      if (confirm(msg)) {
+                        deleteEventMutation.mutate();
+                      }
+                    }}
+                    disabled={deleteEventMutation.isPending}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                    style={{ backgroundColor: "#ef4444" }}
+                  >
+                    {deleteEventMutation.isPending ? "Eliminando..." : "Eliminar Evento"}
+                  </button>
+                ) : (
+                  <div className="text-xs font-medium p-3 rounded-lg" style={{ background: "var(--bg-subtle)", color: "var(--text-muted)" }}>
+                    No se puede eliminar este evento porque su estado es <strong>{statusLabels[event.estado]}</strong> y pertenece a una temporada activa. Si deseas darlo de baja, puedes usar la opción de <strong>Cancelar evento</strong> en la cabecera.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
