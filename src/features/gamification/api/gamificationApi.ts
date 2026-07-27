@@ -29,6 +29,7 @@ export interface CompetitiveProfile {
   elo_puntos_min?: number | null;
   elo_puntos_max?: number | null;
   elo_para_siguiente_rango?: number | null;
+  horas_totales_voluntario?: number;
 }
 
 export interface PerformanceMetrics {
@@ -52,6 +53,9 @@ export interface Badge {
   rareza?: "common" | "uncommon" | "rare" | "epic" | "legendary";
   fecha_obtencion?: string;
   insignia_id?: UUID;
+  organizacion_id?: UUID | null;
+  organizacion_nombre?: string | null;
+  regla_asignacion?: string | null;
 }
 
 export interface Medal {
@@ -133,6 +137,8 @@ export interface HistoricalRankingEntry {
   elo_final: number;
   xp_acumulada: number;
   created_at: string;
+  usuario_id?: string;
+  rango_final?: string | null;
 }
 
 export interface ConfigGamificacionOrg {
@@ -195,8 +201,10 @@ export const gamificationApi = {
     };
   },
 
-  getBadges: async (userId: UUID): Promise<Badge[]> => {
-    const { data } = await apiClient.get<Badge[]>(EP.PROFILE_BADGES(userId));
+  getBadges: async (userId: UUID, organizacionId?: string): Promise<Badge[]> => {
+    const { data } = await apiClient.get<Badge[]>(EP.PROFILE_BADGES(userId), {
+      params: organizacionId ? { organizacion_id: organizacionId } : undefined,
+    });
     return data;
   },
 
@@ -278,8 +286,10 @@ export const gamificationApi = {
     return data;
   },
 
-  listCertificates: async (userId?: string): Promise<Certificate[]> => {
-    const params = userId ? { user_id: userId } : {};
+  listCertificates: async (userId?: string, organizacionId?: string): Promise<Certificate[]> => {
+    const params: Record<string, string> = {};
+    if (userId) params.user_id = userId;
+    if (organizacionId) params.organizacion_id = organizacionId;
     const { data } = await apiClient.get<Certificate[]>(EP.CERTIFICATES, { params });
     return data;
   },

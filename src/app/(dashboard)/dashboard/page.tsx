@@ -278,7 +278,7 @@ export default function DashboardPage() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <GamificationPanel />
-              <TaskAssignmentWidget />
+              <TaskAssignmentWidget volunteerMode={isVolunteer} />
             </div>
           </div>
         ) : !activeOrgId ? (
@@ -398,7 +398,7 @@ export default function DashboardPage() {
             {/* Widgets row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <GamificationPanel />
-              <TaskAssignmentWidget />
+              <TaskAssignmentWidget volunteerMode={isVolunteer} />
               <ReporteDinamicoWidget />
             </div>
           </>

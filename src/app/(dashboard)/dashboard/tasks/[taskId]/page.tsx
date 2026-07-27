@@ -63,7 +63,7 @@ export default function TaskDetailPage() {
     }
   }, [showPlansModal, setSidebarCollapsed]);
 
-  const { data: task, isLoading: loadingTask } = useQuery({
+  const { data: task, isLoading: loadingTask, isError: taskLoadError } = useQuery({
     queryKey: ["task", taskId],
     queryFn: () => tasksApi.getById(taskId),
     enabled: !!taskId,
@@ -113,13 +113,36 @@ export default function TaskDetailPage() {
 
   if (!taskId) return null;
 
-  if (loadingTask || !task) {
+  if (loadingTask) {
     return (
       <>
         <TopBar title="Tarea" />
         <div className="flex-1 p-8">
           <div className="text-sm" style={{ color: "var(--text-muted)" }}>
             Cargando...
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (taskLoadError || !task) {
+    return (
+      <>
+        <TopBar title="Tarea" />
+        <div className="flex-1 p-8">
+          <div className="rounded-2xl p-6 max-w-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <h2 className="font-semibold">No se pudo cargar la tarea</h2>
+            <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
+              El enlace puede estar desactualizado o la tarea ya no existe. Regresa al tablero e inténtalo nuevamente.
+            </p>
+            <Link
+              href="/dashboard/tasks"
+              className="inline-flex mt-4 px-4 py-2 rounded-full text-sm font-medium"
+              style={{ background: "var(--text)", color: "var(--bg)" }}
+            >
+              Volver al tablero
+            </Link>
           </div>
         </div>
       </>

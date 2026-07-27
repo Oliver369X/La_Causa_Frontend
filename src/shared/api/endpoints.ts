@@ -74,6 +74,7 @@ export const EP = {
   PROFILE_BADGES:      (userId: string) => `/perfil/${userId}/insignias`,
   PROFILE_DISPONIBILIDAD: (userId: string, orgId: string) => `/perfil/${userId}/disponibilidad?organizacion_id=${orgId}`,
   MEDALS:              "/medallas",
+  MEDAL:               (id: string) => `/medallas/${id}`,
   RANKING:             "/ranking",
   RANKING_HISTORY:     (seasonId: string) => `/ranking/historico/${seasonId}`,
   CERTIFICATES:        "/certificados",

@@ -20,6 +20,46 @@ export interface Notification {
   created_at: string;
 }
 
+/** Resuelve el destino de una notificación accionable desde cualquier vista. */
+export function getNotificationHref(notification: Notification): string | null {
+  if (notification.url_accion) return notification.url_accion;
+  const entityType = notification.entidad_tipo;
+  if ((entityType === "evento_feedback_ml") && notification.entidad_id) {
+    return `/dashboard/events/${notification.entidad_id}/feedback-ml`;
+  }
+  if ((entityType === "evento_retro_voluntario") && notification.entidad_id) {
+    return `/dashboard/events/${notification.entidad_id}/retro-voluntario`;
+  }
+  if (entityType === "tarea_asignacion") {
+    return "/dashboard/tasks";
+  }
+  if (["tarea", "task"].includes(entityType ?? "")) {
+    return notification.entidad_id
+      ? `/dashboard/tasks/${notification.entidad_id}`
+      : "/dashboard/tasks";
+  }
+  if (entityType === "recompensa") {
+    const xp = notification.mensaje.match(/\+(\d+) XP/i)?.[1];
+    const elo = notification.mensaje.match(/([+-]\d+) ELO/i)?.[1];
+    const taskTitle = notification.mensaje.match(/de "([^"]+)"/)?.[1];
+    const params = new URLSearchParams({ celebration: "reward" });
+    if (xp) params.set("xp", xp);
+    if (elo) params.set("elo", elo);
+    if (taskTitle) params.set("task", taskTitle);
+    return `/dashboard/gamification?${params.toString()}`;
+  }
+  if (entityType === "insignia" && notification.entidad_id) {
+    return `/dashboard/gamification?badge_id=${notification.entidad_id}`;
+  }
+  if (entityType === "evento_solicitud" && notification.entidad_id) {
+    return `/dashboard/events/${notification.entidad_id}`;
+  }
+  if (entityType === "solicitud_membresia" && notification.entidad_id) {
+    return "/dashboard/volunteers";
+  }
+  return null;
+}
+
 export interface CreateNotificationData {
   destinatario_id: UUID;
   titulo: string;

@@ -119,6 +119,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     void qc.invalidateQueries({ queryKey: ["events"] });
     void qc.invalidateQueries({ queryKey: ["members"] });
     void qc.invalidateQueries({ queryKey: ["tasks"] });
+    void qc.invalidateQueries({ queryKey: ["myAssignments"] });
+    void qc.invalidateQueries({ queryKey: ["tasksAvailable"] });
+    void qc.invalidateQueries({ queryKey: ["ranking"] });
+    void qc.invalidateQueries({ queryKey: ["seasons"] });
+    void qc.invalidateQueries({ queryKey: ["temporadas"] });
+    void qc.invalidateQueries({ queryKey: ["org-badges-for-task"] });
+    void qc.invalidateQueries({ queryKey: ["certificados"] });
+    void qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
     router.push("/dashboard");
   };
 

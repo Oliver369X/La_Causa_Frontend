@@ -208,6 +208,18 @@ export const eventsApi = {
     await apiClient.post(`/eventos/${eventId}/retro-voluntario`, payload);
   },
 
+  getMyVoluntarioRetro: async (eventId: string): Promise<VolunteerRetrospective | null> => {
+    try {
+      const { data } = await apiClient.get<VolunteerRetrospective>(
+        `/eventos/${eventId}/mi-retro-voluntario`,
+      );
+      return data;
+    } catch (error: unknown) {
+      if ((error as { response?: { status?: number } })?.response?.status === 404) return null;
+      throw error;
+    }
+  },
+
   listVolunteerRetrospectives: async (eventId: string): Promise<VolunteerRetrospective[]> => {
     const { data } = await apiClient.get<VolunteerRetrospective[]>(
       `/eventos/${eventId}/retros-voluntarios`

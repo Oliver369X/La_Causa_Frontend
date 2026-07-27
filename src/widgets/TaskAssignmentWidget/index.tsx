@@ -15,21 +15,47 @@ const STATUS_COLOR: Record<string, string> = {
 /**
  * TaskAssignmentWidget — compact summary of tasks by status.
  */
-export function TaskAssignmentWidget() {
+export function TaskAssignmentWidget({ volunteerMode }: { volunteerMode?: boolean }) {
   const { activeOrgId } = useAuthStore();
+  const accountIsVolunteer = useAuthStore((state) => state.user?.tipo === "voluntario");
+  const isVolunteer = volunteerMode ?? accountIsVolunteer;
   const [tasks, setTasks]   = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!activeOrgId) return;
-    tasksApi.list(activeOrgId)
-      .then(setTasks)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [activeOrgId]);
+    if (!isVolunteer && !activeOrgId) return;
+    const load = () => {
+      setLoading(true);
+      const request = isVolunteer
+        ? tasksApi.listMyAssignments().then((assignments) => assignments
+          .filter((assignment) => !activeOrgId || assignment.organizacion_id === activeOrgId)
+          .map((assignment) => ({
+            id: assignment.id,
+            evento_id: assignment.evento_id,
+            titulo: assignment.tarea_titulo,
+            estado: assignment.estado === "pendiente"
+              ? "pending"
+              : ["aprobada", "completada"].includes(assignment.estado)
+                ? "completed"
+                : assignment.estado === "en_revision"
+                  ? "review"
+                : "in_progress",
+          } as Task)))
+        : tasksApi.list(activeOrgId!);
+      request.then(setTasks).catch(() => {}).finally(() => setLoading(false));
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, [activeOrgId, isVolunteer]);
 
   const byStatus = tasks.reduce<Record<string, number>>((acc, t) => {
-    acc[t.estado] = (acc[t.estado] ?? 0) + 1;
+    const statusKey = t.estado === "pending"
+      ? "todo"
+      : t.estado === "completed"
+        ? "done"
+        : t.estado;
+    acc[statusKey] = (acc[statusKey] ?? 0) + 1;
     return acc;
   }, {});
 

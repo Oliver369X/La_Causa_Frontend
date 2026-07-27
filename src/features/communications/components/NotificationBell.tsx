@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Bell, CheckCheck, BellRing } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { communicationsApi, type Notification } from "@/features/communications/api/communicationsApi";
+import { communicationsApi, getNotificationHref, type Notification } from "@/features/communications/api/communicationsApi";
 import { Badge } from "@/shared/ui/Badge";
 import { cn } from "@/shared/utils/utils";
 
@@ -180,18 +180,7 @@ export function NotificationBell() {
               <div className="divide-y" style={{ borderColor: "var(--border)" }}>
                 {recent.map((n) => {
                   const unread = isUnread(n);
-                  const actionHref =
-                    n.entidad_tipo === "evento_feedback_ml" && n.entidad_id
-                      ? `/dashboard/events/${n.entidad_id}/feedback-ml`
-                      : n.entidad_tipo === "evento_retro_voluntario" && n.entidad_id
-                        ? `/dashboard/events/${n.entidad_id}/retro-voluntario`
-                        : n.entidad_tipo === "tarea_asignacion" && n.entidad_id
-                          ? `/dashboard/tasks`
-                          : n.entidad_tipo === "evento_solicitud" && n.entidad_id
-                            ? `/dashboard/events/${n.entidad_id}`
-                            : n.entidad_tipo === "solicitud_membresia" && n.entidad_id
-                              ? `/dashboard/organizaciones/${n.entidad_id}`
-                        : null;
+                  const actionHref = getNotificationHref(n);
                   const inner = (
                     <>
                       <div className="flex items-start gap-2">

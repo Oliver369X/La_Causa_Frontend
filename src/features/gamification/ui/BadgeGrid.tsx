@@ -9,6 +9,7 @@ interface Props {
   badges: Badge[];
   maxVisible?: number;
   onShare?: (badge: Badge) => void;
+  onSelect?: (badge: Badge) => void;
 }
 
 type RarezaKey = "common" | "uncommon" | "rare" | "epic" | "legendary";
@@ -20,7 +21,7 @@ const RAREZA_CONFIG: Record<RarezaKey, { border: string; glow: string; label: st
   legendary: { border: "var(--g-legendary)", glow: "0 0 14px var(--g-legendary-soft)", label: "Legendario", bg: "var(--g-legendary-soft)" },
 };
 
-export function BadgeGrid({ badges, maxVisible = 12, onShare }: Props) {
+export function BadgeGrid({ badges, maxVisible = 12, onShare, onSelect }: Props) {
   const visible = badges.slice(0, maxVisible);
   const overflow = badges.length - maxVisible;
 
@@ -38,6 +39,7 @@ export function BadgeGrid({ badges, maxVisible = 12, onShare }: Props) {
     <div className="flex flex-wrap gap-4">
       {visible.map((badge, i) => {
         const config = RAREZA_CONFIG[(badge.rareza ?? "common") as RarezaKey] ?? RAREZA_CONFIG.common;
+        const isSystemBadge = badge.regla_asignacion?.startsWith("sistema") ?? false;
         return (
           <motion.div
             key={badge.id}
@@ -51,13 +53,16 @@ export function BadgeGrid({ badges, maxVisible = 12, onShare }: Props) {
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.95 }}
               title={`${badge.nombre} — ${badge.descripcion} [${config.label}]`}
+              onClick={() => onSelect?.(badge)}
+              role={onSelect ? "button" : undefined}
+              tabIndex={onSelect ? 0 : undefined}
             >
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden transition-shadow"
                 style={{
-                  border: `2px solid ${config.border}`,
-                  boxShadow: config.glow,
-                  background: config.bg,
+                  border: isSystemBadge ? "none" : `2px solid ${config.border}`,
+                  boxShadow: isSystemBadge ? "none" : config.glow,
+                  background: isSystemBadge ? "transparent" : config.bg,
                 }}
               >
                 {badge.imagen_url ? (

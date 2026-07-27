@@ -32,6 +32,12 @@ export default function RetroVoluntarioPage() {
     enabled: !!eventId,
   });
 
+  const { data: submittedRetro } = useQuery({
+    queryKey: ["my-volunteer-retrospective", eventId],
+    queryFn: () => eventsApi.getMyVoluntarioRetro(eventId),
+    enabled: !!eventId,
+  });
+
   const pendingVol = obligations.some((o) => o.tipo === "voluntario_retro" && o.estado === "pendiente");
 
   const submitMutation = useMutation({
@@ -43,6 +49,7 @@ export default function RetroVoluntarioPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["feedback-obligations", eventId] });
+      qc.invalidateQueries({ queryKey: ["my-volunteer-retrospective", eventId] });
     },
     onError: (err: unknown) => {
       toast.error(extractApiDetail(err, "No se pudo enviar la retrospectiva."));
@@ -81,7 +88,7 @@ export default function RetroVoluntarioPage() {
           </div>
         )}
 
-        {!pendingVol && !submitMutation.isSuccess && (
+        {!pendingVol && !submittedRetro && !submitMutation.isSuccess && (
           <Card className="p-4 text-sm" style={{ color: "var(--text-muted)" }}>
             No tenés una retrospectiva obligatoria pendiente para este evento, o ya fue registrada.
           </Card>
@@ -95,6 +102,18 @@ export default function RetroVoluntarioPage() {
             <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
             <p>Gracias. Tu reflexión quedó guardada.</p>
           </div>
+        )}
+
+        {submittedRetro && !submitMutation.isSuccess && (
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center gap-2 text-green-500">
+              <CheckCircle className="w-4 h-4" />
+              <p className="font-semibold">Tu reflexión quedó guardada</p>
+            </div>
+            <div><p className="text-xs font-semibold">Qué salió bien</p><p className="text-sm mt-1">{submittedRetro.que_bien}</p></div>
+            <div><p className="text-xs font-semibold">Qué mejorar</p><p className="text-sm mt-1">{submittedRetro.que_mejorar}</p></div>
+            <div><p className="text-xs font-semibold">Acción propuesta</p><p className="text-sm mt-1">{submittedRetro.accion}</p></div>
+          </Card>
         )}
 
         {pendingVol && !submitMutation.isSuccess && (

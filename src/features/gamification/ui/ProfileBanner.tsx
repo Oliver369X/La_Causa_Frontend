@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Star, Zap, Trophy, Target, Award, Clock, ThumbsUp, AlertTriangle, Link2 } from "lucide-react";
-import type { CompetitiveProfile, PerformanceMetrics } from "../api/gamificationApi";
+import type { Badge, CompetitiveProfile, PerformanceMetrics } from "../api/gamificationApi";
 import { ProgressCard, StreakState } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import CountUp from "react-countup";
@@ -14,9 +14,11 @@ interface Props {
   showcase?: boolean;
   metrics?: PerformanceMetrics | null;
   certificatesCount?: number;
+  currentBadge?: Badge | null;
+  currentBadgeOrgName?: string | null;
 }
 
-export function ProfileBanner({ profile, compact = false, showcase = false, metrics, certificatesCount = 0 }: Props) {
+export function ProfileBanner({ profile, compact = false, showcase = false, metrics, certificatesCount = 0, currentBadge, currentBadgeOrgName }: Props) {
   const xpTotal = profile.xp_total ?? 0;
   const nivel = profile.nivel ?? 1;
   const xpEnNivel = profile.xp_en_nivel ?? 0;
@@ -28,6 +30,7 @@ export function ProfileBanner({ profile, compact = false, showcase = false, metr
     { icon: Trophy, label: "ELO", value: profile.puntos_elo ?? 0, color: "var(--g-energia)" },
     { icon: Star, label: "Nivel", value: nivel, color: "var(--g-progreso)" },
     { icon: Zap, label: "Insignias", value: profile.insignias_total ?? 0, color: "var(--g-epic)" },
+    { icon: Clock, label: "Horas", value: profile.horas_totales_voluntario ?? 0, color: "var(--g-logro)" },
   ];
 
   const streak = profile.racha_entregas ?? 0;
@@ -121,6 +124,15 @@ export function ProfileBanner({ profile, compact = false, showcase = false, metr
                 )}
               </div>
             </div>
+            {currentBadge && (
+              <div className="flex flex-col items-center gap-1 shrink-0 sm:ml-auto" title={currentBadge.nombre}>
+                {currentBadge.imagen_url ? (
+                  <img src={currentBadge.imagen_url} alt={currentBadge.nombre ?? "Medalla actual"} className="w-16 h-16 object-contain" />
+                ) : <Award className="w-10 h-10" />}
+                <span className="text-[10px] font-semibold text-center max-w-24 truncate">{currentBadge.nombre}</span>
+                {currentBadgeOrgName && <span className="text-[10px] text-center max-w-24 truncate" style={{ color: "var(--text-muted)" }}>{currentBadgeOrgName}</span>}
+              </div>
+            )}
           </div>
 
           {profile.elo_puntos_min != null && profile.elo_puntos_max != null && (
@@ -169,7 +181,7 @@ export function ProfileBanner({ profile, compact = false, showcase = false, metr
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: staggerFast * 2 }}
-              className={`grid gap-3 ${showcase ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3"}`}
+              className={`grid gap-3 ${showcase ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}
             >
               {stats.map(({ icon: Icon, label, value, color }, i) => (
                 <motion.div

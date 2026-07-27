@@ -115,7 +115,7 @@ export function GamificationPanel() {
                 <p className="text-sm truncate" style={{ color: "var(--text)" }}>{entry.nombre}</p>
               </div>
               <span className="text-xs tabular-nums font-semibold" style={{ color: "var(--g-energia)" }}>
-                {entry.puntos_elo ?? entry.elo_score ?? 0}
+                {scope === "global" ? `${entry.xp_total ?? 0} XP` : `${entry.puntos_elo ?? entry.elo_score ?? 0} ELO`}
               </span>
             </motion.li>
           ))}

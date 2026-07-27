@@ -188,15 +188,21 @@ export default function EventsPage() {
       setApplyEventId(null);
       setApplyMessage("");
     },
+    onError: (err: unknown) => {
+      toast.error(extractApiDetail(err, "No puedes postularte a este evento."));
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
   });
 
   const { proximos, curso, pasados } = useMemo(() => classifyEvents(events), [events]);
 
   const displayedEvents = tab === "proximos" ? proximos : tab === "curso" ? curso : pasados;
 
-  const canPostular = (e: Event) =>
-    isVolunteer && (e.estado === "publicado" || e.estado === "en_curso") &&
-    (!e.mi_estado_solicitud || e.mi_estado_solicitud === "rechazado");
+  const canPostular = (e: Event) => {
+    const applicationState = String(e.mi_estado_solicitud ?? "").toLowerCase();
+    return isVolunteer && (e.estado === "publicado" || e.estado === "en_curso") &&
+      !["aprobado", "asistio", "pendiente"].includes(applicationState);
+  };
 
   const statusColors: Record<string, { background: string; color: string }> = {
     borrador:   { background: "var(--bg-subtle)",      color: "var(--text-muted)" },

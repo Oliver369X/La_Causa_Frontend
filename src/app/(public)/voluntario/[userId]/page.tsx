@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { gamificationApi } from "@/features/gamification/api/gamificationApi";
 import { ProfileBanner } from "@/features/gamification/ui/ProfileBanner";
 import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
@@ -44,6 +44,21 @@ export default function VoluntarioPublicoPage() {
     enabled: !!userId,
   });
 
+  const badgeOrganizationIds = Array.from(new Set(badges.map((badge) => badge.organizacion_id).filter(Boolean))) as string[];
+  const organizationProfiles = useQueries({
+    queries: badgeOrganizationIds.map((organizationId) => ({
+      queryKey: ["profile", userId, organizationId],
+      queryFn: () => gamificationApi.getProfile(userId, organizationId),
+      enabled: !!userId,
+    })),
+  });
+  const profileByOrganization = badgeOrganizationIds.map((organizationId, index) => ({
+    organizationId,
+    profile: organizationProfiles[index]?.data,
+  })).filter((entry) => entry.profile);
+  const selectedOrganizationProfile = profileByOrganization.find((entry) => entry.organizationId === orgId)
+    ?? profileByOrganization.sort((a, b) => (b.profile?.puntos_elo ?? 0) - (a.profile?.puntos_elo ?? 0))[0];
+
   const { data: userSkills = [] } = useQuery({
     queryKey: ["userSkills", userId],
     queryFn: () => skillsApi.getUserSkills(userId),
@@ -68,12 +83,15 @@ export default function VoluntarioPublicoPage() {
     enabled: !!userId,
   });
 
-  const badgesForGrid: Badge[] = badges.map((b) => ({
-    id: b.id,
-    nombre: (b as { nombre?: string }).nombre ?? "Insignia",
-    imagen_url: (b as { imagen_url?: string }).imagen_url,
-    rareza: ((b as { rareza?: string }).rareza ?? "common") as Badge["rareza"],
-  }));
+  const badgesByOrganization = Array.from(
+    badges.reduce((groups, badge) => {
+      const organizationName = badge.organizacion_nombre ?? "Medallas generales";
+      const group = groups.get(organizationName) ?? [];
+      group.push(badge);
+      groups.set(organizationName, group);
+      return groups;
+    }, new Map<string, typeof badges>()),
+  );
 
   if (isLoading || !userId) {
     return (
@@ -98,19 +116,25 @@ export default function VoluntarioPublicoPage() {
     );
   }
 
+  const currentProfile = selectedOrganizationProfile?.profile ?? profile;
   const displayProfile = {
-    ...profile,
-    nombre: profile.nombre ?? "Voluntario",
-    avatar_url: profile.avatar_url,
-    bio: profile.bio,
-    rango: profile.rango ?? "Principiante",
-    puntos_elo: profile.puntos_elo ?? profile.elo_score ?? 0,
-    nivel: profile.nivel ?? 1,
-    racha_entregas: profile.racha_entregas ?? 0,
-    insignias_total: profile.insignias_total ?? badges.length,
-    eventos_completados: profile.eventos_completados ?? 0,
-    tareas_completadas: profile.tareas_completadas ?? 0,
+    ...currentProfile,
+    nombre: currentProfile.nombre ?? "Voluntario",
+    avatar_url: currentProfile.avatar_url,
+    bio: currentProfile.bio,
+    rango: currentProfile.rango ?? "Principiante",
+    puntos_elo: currentProfile.puntos_elo ?? currentProfile.elo_score ?? 0,
+    nivel: currentProfile.nivel ?? 1,
+    racha_entregas: currentProfile.racha_entregas ?? 0,
+    insignias_total: currentProfile.insignias_total ?? badges.length,
+    eventos_completados: currentProfile.eventos_completados ?? 0,
+    tareas_completadas: currentProfile.tareas_completadas ?? 0,
+    horas_totales_voluntario: currentProfile.horas_totales_voluntario ?? 0,
   };
+  const currentBadge = badges.find((badge) =>
+    badge.organizacion_id === selectedOrganizationProfile?.organizationId &&
+    badge.nombre?.toUpperCase().startsWith(`${(displayProfile.rango ?? "").toUpperCase()}-`),
+  ) ?? null;
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
@@ -144,6 +168,8 @@ export default function VoluntarioPublicoPage() {
           showcase
           metrics={metrics ?? null}
           certificatesCount={certificates.length}
+          currentBadge={currentBadge}
+          currentBadgeOrgName={currentBadge?.organizacion_nombre}
         />
 
         {disponibilidad && (
@@ -185,7 +211,14 @@ export default function VoluntarioPublicoPage() {
 
         <div className="mt-8">
           <h3 className="text-base font-semibold mb-4">Insignias</h3>
-          <BadgeGrid badges={badgesForGrid} />
+          <div className="space-y-6">
+            {badgesByOrganization.map(([organizationName, organizationBadges]) => (
+              <section key={organizationName}>
+                <h4 className="text-sm font-semibold mb-3">{organizationName}</h4>
+                <BadgeGrid badges={organizationBadges.map((badge) => ({ ...badge, rareza: (badge.rareza ?? "common") as Badge["rareza"] }))} />
+              </section>
+            ))}
+          </div>
         </div>
       </main>
     </div>

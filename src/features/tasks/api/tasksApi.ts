@@ -89,6 +89,7 @@ export interface MyAssignment {
   tarea_id: string;
   tarea_titulo: string;
   evento_id: string;
+  organizacion_id?: string;
   estado: string;
   fecha_asignacion: string;
   instrucciones?: string;

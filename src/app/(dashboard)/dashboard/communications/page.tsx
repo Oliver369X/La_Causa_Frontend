@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { communicationsApi, type Notification } from "@/features/communications/api/communicationsApi";
+import { getNotificationHref } from "@/features/communications/api/communicationsApi";
+import Link from "next/link";
 import { Badge } from "@/shared/ui/Badge";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
@@ -96,10 +98,11 @@ export default function CommunicationsPage() {
       ) : (
         <div className="space-y-2">
           {notifications.map((n) => (
-            <div
+            <Link
               key={n.id}
+              href={getNotificationHref(n) ?? "/dashboard/communications"}
               onClick={() => !n.leida && markRead(n.id)}
-              className="rounded-2xl px-5 py-4 flex items-start gap-4 transition-opacity cursor-pointer"
+              className="rounded-2xl px-5 py-4 flex items-start gap-4 transition-opacity cursor-pointer hover:opacity-90"
               style={{
                 background: n.leida ? "var(--bg-card)" : "var(--bg-subtle)",
                 border: `1px solid ${n.leida ? "var(--border)" : "var(--accent)55"}`,
@@ -117,7 +120,7 @@ export default function CommunicationsPage() {
                 <p className="text-sm mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }}>{n.mensaje}</p>
                 <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{timeAgo(n.created_at)}</p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

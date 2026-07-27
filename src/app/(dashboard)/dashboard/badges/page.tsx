@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Award, EyeOff, HelpCircle, Plus, Quote, Sparkles, Tag } from "lucide-react";
+import { Award, EyeOff, HelpCircle, Pencil, Plus, Quote, Sparkles, Tag } from "lucide-react";
 import { useAuthStore } from "@/shared/store/authStore";
 import { apiClient } from "@/shared/api/client";
 import { EP } from "@/shared/api/endpoints";
@@ -13,6 +13,8 @@ import {
   type ReglaAsignacion,
   type ReglaConfigValues,
   type RequisitosValues,
+  parseReglaConfig,
+  parseRequisitos,
 } from "@/features/badges/ui/ConfigMedallaForm";
 import {
   describeHowToEarn,
@@ -29,6 +31,7 @@ import { toast } from "sonner";
 
 interface OrgBadge {
   id: string;
+  organizacion_id?: string | null;
   nombre: string;
   descripcion: string;
   url_imagen: string;
@@ -268,10 +271,12 @@ function BadgeDataExplainer() {
 }
 
 export default function BadgesPage() {
-  const { activeOrgId } = useAuthStore();
+  const { activeOrgId, user } = useAuthStore();
+  const isSuperAdmin = Boolean(user?.is_super_admin);
   const [badges, setBadges] = useState<OrgBadge[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingBadge, setEditingBadge] = useState<OrgBadge | null>(null);
   const [formNombre, setFormNombre] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formImg, setFormImg] = useState("");
@@ -314,11 +319,32 @@ export default function BadgesPage() {
   const closeCreateModal = () => {
     resetCreateForm();
     setShowCreate(false);
+    setEditingBadge(null);
+  };
+
+  const openEditModal = (badge: OrgBadge) => {
+    setEditingBadge(badge);
+    setFormNombre(badge.nombre);
+    setFormDesc(badge.descripcion);
+    setFormImg(badge.url_imagen);
+    setFormCategorias(badge.categoria ? badge.categoria.split(",").map((item) => item.trim()).filter(Boolean) : []);
+    setFormMensaje(badge.mensaje_personalizado ?? "");
+    setFormTipo(badge.tipo);
+    setFormRareza(badge.rareza);
+    setFormRegla((badge.regla_asignacion as ReglaAsignacion) || "manual");
+    setFormReglaConfig(parseReglaConfig((badge.regla_asignacion as ReglaAsignacion) || "manual", badge.regla_config));
+    setFormRequisitos(parseRequisitos(badge.requisitos));
+    setFormDaXp(badge.da_xp);
+    setFormPuntosBonus(badge.puntos_bonus);
+    setFormVisCatalogo(badge.visible_en_catalogo === false ? "sorpresa" : "catalogo");
+    setShowCreate(true);
   };
 
   const loadBadges = async () => {
-    if (!activeOrgId) return;
-    const { data } = await apiClient.get<OrgBadge[]>(EP.MEDALS, { params: { organizacion_id: activeOrgId } });
+    if (!activeOrgId && !isSuperAdmin) return;
+    const { data } = await apiClient.get<OrgBadge[]>(EP.MEDALS, {
+      params: isSuperAdmin ? { solo_sistema: true } : { organizacion_id: activeOrgId },
+    });
     setBadges(data);
   };
 
@@ -327,7 +353,7 @@ export default function BadgesPage() {
     loadBadges()
       .catch((e) => toast.error(`Error al cargar medallas: ${parseError(e)}`))
       .finally(() => setLoading(false));
-  }, [activeOrgId]);
+  }, [activeOrgId, isSuperAdmin]);
 
   const handleCreate = async () => {
     if (!formNombre.trim() || !formDesc.trim()) {
@@ -338,13 +364,13 @@ export default function BadgesPage() {
       toast.error("Sube una imagen para la medalla");
       return;
     }
-    if (!activeOrgId) return;
+    if (!activeOrgId && !isSuperAdmin) return;
     const reglaConfig = reglaConfigToJson(formReglaConfig);
     const requisitos = requisitosToJson(formRequisitos);
     setSubmitting(true);
     try {
-      await apiClient.post(EP.MEDALS, {
-        organizacion_id: activeOrgId,
+      const payload = {
+        organizacion_id: isSuperAdmin ? null : activeOrgId,
         nombre: formNombre,
         descripcion: formDesc,
         url_imagen: formImg,
@@ -358,8 +384,14 @@ export default function BadgesPage() {
         regla_config: reglaConfig,
         requisitos,
         visible_en_catalogo: formVisCatalogo === "catalogo",
-      });
-      toast.success("Medalla creada");
+      };
+      if (editingBadge) {
+        const { organizacion_id: _org, ...updatePayload } = payload;
+        await apiClient.patch(EP.MEDAL(editingBadge.id), updatePayload);
+      } else {
+        await apiClient.post(EP.MEDALS, payload);
+      }
+      toast.success(editingBadge ? "Medalla actualizada" : "Medalla creada");
       closeCreateModal();
       await loadBadges();
     } catch (e) {
@@ -369,7 +401,7 @@ export default function BadgesPage() {
     }
   };
 
-  if (!activeOrgId) {
+  if (!activeOrgId && !isSuperAdmin) {
     return (
       <div className="p-5 md:p-8" style={{ color: "var(--text)" }}>
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -385,11 +417,12 @@ export default function BadgesPage() {
         <div className="space-y-1 max-w-2xl">
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Award className="w-5 h-5" style={{ color: "var(--accent)" }} />
-            Catálogo de medallas
+            {isSuperAdmin ? "Medallas de sistema" : "Catálogo de medallas"}
           </h1>
           <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            Diseña reconocimientos claros y atractivos: imagen, rareza y un mensaje al desbloquear ayudan a que los
-            voluntarios piensen &quot;quiero ganar esto&quot;. La vista previa simula lo que refuerza el deseo de logro.
+            {isSuperAdmin
+              ? "Administra las plantillas globales de rangos y logros del sistema."
+              : 'Diseña reconocimientos claros y atractivos: imagen, rareza y un mensaje al desbloquear ayudan a que los voluntarios piensen "quiero ganar esto".'}
           </p>
         </div>
         <Button onClick={() => setShowCreate(true)}>
@@ -400,14 +433,14 @@ export default function BadgesPage() {
       <Modal
         open={showCreate}
         onClose={closeCreateModal}
-        title="Crear medalla"
+          title={editingBadge ? "Editar medalla" : "Crear medalla"}
         description="Piensa en el voluntario: nombre memorable, imagen reconocible y reglas comprensibles."
         size="2xl"
         scrollable
         footer={
           <>
             <Button variant="ghost" onClick={closeCreateModal}>Cancelar</Button>
-            <Button onClick={handleCreate} loading={submitting}>Crear</Button>
+            <Button onClick={handleCreate} loading={submitting}>{editingBadge ? "Guardar cambios" : "Crear"}</Button>
           </>
         }
       >
@@ -663,6 +696,11 @@ export default function BadgesPage() {
                   <p className="text-[11px] pt-1 mt-auto" style={{ color: "var(--text-muted)" }}>
                     {b.da_xp ? `+${b.puntos_bonus} XP` : "Sin bonus de XP"}
                   </p>
+                  {(isSuperAdmin || b.organizacion_id !== null) && (
+                    <Button variant="ghost" size="sm" onClick={() => openEditModal(b)}>
+                      <Pencil className="w-3.5 h-3.5" /> Editar medalla
+                    </Button>
+                  )}
                 </div>
               </motion.div>
             );
