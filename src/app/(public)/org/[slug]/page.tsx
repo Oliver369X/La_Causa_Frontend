@@ -12,6 +12,7 @@ import { EP } from "@/shared/api/endpoints";
 import { useAuthStore } from "@/shared/store/authStore";
 import { Building2, ExternalLink, UserPlus, ArrowLeft, X, Facebook, Instagram, Twitter, Linkedin, Calendar, Trophy } from "lucide-react";
 import { OrgBadgeCatalogSection } from "@/features/badges/ui/OrgBadgeCatalogSection";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 const PRIVATE_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i;
 
@@ -49,6 +50,7 @@ export default function OrgPublicPage() {
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const { user } = useAuthStore();
+  const { isVolunteerExperience } = usePermissions();
   const returnTo = safeReturnTo(searchParams.get("returnTo"));
   const backHref = returnTo ?? (user ? "/dashboard/organizaciones" : "/");
   const backLabel = (returnTo || user) ? "Volver" : "Inicio";
@@ -111,7 +113,7 @@ export default function OrgPublicPage() {
       (s) => s.organizacion_id === orgId && (s.estado === "pendiente" || s.estado === "aprobada")
     );
   const puedeUnirse = (org: Organization) =>
-    !yaEsMiembro(org.id) && !tieneSolicitud(org.id);
+    isVolunteerExperience && !yaEsMiembro(org.id) && !tieneSolicitud(org.id);
 
   if (isLoading || !slug) {
     return (

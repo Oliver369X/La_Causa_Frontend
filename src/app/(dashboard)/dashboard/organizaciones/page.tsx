@@ -6,10 +6,12 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { TopBar } from "@/shared/ui/Sidebar";
 import { OrganizationDiscoveryPanel } from "@/features/organizations/ui/OrganizationDiscoveryPanel";
 import { toast } from "sonner";
+import { usePermissions } from "@/shared/hooks/usePermissions";
 
 export default function ExplorarOrganizacionesPage() {
   const { user } = useAuthStore();
   const qc = useQueryClient();
+  const { isVolunteerExperience } = usePermissions();
 
   const { data: orgs = [], isLoading } = useQuery({
     queryKey: ["orgs-publicas"],
@@ -64,6 +66,7 @@ export default function ExplorarOrganizacionesPage() {
           misOrgs={misOrgs}
           joinPending={unirseMutation.isPending}
           leavingPending={dejarOrgMutation.isPending}
+          isVolunteer={isVolunteerExperience}
           description="Explora organizaciones de voluntariado y solicita unirte. Deberás aceptar sus términos y políticas."
           onJoin={(orgId, acceptedTerms, message) =>
             unirseMutation.mutate({ orgId, acceptedTerms, message })

@@ -246,7 +246,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 p-4 overflow-y-auto space-y-1">
+      <nav className="flex-1 p-4 overflow-y-auto space-y-1 no-scrollbar">
         {isVolunteer ? (
           <>
             {navBase?.map((item) => {
@@ -372,6 +372,15 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           </button>
         </div>
       </div>
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none !important;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+        }
+      `}</style>
     </div>
   );
 }
