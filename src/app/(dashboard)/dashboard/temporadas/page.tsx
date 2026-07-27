@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { History, Calendar, Trophy, Lock, Clock, CheckCircle, Plus } from "lucide-react";
 import { gamificationApi, type Season, type HistoricalRankingEntry } from "@/features/gamification/api/gamificationApi";
@@ -10,6 +11,7 @@ import { TopBar } from "@/shared/ui/Sidebar";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
 import { EmptyState } from "@/shared/ui/EmptyState";
+import { Modal } from "@/shared/ui/Modal";
 import { SeasonCard, PodiumCard } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import { toast } from "sonner";
@@ -60,6 +62,9 @@ export default function TemporadasPage() {
   const [loading, setLoading] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [confirmSeason, setConfirmSeason] = useState<Season | null>(null);
+  const [confirmationStep, setConfirmationStep] = useState<1 | 2>(1);
+  const [closePreview, setClosePreview] = useState<Season | null>(null);
 
   const [nombre, setNombre] = useState("");
   const [fechaInicio, setFechaInicio] = useState(todayIsoDate);
@@ -102,8 +107,9 @@ export default function TemporadasPage() {
   const handleCloseSeason = async (seasonId: string) => {
     setClosingId(seasonId);
     try {
-      await gamificationApi.closeSeason(seasonId);
-      toast.success("Temporada cerrada. Ranking guardado, ELO con reset suave.");
+      const closedSeason = await gamificationApi.closeSeason(seasonId);
+      setClosePreview(closedSeason);
+      toast.success("Temporada cerrada. Ranking y certificados generados.");
       refreshSeasons();
       if (selectedSeasonId === seasonId) setSelectedSeasonId(null);
     } catch (e) {
@@ -111,6 +117,22 @@ export default function TemporadasPage() {
     } finally {
       setClosingId(null);
     }
+  };
+
+  const requestCloseSeason = (season: Season) => {
+    setConfirmSeason(season);
+    setConfirmationStep(1);
+  };
+
+  const confirmCloseSeason = async () => {
+    if (!confirmSeason) return;
+    if (confirmationStep === 1) {
+      setConfirmationStep(2);
+      return;
+    }
+    const season = confirmSeason;
+    setConfirmSeason(null);
+    await handleCloseSeason(season.id);
   };
 
   const handleCreateSeason = async (e: FormEvent) => {
@@ -140,6 +162,61 @@ export default function TemporadasPage() {
 
   return (
     <>
+      <Modal
+        open={!!confirmSeason}
+        onClose={() => setConfirmSeason(null)}
+        title={confirmationStep === 1 ? "Confirmar cierre de temporada" : "Confirmación final obligatoria"}
+        description={confirmationStep === 1
+          ? "Se guardará el ranking y se generarán certificados automáticos."
+          : "El cierre es definitivo y no se podrá reabrir la temporada."}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmSeason(null)}>Cancelar</Button>
+            <Button variant={confirmationStep === 2 ? "danger" : "primary"} onClick={confirmCloseSeason}>
+              {confirmationStep === 1 ? "Continuar" : "Sí, cerrar definitivamente"}
+            </Button>
+          </div>
+        }
+      >
+        {confirmSeason && (
+          <div className="space-y-3 text-sm" style={{ color: "var(--text-muted)" }}>
+            <p><strong style={{ color: "var(--text)" }}>{confirmSeason.nombre}</strong></p>
+            {confirmationStep === 1
+              ? <p>Se recopilarán eventos, tareas, horas, XP, ELO, rango y medallas. El certificado genérico podrá personalizarse después.</p>
+              : <p style={{ color: "var(--danger, #ef4444)" }}>Verificá que todos los eventos hayan finalizado antes de confirmar.</p>}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!closePreview}
+        onClose={() => setClosePreview(null)}
+        title="Preview del certificado genérico"
+        description="La organización puede editar los certificados desde la sección Certificados."
+      >
+        {closePreview?.certificado_preview ? (
+          <div className="space-y-3 text-sm">
+            <p className="font-semibold">{closePreview.certificado_preview.organizacion} · {closePreview.nombre}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <span>Eventos: <strong>{closePreview.certificado_preview.eventos ?? 0}</strong></span>
+              <span>Tareas: <strong>{closePreview.certificado_preview.tareas_completadas ?? 0}</strong></span>
+              <span>Horas: <strong>{closePreview.certificado_preview.horas ?? 0}</strong></span>
+              <span>XP: <strong>{closePreview.certificado_preview.xp ?? 0}</strong></span>
+              <span>ELO: <strong>{closePreview.certificado_preview.elo ?? 0}</strong></span>
+              <span>Rango: <strong>{closePreview.certificado_preview.rango ?? "Principiante"}</strong></span>
+            </div>
+            <p style={{ color: "var(--text-muted)" }}>{closePreview.certificados_generados ?? 0} certificados generados.</p>
+            <Link href="/dashboard/certificates" className="text-sm font-semibold" style={{ color: "var(--g-progreso)" }}>
+              Ver certificados generados →
+            </Link>
+            {canManageSeasons && (
+              <Link href="/dashboard/certificates/templates" className="block text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                Personalizar plantilla de certificados →
+              </Link>
+            )}
+          </div>
+        ) : <p>No hubo participantes elegibles para generar certificados.</p>}
+      </Modal>
       <TopBar title="Temporadas" />
       <div className="flex-1 p-5 md:p-8 space-y-6" style={{ color: "var(--text)" }}>
         <motion.div
@@ -292,7 +369,7 @@ export default function TemporadasPage() {
                         size="sm"
                         variant="outline"
                         loading={closingId === activeSeason.id}
-                        onClick={() => handleCloseSeason(activeSeason.id)}
+                        onClick={() => requestCloseSeason(activeSeason)}
                       >
                         <Lock className="w-3 h-3 mr-1" /> Cerrar temporada
                       </Button>
@@ -359,7 +436,7 @@ export default function TemporadasPage() {
                         variant="outline"
                         className="mt-3 w-full"
                         loading={closingId === s.id}
-                        onClick={(e) => { e.stopPropagation(); handleCloseSeason(s.id); }}
+                        onClick={(e) => { e.stopPropagation(); requestCloseSeason(s); }}
                       >
                         <Lock className="w-3 h-3 mr-1" /> Cerrar temporada
                       </Button>

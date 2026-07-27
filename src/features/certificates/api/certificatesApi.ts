@@ -66,6 +66,20 @@ export interface Certificate {
   qr_code_url?: string | null;
   public_share_url?: string | null;
   gestion_periodo?: string | null;
+  firma_digital_metadata?: {
+    tipo?: string;
+    resumen?: {
+      organizacion?: string | null;
+      temporada?: string;
+      eventos?: number;
+      tareas_completadas?: number;
+      horas?: number;
+      xp?: number;
+      elo?: number;
+      rango?: string;
+      medallas?: string[];
+    };
+  } | null;
 }
 
 export interface CreateCertificateData {

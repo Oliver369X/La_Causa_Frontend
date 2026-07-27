@@ -51,6 +51,9 @@ export function getNotificationHref(notification: Notification): string | null {
   if (entityType === "insignia" && notification.entidad_id) {
     return `/dashboard/gamification?badge_id=${notification.entidad_id}`;
   }
+  if (entityType === "certificado" && notification.entidad_id) {
+    return "/dashboard/certificates";
+  }
   if (entityType === "evento_solicitud" && notification.entidad_id) {
     return `/dashboard/events/${notification.entidad_id}`;
   }

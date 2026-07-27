@@ -303,6 +303,11 @@ export default function CertificatesPage() {
                     {cert.descripcion && (
                       <p className="text-xs line-clamp-2 mt-0.5" style={{ color: "var(--text-muted)" }}>{cert.descripcion}</p>
                     )}
+                    {cert.firma_digital_metadata?.resumen && (
+                      <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                        {cert.firma_digital_metadata.resumen.eventos ?? 0} eventos · {cert.firma_digital_metadata.resumen.tareas_completadas ?? 0} tareas · {cert.firma_digital_metadata.resumen.xp ?? 0} XP · {cert.firma_digital_metadata.resumen.elo ?? 0} ELO · {cert.firma_digital_metadata.resumen.rango ?? "Principiante"}
+                      </p>
+                    )}
                     <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
                       {cert.horas_acreditadas > 0 && `${cert.horas_acreditadas} h acreditadas · `}
                       Emitido: {formatDate(cert.fecha_emision)}

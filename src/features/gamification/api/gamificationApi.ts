@@ -108,6 +108,18 @@ export interface Season {
   fecha_fin: string;
   activa: boolean;
   created_at?: string;
+  certificados_generados?: number;
+  certificado_preview?: {
+    organizacion?: string | null;
+    temporada?: string;
+    eventos?: number;
+    tareas_completadas?: number;
+    horas?: number;
+    xp?: number;
+    elo?: number;
+    rango?: string;
+    medallas?: string[];
+  } | null;
 }
 
 /** Cuerpo de POST /temporadas (SeasonCreateRequest en backend). */
