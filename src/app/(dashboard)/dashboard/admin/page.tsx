@@ -129,7 +129,7 @@ function AdminDashboardTab() {
   const stats = [
     { label: "Organizaciones", value: data.total_organizaciones, sub: `${data.organizaciones_activas} activas` },
     { label: "Usuarios", value: data.total_usuarios, sub: `${data.usuarios_voluntarios} vol. / ${data.usuarios_organizadores} org.` },
-    { label: "MRR", value: `Bs ${data.mrr.toFixed(2)}`, sub: "Ingresos recurrentes" },
+    { label: "MRR", value: `US$ ${data.mrr.toFixed(2)}`, sub: "Ingresos recurrentes" },
     { label: "Orgs este mes", value: data.organizaciones_este_mes, sub: "" },
     { label: "Usuarios este mes", value: data.usuarios_este_mes, sub: "" },
   ];
@@ -365,7 +365,7 @@ function AdminOrgsTab() {
                 style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
               >
                 <span>{p.nombre}</span>
-                <span className="text-sm" style={{ color: "var(--text-muted)" }}>Bs {Number(p.precio_mensual)}/mes</span>
+                <span className="text-sm" style={{ color: "var(--text-muted)" }}>US$ {Number(p.precio_mensual).toFixed(2)}/mes</span>
               </button>
             ))}
           </div>
@@ -552,7 +552,7 @@ function AdminPlansTab() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-semibold">{p.nombre}</p>
-                <p className="text-xs opacity-70">Bs {Number(p.precio_mensual)}/mes · {p.max_voluntarios} vol. · {p.max_eventos_mes} eventos</p>
+                <p className="text-xs opacity-70">US$ {Number(p.precio_mensual).toFixed(2)}/mes · {p.max_voluntarios} vol. · {p.max_eventos_mes} eventos</p>
               </div>
               <Button
                 size="sm"
