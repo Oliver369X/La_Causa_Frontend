@@ -68,6 +68,11 @@ function buildUserDisplayContent(text: string, attachments: ChatAttachment[]): s
   return lines.join("\n");
 }
 
+function isEvidenceImageUrl(url: string): boolean {
+  return /\.(?:png|jpe?g|webp|gif|avif)(?:[?#].*)?$/i.test(url)
+    || /res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(url);
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -201,6 +206,31 @@ function Bubble({
                 ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
                 li: ({ children }) => <li className="ml-2">{children}</li>,
                 strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                a: ({ href, children }) => {
+                  const url = href ?? "";
+                  if (isEvidenceImageUrl(url)) {
+                    return (
+                      <figure className="my-3 overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--bg-subtle)" }}>
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="block" title="Abrir evidencia en tamaño completo">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt="Evidencia de la tarea"
+                            className="max-h-80 w-full object-contain transition-transform hover:scale-[1.01]"
+                          />
+                        </a>
+                        <figcaption className="px-3 py-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          Evidencia visual · haz clic para ampliar
+                        </figcaption>
+                      </figure>
+                    );
+                  }
+                  return (
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="underline break-all" style={{ color: "var(--accent)" }}>
+                      {children}
+                    </a>
+                  );
+                },
                 code: ({ children }) => (
                   <code className="px-1.5 py-0.5 rounded text-xs" style={{ background: "var(--bg-subtle)" }}>
                     {children}
