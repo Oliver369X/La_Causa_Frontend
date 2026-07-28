@@ -12,7 +12,7 @@ import {
   type DeliveryReviewResponse,
 } from "@/features/assignments/api/assignmentsApi";
 import { eventsApi } from "@/features/events/api/eventsApi";
-import { volunteersApi, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
+import { volunteersApi, filterVolunteerMembers, type MatchResponse } from "@/features/volunteers/api/volunteersApi";
 import { subscriptionsApi } from "@/features/subscriptions/api/subscriptionsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
@@ -55,6 +55,7 @@ export default function TaskDetailPage() {
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [assigningMultiple, setAssigningMultiple] = useState(false);
+  const [matchResult, setMatchResult] = useState<MatchResponse | null>(null);
   const setSidebarCollapsed = useSidebarLayoutStore((s) => s.setCollapsed);
 
   useEffect(() => {
@@ -108,6 +109,21 @@ export default function TaskDetailPage() {
     },
     onError: (err) => {
       toast.error(extractApiDetail(err, "No se pudo actualizar la tarea."));
+    },
+  });
+
+  const matchMutation = useMutation({
+    mutationFn: () => volunteersApi.matchTask(taskId),
+    onSuccess: (result) => {
+      setMatchResult(result);
+      toast.success(`Matching completado: ${result.ranking.length} candidatos ordenados.`);
+    },
+    onError: (err) => {
+      const message = extractApiDetail(err, "No se pudo ejecutar la recomendación inteligente.");
+      toast.error(message);
+      if (message.toLowerCase().includes("plan") || message.toLowerCase().includes("pago")) {
+        setShowPlansModal(true);
+      }
     },
   });
 
@@ -168,6 +184,18 @@ export default function TaskDetailPage() {
     const nombre = (m.usuario_nombre || "").toLowerCase();
     const email = (m.usuario_email || "").toLowerCase();
     return nombre.includes(query) || email.includes(query);
+  });
+
+  const rankingByVolunteer = new Map(
+    (matchResult?.ranking ?? []).map((candidate, index) => [candidate.voluntario_id, { candidate, index }])
+  );
+  const displayCandidates = [...filteredCandidates].sort((a, b) => {
+    const rankA = rankingByVolunteer.get(a.usuario_id)?.index;
+    const rankB = rankingByVolunteer.get(b.usuario_id)?.index;
+    if (rankA == null && rankB == null) return 0;
+    if (rankA == null) return 1;
+    if (rankB == null) return -1;
+    return rankA - rankB;
   });
 
   const handleAssignMultiple = async () => {
@@ -394,14 +422,66 @@ export default function TaskDetailPage() {
                 </p>
               </div>
               <button
-                onClick={() => setShowPlansModal(true)}
+                onClick={() => matchMutation.mutate()}
+                disabled={matchMutation.isPending}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-[1.02] shrink-0"
                 style={{ background: "var(--accent)" }}
               >
-                <CreditCard className="w-3.5 h-3.5" />
-                Recomendar con IA
+                {matchMutation.isPending ? <Clock className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {matchMutation.isPending ? "Analizando..." : "Recomendar con IA"}
               </button>
             </div>
+
+            {matchResult && (
+              <div
+                className="p-5 rounded-2xl"
+                style={{ background: "rgba(124,58,237,.08)", border: "1px solid rgba(124,58,237,.35)" }}
+              >
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="font-bold">Candidatos recomendados</h3>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      Fase ML {matchResult.fase_usada} · {matchResult.total_candidatos} voluntarios evaluados
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+                    Selecciona los aptos abajo
+                  </span>
+                </div>
+                {matchResult.advertencias.length > 0 && (
+                  <div className="mb-3 space-y-1 text-xs" style={{ color: "#b45309" }}>
+                    {matchResult.advertencias.map((warning) => <p key={warning}>⚠ {warning}</p>)}
+                  </div>
+                )}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {matchResult.ranking.slice(0, Math.max(task.vacantes ?? 1, 5)).map((candidate, index) => (
+                    <button
+                      key={candidate.voluntario_id}
+                      type="button"
+                      onClick={() => setSelectedUserIds((prev) => prev.includes(candidate.voluntario_id)
+                        ? prev.filter((id) => id !== candidate.voluntario_id)
+                        : [...prev, candidate.voluntario_id])}
+                      className="flex items-center gap-3 rounded-xl border p-3 text-left transition-all hover:scale-[1.01]"
+                      style={{
+                        background: selectedUserIds.includes(candidate.voluntario_id) ? "rgba(124,58,237,.14)" : "var(--bg-card)",
+                        borderColor: selectedUserIds.includes(candidate.voluntario_id) ? "var(--accent)" : "var(--border)",
+                      }}
+                    >
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: "var(--accent)", color: "white" }}>
+                        #{index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{candidate.nombre}</span>
+                        <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          Score {Number(candidate.match_score).toFixed(1)} · Confianza {candidate.confianza}
+                        </span>
+                      </span>
+                      {selectedUserIds.includes(candidate.voluntario_id) && <Check className="h-4 w-4 shrink-0 text-green-500" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Buscador y Checklist de Voluntarios (Ancho completo) */}
             <div
@@ -434,8 +514,9 @@ export default function TaskDetailPage() {
                 </p>
               ) : (
                 <div className="space-y-2 mb-6">
-                  {filteredCandidates.map((m) => {
+                  {displayCandidates.map((m) => {
                     const isAssigned = alreadyAssigned.has(m.usuario_id);
+                    const mlCandidate = rankingByVolunteer.get(m.usuario_id)?.candidate;
                     return (
                       <label
                         key={m.usuario_id}
@@ -463,6 +544,11 @@ export default function TaskDetailPage() {
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium flex items-center gap-2">
                             {m.usuario_nombre || m.usuario_email || "Voluntario"}
+                            {mlCandidate && (
+                              <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>
+                                ML {Number(mlCandidate.match_score).toFixed(1)}
+                              </span>
+                            )}
                             {isAssigned ? (
                               <span
                                 className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"

@@ -110,4 +110,9 @@ export const volunteersApi = {
       throw err;
     }
   },
+
+  matchTask: async (taskId: string): Promise<MatchResponse> => {
+    const { data } = await mlClient.post<MatchResponse>(`/match/task/${taskId}`);
+    return data;
+  },
 };
