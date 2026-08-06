@@ -78,7 +78,11 @@ export interface Certificate {
       elo?: number;
       rango?: string;
       medallas?: string[];
+      voluntario?: string;
+      medalla_rango_nombre?: string;
+      medalla_rango_imagen_url?: string | null;
     };
+    html_generado?: string;
   } | null;
 }
 

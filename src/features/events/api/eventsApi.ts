@@ -45,6 +45,7 @@ export interface Event {
   id: string;
   organizacion_id: string;
   creador_id?: string;
+  responsable_financiero_id?: string | null;
   nombre: string;
   descripcion?: string;
   imagen_url?: string | null;
@@ -86,12 +87,14 @@ export interface UpdateEventData {
   campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
   permite_postulaciones_en_curso?: boolean;
+  responsable_financiero_id?: string | null;
 }
 
 interface BackendEvent {
   id: string;
   organizacion_id: string;
   creador_id?: string;
+  responsable_financiero_id?: string | null;
   titulo: string;
   descripcion?: string;
   imagen_url?: string | null;
@@ -132,6 +135,7 @@ function toEvent(dto: BackendEvent): Event {
     id: dto.id,
     organizacion_id: dto.organizacion_id,
     creador_id: dto.creador_id,
+    responsable_financiero_id: dto.responsable_financiero_id ?? null,
     nombre: dto.titulo,
     descripcion: dto.descripcion,
     imagen_url: dto.imagen_url,
@@ -222,6 +226,7 @@ export const eventsApi = {
     if (payload.campana !== undefined) body.campana = payload.campana?.trim() || null;
     if (payload.ubicacion_geo != null) body.ubicacion_geo = payload.ubicacion_geo;
     if (payload.permite_postulaciones_en_curso != null) body.permite_postulaciones_en_curso = payload.permite_postulaciones_en_curso;
+    if (payload.responsable_financiero_id !== undefined) body.responsable_financiero_id = payload.responsable_financiero_id;
     const { data } = await apiClient.put<BackendEvent>(`/eventos/${eventId}`, body);
     return toEvent(data);
   },

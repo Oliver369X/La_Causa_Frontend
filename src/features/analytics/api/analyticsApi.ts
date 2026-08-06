@@ -44,9 +44,29 @@ export interface EventAnalytics {
   xp_generada: number;
   elo_maximo: number;
   mejor_voluntario: EventVolunteerAnalytics | null;
+  costos_estimados_por_moneda: Record<string, number>;
   gastos_por_moneda: Record<string, number>;
+  gastos_pendientes_por_moneda: Record<string, number>;
   tareas: EventTaskAnalytics[];
   voluntarios: EventVolunteerAnalytics[];
+}
+
+export interface PeriodFinancialEvent {
+  evento_id: string;
+  titulo: string;
+  fecha_inicio: string;
+  costos_estimados_por_moneda: Record<string, number>;
+  gastos_reales_por_moneda: Record<string, number>;
+  gastos_pendientes_por_moneda: Record<string, number>;
+}
+
+export interface PeriodFinancialReport {
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  eventos: PeriodFinancialEvent[];
+  costos_estimados_por_moneda: Record<string, number>;
+  gastos_reales_por_moneda: Record<string, number>;
+  gastos_pendientes_por_moneda: Record<string, number>;
 }
 
 export interface EventTaskAnalytics {
@@ -55,6 +75,8 @@ export interface EventTaskAnalytics {
   estado: string;
   asignaciones: number;
   completadas: number;
+  costo_estimado: number | null;
+  costo_real: number | null;
   gastos: Record<string, number>;
 }
 
@@ -81,6 +103,9 @@ export interface EventExpense {
   total: number;
   moneda: string;
   estado: string;
+  proveedor?: string | null;
+  numero_comprobante?: string | null;
+  fecha_gasto?: string | null;
   comprobante_url?: string | null;
 }
 
@@ -170,6 +195,17 @@ export const analyticsApi = {
     };
   },
 
+  periodFinances: async (
+    orgId: string,
+    startDate?: string,
+    endDate?: string,
+  ): Promise<PeriodFinancialReport> => {
+    const { data } = await apiClient.get<PeriodFinancialReport>(`/analytics/dashboard/${orgId}/finanzas`, {
+      params: { start_date: startDate, end_date: endDate },
+    });
+    return data;
+  },
+
   event: async (eventId: string): Promise<EventAnalytics> => {
     const { data } = await apiClient.get<EventAnalytics>(`/analytics/events/${eventId}`);
     return data;
@@ -188,6 +224,10 @@ export const analyticsApi = {
     moneda?: string;
     tarea_id?: string | null;
     estado?: string;
+    proveedor?: string | null;
+    numero_comprobante?: string | null;
+    fecha_gasto?: string | null;
+    comprobante_url?: string | null;
   }): Promise<EventExpense> => {
     const { data } = await apiClient.post<EventExpense>(`/eventos/${eventId}/gastos`, payload);
     return data;

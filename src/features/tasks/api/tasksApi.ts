@@ -15,6 +15,8 @@ export interface Task {
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
   requiere_evidencia?: boolean;
+  costo_estimado?: number | null;
+  costo_real?: number | null;
   insignia_id?: string;
   created_at?: string;
 }
@@ -33,6 +35,8 @@ export interface CreateTaskData {
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
   requiere_evidencia?: boolean;
+  costo_estimado?: number | null;
+  costo_real?: number | null;
   insignia_id?: string;
 }
 
@@ -52,6 +56,8 @@ interface BackendTask {
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
   requiere_evidencia?: boolean;
+  costo_estimado?: number | null;
+  costo_real?: number | null;
   created_at?: string;
 }
 
@@ -84,6 +90,8 @@ function toTask(dto: BackendTask): Task {
     multiplicador_elo: dto.multiplicador_elo ?? 1,
     requiere_revision_manual: dto.requiere_revision_manual ?? false,
     requiere_evidencia: dto.requiere_evidencia ?? true,
+    costo_estimado: dto.costo_estimado ?? null,
+    costo_real: dto.costo_real ?? null,
     created_at: dto.created_at,
   };
 }
@@ -168,6 +176,8 @@ export const tasksApi = {
       multiplicador_elo: payload.multiplicador_elo ?? 1,
       requiere_revision_manual: payload.requiere_revision_manual ?? false,
       requiere_evidencia: payload.requiere_evidencia ?? true,
+      costo_estimado: payload.costo_estimado ?? undefined,
+      costo_real: payload.costo_real ?? undefined,
       insignia_id: payload.insignia_id,
     });
     return toTask(data);
@@ -204,6 +214,8 @@ export const tasksApi = {
       multiplicador_elo: payload.multiplicador_elo,
       requiere_revision_manual: payload.requiere_revision_manual,
       requiere_evidencia: payload.requiere_evidencia,
+      costo_estimado: payload.costo_estimado,
+      costo_real: payload.costo_real,
       estado: payload.estado ? toBackendStatus(payload.estado) : undefined,
     });
     return toTask(data);

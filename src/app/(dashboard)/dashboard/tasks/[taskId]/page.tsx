@@ -24,6 +24,7 @@ import { extractApiDetail } from "@/shared/utils/apiError";
 import { toast } from "sonner";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { useSidebarLayoutStore } from "@/shared/store/sidebarLayoutStore";
+import { Modal } from "@/shared/ui/Modal";
 
 const dificultadColors: Record<string, { bg: string; color: string }> = {
   baja: { bg: "rgba(34,197,94,.15)", color: "#22c55e" },
@@ -46,7 +47,7 @@ export default function TaskDetailPage() {
   const params = useParams();
   const taskId = params.taskId as string;
   const { activeOrgId, user } = useAuthStore();
-  const { isVolunteerExperience } = usePermissions();
+  const { isVolunteerExperience, isOwner } = usePermissions();
   const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<"detalle" | "asignar">("detalle");
@@ -83,6 +84,7 @@ export default function TaskDetailPage() {
   });
 
   const canManage = !isVolunteer && activeOrgId && event?.organizacion_id === activeOrgId;
+  const canManageCosts = Boolean(isOwner || event?.responsable_financiero_id === user?.id);
 
   // Cargar miembros de la organización para la pestaña de asignación
   const { data: members = [], isLoading: loadingMembers } = useQuery({
@@ -176,6 +178,7 @@ export default function TaskDetailPage() {
       .map((a) => a.usuario_id)
   );
   const alreadyAssigned = new Set(assignments.map((a) => a.usuario_id).filter(Boolean) as string[]);
+  const selfAssigned = Boolean(user?.id && alreadyAssigned.has(user.id));
 
   // Filtrar candidatos voluntarios según buscador
   const allVolunteerCandidates = filterVolunteerMembers(members);
@@ -244,6 +247,22 @@ export default function TaskDetailPage() {
       setActiveTab("detalle");
     } catch (err) {
       toast.error(extractApiDetail(err, "No se pudieron asignar algunos voluntarios."));
+    } finally {
+      setAssigningMultiple(false);
+    }
+  };
+
+  const handleAssignSelf = async () => {
+    if (!user?.id || selfAssigned) return;
+    setAssigningMultiple(true);
+    try {
+      await assignmentsApi.assign(taskId, { tipo: "individual", usuario_id: user.id });
+      toast.success("Te autoasignaste la tarea operativa. Ya podés registrar su ejecución.");
+      qc.invalidateQueries({ queryKey: ["task-assignments", taskId] });
+      qc.invalidateQueries({ queryKey: ["event-applications", task.evento_id] });
+      setActiveTab("detalle");
+    } catch (err) {
+      toast.error(extractApiDetail(err, "No se pudo autoasignar la tarea."));
     } finally {
       setAssigningMultiple(false);
     }
@@ -402,7 +421,7 @@ export default function TaskDetailPage() {
                 <h3 className="font-bold mb-4">Asignaciones</h3>
                 <div className="space-y-4">
                   {assignments.map((a) => (
-                    <AssignmentCard key={a.id} assignment={a} taskId={taskId} taskTitulo={task.titulo} />
+                    <AssignmentCard key={a.id} assignment={a} taskId={taskId} task={task} />
                   ))}
                 </div>
               </div>
@@ -615,6 +634,14 @@ export default function TaskDetailPage() {
               {/* Acciones */}
               <div className="flex gap-2">
                 <button
+                  onClick={handleAssignSelf}
+                  disabled={selfAssigned || assigningMultiple}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-all"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+                >
+                  {selfAssigned ? "Ya te la asignaste" : "Autoasignarme tarea operativa"}
+                </button>
+                <button
                   onClick={handleAssignMultiple}
                   disabled={selectedUserIds.length === 0 || assigningMultiple}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all flex items-center gap-2"
@@ -641,6 +668,7 @@ export default function TaskDetailPage() {
         {showEditModal && (
           <EditTaskModal
             task={task}
+            canManageCosts={canManageCosts}
             onClose={() => setShowEditModal(false)}
             onSave={(data) => editTaskMutation.mutate(data)}
             isSaving={editTaskMutation.isPending}
@@ -654,11 +682,11 @@ export default function TaskDetailPage() {
 function AssignmentCard({
   assignment,
   taskId,
-  taskTitulo,
+  task,
 }: {
   assignment: Assignment;
   taskId: string;
-  taskTitulo: string;
+  task: Task;
 }) {
   const qc = useQueryClient();
   const { data: deliveries = [] } = useQuery({
@@ -708,7 +736,7 @@ function AssignmentCard({
               key={d.id}
               delivery={d}
               assignmentId={assignment.id}
-              tareaTitulo={taskTitulo}
+              tarea={task}
             />
           ))}
         </div>
@@ -729,13 +757,14 @@ function AssignmentCard({
 function DeliveryItem({
   delivery,
   assignmentId,
-  tareaTitulo,
+  tarea,
 }: {
   delivery: Delivery;
   assignmentId: string;
-  tareaTitulo: string;
+  tarea: Task;
 }) {
   const [showReview, setShowReview] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const qc = useQueryClient();
   const showCelebration = useCelebrationStore((s) => s.show);
   const [rating, setRating] = useState(5);
@@ -757,7 +786,7 @@ function DeliveryItem({
         (data.delta_xp != null || data.delta_elo != null || data.subio_nivel || (data.nuevas_insignias?.length ?? 0) > 0)
       ) {
         showCelebration({
-          tarea_titulo: tareaTitulo,
+          tarea_titulo: tarea.titulo,
           delta_elo: data.delta_elo,
           delta_xp: data.delta_xp,
           nuevas_insignias: data.nuevas_insignias,
@@ -776,7 +805,8 @@ function DeliveryItem({
   const needsReview = delivery.estado === "pendiente_revision" || !delivery.fecha_revision;
 
   return (
-    <div className="p-3 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+    <>
+    <div className="p-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowDetails(true)} style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
       <div className="flex items-center justify-between">
         <span className="text-xs">
           Intento #{delivery.numero_intento} · {formatDate(delivery.fecha_entrega)}
@@ -808,6 +838,7 @@ function DeliveryItem({
           href={delivery.evidencia_url}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(event) => event.stopPropagation()}
           className="block mt-2 text-xs underline"
           style={{ color: "var(--accent)" }}
         >
@@ -823,7 +854,7 @@ function DeliveryItem({
         <div className="mt-2">
           {!showReview ? (
             <button
-              onClick={() => setShowReview(true)}
+              onClick={(event) => { event.stopPropagation(); setShowReview(true); }}
               className="text-xs font-medium"
               style={{ color: "var(--accent)" }}
             >
@@ -860,7 +891,7 @@ function DeliveryItem({
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => reviewMutation.mutate("aprobada")}
+                  onClick={(event) => { event.stopPropagation(); reviewMutation.mutate("aprobada"); }}
                   disabled={reviewMutation.isPending}
                   className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium disabled:opacity-50"
                   style={{ background: "#22c55e", color: "white" }}
@@ -868,7 +899,7 @@ function DeliveryItem({
                   <Check className="w-3 h-3" /> Aprobar
                 </button>
                 <button
-                  onClick={() => reviewMutation.mutate("rechazada")}
+                  onClick={(event) => { event.stopPropagation(); reviewMutation.mutate("rechazada"); }}
                   disabled={reviewMutation.isPending}
                   className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium disabled:opacity-50"
                   style={{ background: "#ef4444", color: "white" }}
@@ -876,7 +907,7 @@ function DeliveryItem({
                   <X className="w-3 h-3" /> Rechazar
                 </button>
                 <button
-                  onClick={() => setShowReview(false)}
+                  onClick={(event) => { event.stopPropagation(); setShowReview(false); }}
                   className="px-2 py-1 rounded text-xs"
                   style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
                 >
@@ -888,6 +919,31 @@ function DeliveryItem({
         </div>
       )}
     </div>
+    <Modal
+      open={showDetails}
+      onClose={() => setShowDetails(false)}
+      title={`Entrega · ${tarea.titulo}`}
+      description={`Intento #${delivery.numero_intento} · ${formatDate(delivery.fecha_entrega)}`}
+      size="xl"
+      scrollable
+    >
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}><span style={{ color: "var(--text-muted)" }}>Estado</span><p className="font-semibold mt-1">{assignStatusLabels[delivery.estado] ?? delivery.estado}</p></div>
+          <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}><span style={{ color: "var(--text-muted)" }}>Calificación</span><p className="font-semibold mt-1">{delivery.rating ? `${delivery.rating}/5` : "Sin calificar"}</p></div>
+        </div>
+        <div className="p-4 rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-2 font-semibold mb-3"><CreditCard className="w-4 h-4" style={{ color: "var(--accent)" }} /> Costos de la tarea</div>
+          <div className="grid grid-cols-2 gap-3 text-sm"><div><span style={{ color: "var(--text-muted)" }}>Supuesto / estimado</span><p className="font-bold mt-1">{tarea.costo_estimado != null ? `Bs ${Number(tarea.costo_estimado).toFixed(2)}` : "No definido"}</p></div><div><span style={{ color: "var(--text-muted)" }}>Costo real</span><p className="font-bold mt-1">{tarea.costo_real != null ? `Bs ${Number(tarea.costo_real).toFixed(2)}` : "Pendiente"}</p></div></div>
+        </div>
+        {delivery.evidencia_url && (
+          <div><p className="text-sm font-semibold mb-2">Evidencia</p><a href={delivery.evidencia_url} target="_blank" rel="noopener noreferrer"><img src={delivery.evidencia_url} alt="Evidencia de la entrega" className="w-full max-h-[480px] object-contain rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }} /></a><p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Hacé clic en la imagen para abrirla en tamaño original.</p></div>
+        )}
+        <div><p className="text-sm font-semibold mb-1">Comentario del voluntario</p><p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-muted)" }}>{delivery.comentario || "No dejó comentario."}</p></div>
+        {delivery.feedback && <div><p className="text-sm font-semibold mb-1">Feedback de la organización</p><p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-muted)" }}>{delivery.feedback}</p></div>}
+      </div>
+    </Modal>
+    </>
   );
 }
 
@@ -1019,12 +1075,13 @@ function PlansModal({ onClose }: { onClose: () => void }) {
 
 interface EditTaskModalProps {
   task: Task;
+  canManageCosts: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
   isSaving: boolean;
 }
 
-function EditTaskModal({ task, onClose, onSave, isSaving }: EditTaskModalProps) {
+function EditTaskModal({ task, canManageCosts, onClose, onSave, isSaving }: EditTaskModalProps) {
   const [titulo, setTitulo] = useState(task.titulo);
   const [descripcion, setDescripcion] = useState(task.descripcion || "");
   const [instrucciones, setInstrucciones] = useState(task.instrucciones || "");
@@ -1035,6 +1092,9 @@ function EditTaskModal({ task, onClose, onSave, isSaving }: EditTaskModalProps) 
     toLocalDateTimeString(task.fecha_vencimiento)
   );
   const [requiereRevisionManual, setRequiereRevisionManual] = useState(task.requiere_revision_manual || false);
+  const [requiereEvidencia, setRequiereEvidencia] = useState(task.requiere_evidencia !== false);
+  const [costoEstimado, setCostoEstimado] = useState(task.costo_estimado?.toString() ?? "");
+  const [costoReal, setCostoReal] = useState(task.costo_real?.toString() ?? "");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1051,6 +1111,11 @@ function EditTaskModal({ task, onClose, onSave, isSaving }: EditTaskModalProps) 
       multiplicador_elo: Number(multiplicadorElo),
       fecha_vencimiento: fechaVencimiento ? new Date(fechaVencimiento).toISOString() : null,
       requiere_revision_manual: requiereRevisionManual,
+      requiere_evidencia: requiereEvidencia,
+      ...(canManageCosts ? {
+        costo_estimado: costoEstimado === "" ? null : Number(costoEstimado),
+        costo_real: costoReal === "" ? null : Number(costoReal),
+      } : {}),
     });
   };
 
@@ -1118,6 +1183,11 @@ function EditTaskModal({ task, onClose, onSave, isSaving }: EditTaskModalProps) 
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4 p-3 rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+              <div><label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Costo estimado (Bs)</label><input type="number" min="0" step="0.01" disabled={!canManageCosts} value={costoEstimado} onChange={(e) => setCostoEstimado(e.target.value)} placeholder="0.00" className="w-full px-3 py-2 rounded-xl border disabled:opacity-60" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }} /></div>
+              <div><label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Costo real (Bs)</label><input type="number" min="0" step="0.01" disabled={!canManageCosts} value={costoReal} onChange={(e) => setCostoReal(e.target.value)} placeholder="Pendiente" className="w-full px-3 py-2 rounded-xl border disabled:opacity-60" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }} /></div>
+              <p className="col-span-2 text-[11px]" style={{ color: "var(--text-muted)" }}>{canManageCosts ? "Estos montos alimentan el presupuesto y reporte financiero del evento." : "Solo la organización o el responsable financiero puede editar los costos."}</p>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Dificultad</label>
@@ -1175,6 +1245,15 @@ function EditTaskModal({ task, onClose, onSave, isSaving }: EditTaskModalProps) 
             </div>
           </div>
 
+          <label className="flex items-center gap-2 cursor-pointer py-1">
+            <input
+              type="checkbox"
+              checked={requiereEvidencia}
+              onChange={(e) => setRequiereEvidencia(e.target.checked)}
+              className="w-4 h-4 accent-[var(--accent)]"
+            />
+            <span className="text-xs font-semibold" style={{ color: "var(--text)" }}>Requiere entrega de evidencia</span>
+          </label>
           <label className="flex items-center gap-2 cursor-pointer py-1">
             <input
               type="checkbox"

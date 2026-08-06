@@ -148,7 +148,7 @@ function TaskBoardCard({
 function TasksPageContent() {
   const searchParams = useSearchParams();
   const { activeOrgId, user } = useAuthStore();
-  const { isVolunteerExperience } = usePermissions();
+  const { isVolunteerExperience, isOwner } = usePermissions();
   const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
   const eventoIdFromUrl = searchParams.get("evento_id");
@@ -602,6 +602,36 @@ function TasksPageContent() {
                   style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
               </div>
+              {isOwner && (
+                <>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Costo estimado (Bs)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="0.00"
+                      value={(formData.costo_estimado ?? "").toString()}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, costo_estimado: e.target.value === "" ? undefined : Number(e.target.value) }))}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Costo real (Bs)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="Pendiente"
+                      value={(formData.costo_real ?? "").toString()}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, costo_real: e.target.value === "" ? undefined : Number(e.target.value) }))}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Fecha vencimiento</label>
                 <input
@@ -664,6 +694,11 @@ function TasksPageContent() {
                     vacantes: Math.max(1, parseInt(fd.vacantes || "1", 10)),
                     fecha_vencimiento: fd.fecha_vencimiento?.trim() ? new Date(fd.fecha_vencimiento.trim()).toISOString() : undefined,
                     requiere_revision_manual: Boolean((formData as { requiere_revision_manual?: boolean }).requiere_revision_manual),
+                    requiere_evidencia: (formData as { requiere_evidencia?: boolean }).requiere_evidencia !== false,
+                    ...(isOwner ? {
+                      costo_estimado: formData.costo_estimado ?? null,
+                      costo_real: formData.costo_real ?? null,
+                    } : {}),
                     insignia_id: fd.insignia_id || undefined,
                   });
                 }}

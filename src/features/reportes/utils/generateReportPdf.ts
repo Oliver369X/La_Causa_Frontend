@@ -1,3 +1,5 @@
+import type { EventAnalytics, EventExpense } from "@/features/analytics/api/analyticsApi";
+
 export interface ReportMetrics {
   voluntarios: boolean;
   eventos: boolean;
@@ -282,4 +284,144 @@ export async function generateReportPdf(
 
   const filename = `reporte-${orgName?.replace(/\s+/g, "-") || "org"}-${Date.now()}.pdf`;
   doc.save(filename);
+}
+
+/** Reporte financiero y operativo de un evento puntual. */
+export async function generateEventReportPdf(
+  event: EventAnalytics,
+  orgName?: string,
+  expenses: EventExpense[] = [],
+): Promise<void> {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  const doc = new jsPDF();
+  const currencies = new Set([
+    ...Object.keys(event.costos_estimados_por_moneda),
+    ...Object.keys(event.gastos_por_moneda),
+    ...Object.keys(event.gastos_pendientes_por_moneda),
+  ]);
+  const financialRows = [...currencies].map((currency) => {
+    const estimated = event.costos_estimados_por_moneda[currency] ?? 0;
+    const actual = event.gastos_por_moneda[currency] ?? 0;
+    const pending = event.gastos_pendientes_por_moneda[currency] ?? 0;
+    const variance = actual - estimated;
+    return [
+      currency,
+      estimated.toFixed(2),
+      actual.toFixed(2),
+      pending.toFixed(2),
+      `${variance >= 0 ? "+" : ""}${variance.toFixed(2)}${estimated > 0 ? ` (${((variance / estimated) * 100).toFixed(1)}%)` : ""}`,
+    ];
+  });
+  const costPerVolunteer = Object.fromEntries(
+    Object.entries(event.gastos_por_moneda).map(([currency, amount]) => [
+      currency,
+      event.voluntarios_registrados > 0 ? amount / event.voluntarios_registrados : 0,
+    ]),
+  );
+  const costPerHour = Object.fromEntries(
+    Object.entries(event.gastos_por_moneda).map(([currency, amount]) => [
+      currency,
+      event.horas_voluntarias > 0 ? amount / event.horas_voluntarias : 0,
+    ]),
+  );
+  const categoryTotals = new Map<string, number>();
+  for (const expense of expenses.filter((item) => item.estado !== "cancelado")) {
+    const key = `${expense.categoria} (${expense.moneda})`;
+    categoryTotals.set(key, (categoryTotals.get(key) ?? 0) + expense.total);
+  }
+  const categoryRows = [...categoryTotals.entries()].map(([category, total]) => [category, total.toFixed(2)]);
+  const money = (values: Record<string, number>) => Object.entries(values)
+    .map(([currency, amount]) => `${Number(amount).toFixed(2)} ${currency}`)
+    .join(" · ") || "—";
+
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("REPORTE DE EVENTO", 105, 20, { align: "center" });
+  doc.setFontSize(13);
+  doc.text(event.titulo, 105, 29, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(orgName || "Organización", 105, 36, { align: "center" });
+
+  autoTable(doc, {
+    startY: 45,
+    head: [["Indicador", "Resultado"]],
+    body: [
+      ["Estado", event.estado],
+      ["Voluntarios", String(event.voluntarios_registrados)],
+      ["Tareas completadas", `${event.tareas_completadas}/${event.tareas_totales}`],
+      ["Horas acreditadas", String(event.horas_voluntarias)],
+      ["Entregas aprobadas", String(event.entregas_aprobadas)],
+      ["Entregas rechazadas", String(event.entregas_rechazadas)],
+      ["Costo estimado", money(event.costos_estimados_por_moneda)],
+      ["Costo real", money(event.gastos_por_moneda)],
+      ["Pendiente de aprobacion", money(event.gastos_pendientes_por_moneda)],
+      ["Costo real por voluntario", money(costPerVolunteer)],
+      ["Costo real por hora", money(costPerHour)],
+    ],
+    theme: "grid",
+    headStyles: { fillColor: [95, 70, 180], textColor: 255 },
+  });
+  let nextY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 45) + 10;
+  doc.setFont("helvetica", "bold");
+  doc.text("Consolidado financiero", 20, nextY);
+  autoTable(doc, {
+    startY: nextY + 4,
+    head: [["Moneda", "Estimado", "Real", "Pendiente", "Variación"]],
+    body: financialRows.length ? financialRows : [["BOB", "0.00", "0.00", "0.00", "0.00"]],
+    theme: "grid",
+    headStyles: { fillColor: [95, 70, 180], textColor: 255 },
+    styles: { fontSize: 9 },
+  });
+  nextY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? nextY) + 10;
+  doc.setFont("helvetica", "bold");
+  doc.text("Gastos por categoría", 20, nextY);
+  autoTable(doc, {
+    startY: nextY + 4,
+    head: [["Categoría", "Total"]],
+    body: categoryRows.length ? categoryRows : [["Sin gastos adicionales", "0.00"]],
+    theme: "striped",
+    headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+    styles: { fontSize: 9 },
+  });
+  nextY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? nextY) + 10;
+  doc.setFont("helvetica", "bold");
+  doc.text("Desglose de tareas y costos", 20, nextY);
+  autoTable(doc, {
+    startY: nextY + 4,
+    head: [["Tarea", "Asignaciones", "Completadas", "Estimado", "Real"]],
+    body: event.tareas.map((task) => [
+      task.titulo,
+      String(task.asignaciones),
+      String(task.completadas),
+      task.costo_estimado == null ? "—" : `Bs ${task.costo_estimado.toFixed(2)}`,
+      task.costo_real == null ? money(task.gastos) : `Bs ${task.costo_real.toFixed(2)}`,
+    ]),
+    theme: "striped",
+    headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+    styles: { fontSize: 9 },
+  });
+  nextY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? nextY) + 10;
+  doc.setFont("helvetica", "bold");
+  doc.text("Gastos y respaldos", 20, nextY);
+  autoTable(doc, {
+    startY: nextY + 4,
+    head: [["Categoría", "Descripción", "Proveedor", "Factura", "Total", "Estado", "Respaldo"]],
+    body: expenses.length ? expenses.map((expense) => [
+      expense.categoria,
+      expense.descripcion,
+      expense.proveedor || "-",
+      expense.numero_comprobante || "-",
+      `${expense.total.toFixed(2)} ${expense.moneda}`,
+      expense.estado,
+      expense.comprobante_url ? "Sí" : "No",
+    ]) : [["-", "Sin gastos adicionales registrados", "-", "-", "-", "-", "-"]],
+    theme: "striped",
+    headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+    styles: { fontSize: 8 },
+  });
+  doc.save(`reporte-evento-${event.titulo.replace(/\s+/g, "-")}-${Date.now()}.pdf`);
 }

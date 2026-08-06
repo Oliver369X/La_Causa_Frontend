@@ -15,6 +15,7 @@ import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { Modal } from "@/shared/ui/Modal";
+import { CertificatePreview } from "@/features/certificates/ui/CertificatePreview";
 
 function formatDate(str: string) {
   return new Date(str).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
@@ -43,7 +44,7 @@ export default function CertificatesPage() {
   const loadCerts = useCallback(async () => {
     setLoading(true);
     try {
-      if (canManageCerts && activeOrgId) {
+      if (activeOrgId) {
         const data = await certificatesApi.list({ organizacion_id: activeOrgId });
         setCerts(data);
       } else {
@@ -288,9 +289,10 @@ export default function CertificatesPage() {
             />
           </motion.div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto max-w-6xl space-y-8">
             {certs.map((cert, i) => (
               <RewardCard key={cert.id} delay={staggerFast * i}>
+                <CertificatePreview certificate={cert} className="mb-5 shadow-2xl" />
                 <div className="flex items-start gap-4">
                   <div
                     className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
