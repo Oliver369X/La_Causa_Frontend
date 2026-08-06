@@ -201,13 +201,43 @@ export default function TaskDetailPage() {
   const handleAssignMultiple = async () => {
     if (selectedUserIds.length === 0) return;
     setAssigningMultiple(true);
+    let assignedCount = 0;
+    let skippedCount = 0;
     try {
-      await Promise.all(
-        selectedUserIds.map((uId) =>
-          assignmentsApi.assign(taskId, { tipo: "individual", usuario_id: uId })
-        )
-      );
-      toast.success("Voluntarios asignados exitosamente a la tarea.");
+      // Procesar en serie para poder mostrar una confirmación independiente
+      // cuando un voluntario ya esté registrado en otro evento superpuesto.
+      for (const uId of selectedUserIds) {
+        try {
+          await assignmentsApi.assign(taskId, { tipo: "individual", usuario_id: uId });
+          assignedCount += 1;
+        } catch (err) {
+          const detail = (err as any)?.response?.data?.detail;
+          if (detail?.code !== "event_conflict") throw err;
+
+          const shouldContinue = window.confirm(
+            `${detail.message}\n\n¿Deseas continuar y registrar a este voluntario también en este evento?`
+          );
+          if (!shouldContinue) {
+            skippedCount += 1;
+            continue;
+          }
+
+          await assignmentsApi.assign(taskId, {
+            tipo: "individual",
+            usuario_id: uId,
+            confirmar_conflicto_evento: true,
+          });
+          assignedCount += 1;
+        }
+      }
+      if (assignedCount > 0) {
+        toast.success(
+          `${assignedCount} voluntario${assignedCount === 1 ? "" : "s"} asignado${assignedCount === 1 ? "" : "s"}.`
+        );
+      }
+      if (skippedCount > 0) {
+        toast.info(`${skippedCount} asignación${skippedCount === 1 ? "" : "es"} cancelada${skippedCount === 1 ? "" : "s"}.`);
+      }
       setSelectedUserIds([]);
       qc.invalidateQueries({ queryKey: ["task-assignments", taskId] });
       qc.invalidateQueries({ queryKey: ["event-applications", task.evento_id] });

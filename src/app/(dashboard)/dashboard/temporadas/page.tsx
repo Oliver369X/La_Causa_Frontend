@@ -50,7 +50,7 @@ function apiErrorDetail(err: unknown): string {
 }
 
 export default function TemporadasPage() {
-  const { activeOrgId, user } = useAuthStore();
+  const { activeOrgId } = useAuthStore();
   const { can, isSuperAdmin, canManageOrg } = usePermissions();
   const isOrganizer = canManageOrg;
   /** Solo la organización (gestores con create_events o super-admin) puede cerrar temporadas. */
@@ -74,16 +74,26 @@ export default function TemporadasPage() {
   const [creating, setCreating] = useState(false);
 
   const refreshSeasons = () => {
+    if (!activeOrgId) {
+      setSeasons([]);
+      return;
+    }
     gamificationApi
-      .getSeasons(activeOrgId ?? undefined)
+      .getSeasons(activeOrgId)
       .then(setSeasons)
       .catch(() => {});
   };
 
   useEffect(() => {
+    if (!activeOrgId) {
+      setSeasons([]);
+      setSelectedSeasonId(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     gamificationApi
-      .getSeasons(activeOrgId ?? undefined)
+      .getSeasons(activeOrgId)
       .then(setSeasons)
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -329,7 +339,9 @@ export default function TemporadasPage() {
           <EmptyState
             title="Sin temporadas"
             description={
-              isOrganizer && activeOrgId
+              !activeOrgId
+                ? "No perteneces a una organización activa. Únete a una o selecciónala para ver sus temporadas."
+                : isOrganizer
                 ? "Usa el formulario de arriba para crear la primera temporada de la organización."
                 : "No hay temporadas que coincidan con el filtro actual o aún no se han registrado."
             }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { eventsApi, type Event, type EventApplication } from "@/features/events/api/eventsApi";
@@ -20,17 +20,21 @@ import {
   Settings,
   Plus,
   Check,
-  X,
   Play,
   Flag,
   Ban,
   Inbox,
   ClipboardList,
+  Eye,
 } from "lucide-react";
 import { formatDate } from "@/shared/utils/utils";
 import { useState } from "react";
 import { toast } from "sonner";
 import { usePermissions } from "@/shared/hooks/usePermissions";
+import { Modal } from "@/shared/ui/Modal";
+import { gamificationApi, type Badge, type CompetitiveProfile } from "@/features/gamification/api/gamificationApi";
+import { ProfileBanner } from "@/features/gamification/ui/ProfileBanner";
+import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
 
 type EventDetailTab = "general" | "solicitudes" | "tareas" | "equipos" | "retrospectiva" | "config";
 
@@ -70,13 +74,14 @@ function formatDateRange(start: string, end: string): string {
 
 export default function EventDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const eventId = params.eventId as string;
-  const { activeOrgId, user } = useAuthStore();
-  const { isVolunteerExperience } = usePermissions();
+  const { activeOrgId } = useAuthStore();
+  const { isVolunteerExperience, isOwner } = usePermissions();
   const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
-  const [tab, setTab] = useState<EventDetailTab>("general");
+  const [tab, setTab] = useState<EventDetailTab>(searchParams.get("tab") === "solicitudes" ? "solicitudes" : "general");
   const [appFilter, setAppFilter] = useState<string>("todos");
 
   const deleteEventMutation = useMutation({
@@ -107,7 +112,13 @@ export default function EventDetailPage() {
     queryKey: ["event-applications", eventId, appFilter],
     queryFn: () =>
       eventsApi.listApplications(eventId, appFilter === "todos" ? undefined : appFilter),
-    enabled: !!eventId && (tab === "solicitudes" || tab === "general"),
+    enabled: !!eventId && !isVolunteer && (tab === "solicitudes" || tab === "general"),
+  });
+
+  const { data: participants = [] } = useQuery({
+    queryKey: ["event-participants", eventId],
+    queryFn: () => eventsApi.listParticipants(eventId),
+    enabled: !!eventId,
   });
 
   const { data: tasks = [] } = useQuery({
@@ -125,6 +136,12 @@ export default function EventDetailPage() {
     onError: (err: { response?: { data?: { detail?: string } } }) => {
       toast.error(err?.response?.data?.detail ?? "Error al actualizar");
     },
+  });
+
+  const updateApplicationsMutation = useMutation({
+    mutationFn: (enabled: boolean) => eventsApi.update(eventId, { permite_postulaciones_en_curso: enabled }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["event", eventId] }); qc.invalidateQueries({ queryKey: ["events"] }); toast.success("Postulaciones actualizadas"); },
+    onError: () => toast.error("No se pudo actualizar las postulaciones"),
   });
 
   const reviewAppMutation = useMutation({
@@ -179,7 +196,7 @@ export default function EventDetailPage() {
 
   const [selectedOrganizerId, setSelectedOrganizerId] = useState("");
 
-  const approvedCount = applications.filter((a) => a.estado === "aprobado" || a.estado === "asistio").length;
+  const approvedCount = participants.length;
   const pendingCount = applications.filter((a) => a.estado === "pendiente").length;
 
   const assignedOrganizers = applications.filter((app) => {
@@ -260,9 +277,11 @@ export default function EventDetailPage() {
 
         {/* Header card */}
         <div
-          className="p-6 rounded-2xl mb-6"
+          className="overflow-hidden rounded-2xl mb-6"
           style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
         >
+          <div className="h-52 bg-cover bg-center" style={{ backgroundImage: event.imagen_url ? `linear-gradient(0deg, rgba(0,0,0,.62), rgba(0,0,0,.06)), url(${event.imagen_url})` : "linear-gradient(135deg, var(--accent), #312e81)" }} />
+          <div className="p-6">
           <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
             <div>
               <span
@@ -391,6 +410,25 @@ export default function EventDetailPage() {
             </p>
           )}
 
+          <div className="mt-6">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="text-sm font-semibold">Voluntarios en este evento</p>
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>{participants.length} confirmados</span>
+            </div>
+            {participants.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Aún no hay voluntarios confirmados.</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {participants.slice(0, 10).map((participant) => (
+                  <Link key={participant.usuario_id} href={`/voluntario/${participant.usuario_id}?returnTo=${encodeURIComponent(`/dashboard/events/${eventId}`)}`} className="flex items-center gap-2 pr-3 rounded-full overflow-hidden" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                    <span className="w-9 h-9 rounded-full bg-cover bg-center flex items-center justify-center text-xs font-bold" style={{ backgroundImage: participant.avatar_url ? `url(${participant.avatar_url})` : undefined, backgroundColor: "var(--accent-soft)", color: "var(--accent)" }}>{participant.avatar_url ? "" : participant.nombre.slice(0, 1).toUpperCase()}</span>
+                    <span className="text-xs"><strong className="block">{participant.nombre}</strong><span style={{ color: "var(--text-muted)" }}>{participant.xp_total} XP · {participant.elo_score} ELO</span></span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex flex-wrap gap-2 mt-4">
             {canManage && event.estado !== "borrador" && event.estado !== "cancelado" && (
               <Link
@@ -412,6 +450,7 @@ export default function EventDetailPage() {
                 Ver retrospectiva
               </Link>
             )}
+          </div>
           </div>
         </div>
 
@@ -443,8 +482,8 @@ export default function EventDetailPage() {
             applications={applications}
             appFilter={appFilter}
             setAppFilter={setAppFilter}
-            onApprove={(id, nota) => reviewAppMutation.mutate({ id, estado: "aprobado", nota })}
-            onReject={(id, nota) => reviewAppMutation.mutate({ id, estado: "rechazado", nota })}
+            organizacionId={event.organizacion_id}
+            onReview={(id, estado, nota) => reviewAppMutation.mutateAsync({ id, estado, nota })}
             isPending={reviewAppMutation.isPending}
           />
         )}
@@ -500,6 +539,12 @@ export default function EventDetailPage() {
               </p>
             </div>
 
+            <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+              <input type="checkbox" id="event-live-applications" checked={event.permite_postulaciones_en_curso !== false} onChange={(e) => updateApplicationsMutation.mutate(e.target.checked)} disabled={updateApplicationsMutation.isPending} className="mt-1" />
+              <label htmlFor="event-live-applications" className="text-sm cursor-pointer"><span className="font-medium">Permitir postulaciones mientras el evento está en curso</span><span className="block text-xs mt-1" style={{ color: "var(--text-muted)" }}>Activalo cuando necesites cubrir vacantes urgentes.</span></label>
+            </div>
+
+            {isOwner && <>
             {/* Gestión de Organizadores Asignados */}
             <div className="pt-6">
               <h4 className="font-semibold text-base mb-1">Organizadores del Evento</h4>
@@ -627,6 +672,7 @@ export default function EventDetailPage() {
                 )}
               </div>
             </div>
+            </>}
           </div>
         )}
 
@@ -655,18 +701,44 @@ function ApplicationsTab({
   applications,
   appFilter,
   setAppFilter,
-  onApprove,
-  onReject,
+  organizacionId,
+  onReview,
   isPending,
 }: {
   applications: EventApplication[];
   appFilter: string;
   setAppFilter: (v: string) => void;
-  onApprove: (id: string, nota?: string) => void;
-  onReject: (id: string, nota?: string) => void;
+  organizacionId: string;
+  onReview: (id: string, estado: "aprobado" | "rechazado", nota?: string) => Promise<unknown>;
   isPending: boolean;
 }) {
-  const [notaMap, setNotaMap] = useState<Record<string, string>>({});
+  const [selectedApplication, setSelectedApplication] = useState<EventApplication | null>(null);
+  const [responseNote, setResponseNote] = useState("");
+  const [confirmation, setConfirmation] = useState<"aprobado" | "rechazado" | null>(null);
+  const { data: applicantProfile, isLoading: loadingProfile } = useQuery({
+    queryKey: ["event-applicant-profile", selectedApplication?.usuario_id, organizacionId],
+    queryFn: () => gamificationApi.getProfile(selectedApplication!.usuario_id, organizacionId),
+    enabled: !!selectedApplication?.usuario_id,
+  });
+
+  const { data: applicantBadges = [] } = useQuery({
+    queryKey: ["event-applicant-badges", selectedApplication?.usuario_id, organizacionId],
+    queryFn: () => gamificationApi.getBadges(selectedApplication!.usuario_id, organizacionId),
+    enabled: !!selectedApplication?.usuario_id,
+  });
+
+  const closeProfile = () => {
+    setSelectedApplication(null);
+    setResponseNote("");
+    setConfirmation(null);
+  };
+
+  const confirmReview = () => {
+    if (!selectedApplication || !confirmation) return;
+    void onReview(selectedApplication.id, confirmation, responseNote.trim() || undefined)
+      .then(closeProfile)
+      .catch(() => {});
+  };
 
   const filters: { key: string; label: string }[] = [
     { key: "pendiente", label: "Pendientes" },
@@ -710,9 +782,14 @@ function ApplicationsTab({
           </div>
         ) : (
           applications.map((app) => (
-            <div
+            <button
+              type="button"
               key={app.id}
-              className="p-4 rounded-xl"
+              onClick={() => {
+                setSelectedApplication(app);
+                setResponseNote("");
+              }}
+              className="w-full p-4 rounded-xl text-left transition-opacity hover:opacity-80"
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
             >
               <div className="flex items-start justify-between gap-4">
@@ -752,42 +829,62 @@ function ApplicationsTab({
                   {appStatusLabels[app.estado] ?? app.estado}
                 </span>
               </div>
-              {app.estado === "pendiente" && (
-                <div className="mt-3 flex flex-wrap gap-2 items-end">
-                  <input
-                    type="text"
-                    placeholder="Mensaje o motivo para el voluntario (opcional)"
-                    value={notaMap[app.id] ?? ""}
-                    onChange={(e) => setNotaMap((p) => ({ ...p, [app.id]: e.target.value }))}
-                    className="flex-1 min-w-[200px] px-3 py-2 rounded-lg text-sm outline-none"
-                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-                  />
-                  <button
-                    onClick={() => onApprove(app.id, notaMap[app.id] || undefined)}
-                    disabled={isPending}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-                    style={{ background: "#22c55e", color: "white" }}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Aprobar
-                  </button>
-                  <button
-                    onClick={() => onReject(app.id, notaMap[app.id] || undefined)}
-                    disabled={isPending}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-                    style={{ background: "#ef4444", color: "white" }}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    Rechazar
-                  </button>
-                </div>
-              )}
-            </div>
+              <span className="mt-3 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--accent)" }}>
+                <Eye className="w-3.5 h-3.5" /> Ver perfil y revisar solicitud
+              </span>
+            </button>
           ))
         )}
       </div>
+
+      <Modal
+        open={!!selectedApplication}
+        onClose={closeProfile}
+        title="Perfil del postulante"
+        description="Revisá su perfil gamificado y su mensaje antes de decidir sobre su participación en el evento."
+        size="xl"
+        scrollable
+        footer={selectedApplication?.estado === "pendiente" ? <>
+          <button onClick={() => setConfirmation("rechazado")} disabled={isPending} className="px-4 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>Rechazar</button>
+          <button onClick={() => setConfirmation("aprobado")} disabled={isPending} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ background: "var(--accent)", color: "white" }}>Aprobar</button>
+        </> : undefined}
+      >
+        {loadingProfile ? (
+          <div className="h-72 rounded-2xl animate-pulse" style={{ background: "var(--bg-subtle)" }} />
+        ) : applicantProfile ? (
+          <div className="space-y-5">
+            <ProfileBanner profile={applicantProfile as CompetitiveProfile} showcase />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <ProfileMetric label="ELO" value={applicantProfile.elo_score ?? applicantProfile.puntos_elo ?? 0} />
+              <ProfileMetric label="Experiencia" value={`${applicantProfile.xp_total ?? 0} XP`} />
+              <ProfileMetric label="Tareas aprobadas" value={applicantProfile.tareas_completadas ?? 0} />
+              <ProfileMetric label="Racha" value={applicantProfile.racha_entregas ?? 0} />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Medallas obtenidas</h3>
+              <BadgeGrid badges={applicantBadges as Badge[]} maxVisible={8} />
+            </div>
+            {selectedApplication?.mensaje_solicitud && <div className="p-4 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}><p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>Mensaje de postulación</p>{selectedApplication.mensaje_solicitud}</div>}
+            {selectedApplication?.estado === "pendiente" && <div><label className="block text-sm font-medium mb-2">Mensaje para el voluntario <span className="font-normal" style={{ color: "var(--text-muted)" }}>(opcional)</span></label><textarea value={responseNote} onChange={(e) => setResponseNote(e.target.value)} rows={3} maxLength={2000} placeholder="Ej. Te esperamos en el evento. / Motivo de la decisión." className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }} /></div>}
+          </div>
+        ) : <p className="text-sm" style={{ color: "var(--text-muted)" }}>No se pudo cargar el perfil de este postulante.</p>}
+      </Modal>
+
+      <Modal
+        open={!!confirmation && !!selectedApplication}
+        onClose={() => setConfirmation(null)}
+        title={confirmation === "aprobado" ? "Confirmar aprobación" : "Confirmar rechazo"}
+        description={confirmation === "aprobado" ? "El voluntario será añadido al evento y recibirá una notificación." : "El voluntario recibirá una notificación con la decisión y tu mensaje, si lo escribiste."}
+        footer={<><button onClick={() => setConfirmation(null)} className="px-4 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>Volver</button><button onClick={confirmReview} disabled={isPending} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ background: confirmation === "aprobado" ? "var(--accent)" : "#dc2626", color: "white" }}>{isPending ? "Procesando…" : confirmation === "aprobado" ? "Sí, aprobar" : "Sí, rechazar"}</button></>}
+      >
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Esta acción cambiará la solicitud del evento. Revisá el perfil antes de confirmar.</p>
+      </Modal>
     </div>
   );
+}
+
+function ProfileMetric({ label, value }: { label: string; value: string | number }) {
+  return <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p><p className="text-xl font-bold mt-1">{value}</p></div>;
 }
 
 function TasksTab({ eventId, tasks }: { eventId: string; tasks: Task[] }) {

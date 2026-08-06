@@ -6,7 +6,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { eventsApi, type CreateEventData, type Event } from "@/features/events/api/eventsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import Link from "next/link";
-import { Plus, Calendar, Clock, Send, MessageSquare, Award, Brain, Download } from "lucide-react";
+import { Plus, Calendar, Clock, Send, MessageSquare, Award, Brain, Download, ImagePlus, MapPin, Users } from "lucide-react";
 import { LocationMapPicker, type LocationPoint } from "@/shared/ui/LocationMapPicker";
 import { formatDate } from "@/shared/utils/utils";
 import { geocodeWithNominatim, reverseGeocodeWithNominatim } from "@/shared/utils/geocoding";
@@ -15,6 +15,7 @@ import { extractApiDetail } from "@/shared/utils/apiError";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { downloadCsv } from "@/shared/lib/csvExport";
+import { uploadImage } from "@/features/uploads/api/uploadApi";
 
 type EventTab = "proximos" | "curso" | "pasados";
 
@@ -66,8 +67,16 @@ function classifyEvents(events: Event[]): { proximos: Event[]; curso: Event[]; p
   return { proximos, curso, pasados };
 }
 
+function timeUntil(date: string): string {
+  const difference = new Date(date).getTime() - Date.now();
+  if (difference <= 0) return "En curso";
+  const hours = Math.ceil(difference / 3_600_000);
+  if (hours < 48) return `Faltan ${hours} h`;
+  return `Faltan ${Math.ceil(hours / 24)} días`;
+}
+
 export default function EventsPage() {
-  const { activeOrgId, user } = useAuthStore();
+  const { activeOrgId } = useAuthStore();
   const { isVolunteerExperience } = usePermissions();
   const isVolunteer = isVolunteerExperience;
   const qc = useQueryClient();
@@ -79,6 +88,8 @@ export default function EventsPage() {
   });
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<EventFormState>({});
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [ubicacionGeo, setUbicacionGeo] = useState<LocationPoint | null>(null);
   const [geocodingMap, setGeocodingMap] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
@@ -170,6 +181,7 @@ export default function EventsPage() {
       qc.invalidateQueries({ queryKey: ["events"] });
       setShowForm(false);
       setFormData({});
+      setCoverPreview(null);
       setUbicacionGeo(null);
       toast.success("Evento creado como borrador");
     },
@@ -183,10 +195,25 @@ export default function EventsPage() {
   const applyMutation = useMutation({
     mutationFn: ({ eventId, mensaje }: { eventId: string; mensaje?: string }) =>
       eventsApi.apply(eventId, mensaje),
-    onSuccess: () => {
+    onSuccess: (application, { eventId }) => {
+      const applicationState = String(application.estado ?? "pendiente").toLowerCase();
+      // Actualiza de inmediato la tarjeta: evita que el voluntario pueda enviar
+      // la misma solicitud de nuevo mientras se completa el refetch.
+      qc.setQueriesData<Event[]>({ queryKey: ["events"] }, (currentEvents) =>
+        currentEvents?.map((event) =>
+          event.id === eventId
+            ? { ...event, mi_estado_solicitud: applicationState }
+            : event
+        )
+      );
       qc.invalidateQueries({ queryKey: ["events"] });
       setApplyEventId(null);
       setApplyMessage("");
+      toast.success(
+        applicationState === "aprobado"
+          ? "Ya estás registrado en este evento."
+          : "Tu postulación fue enviada. La organización la revisará pronto."
+      );
     },
     onError: (err: unknown) => {
       toast.error(extractApiDetail(err, "No puedes postularte a este evento."));
@@ -202,14 +229,6 @@ export default function EventsPage() {
     const applicationState = String(e.mi_estado_solicitud ?? "").toLowerCase();
     return isVolunteer && (e.estado === "publicado" || e.estado === "en_curso") &&
       !["aprobado", "asistio", "pendiente"].includes(applicationState);
-  };
-
-  const statusColors: Record<string, { background: string; color: string }> = {
-    borrador:   { background: "var(--bg-subtle)",      color: "var(--text-muted)" },
-    publicado:  { background: "rgba(34,197,94,.15)",  color: "#22c55e" },
-    en_curso:   { background: "rgba(59,130,246,.15)", color: "#60a5fa" },
-    finalizado: { background: "rgba(59,130,246,.15)", color: "#60a5fa" },
-    cancelado:  { background: "rgba(239,68,68,.15)", color: "#f87171" },
   };
 
   const statusLabels: Record<string, string> = {
@@ -321,6 +340,41 @@ export default function EventsPage() {
           <div className="mb-8 p-6 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <h3 className="font-semibold mb-5">Crear nuevo evento</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Arte o portada del evento</label>
+                <label className="group block relative min-h-44 rounded-2xl overflow-hidden cursor-pointer" style={{ background: "var(--bg-subtle)", border: "1px dashed var(--border)" }}>
+                  {coverPreview ? (
+                    <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `linear-gradient(0deg, rgba(0,0,0,.45), transparent), url(${coverPreview})` }} />
+                  ) : null}
+                  <div className="relative min-h-44 flex flex-col items-center justify-center gap-2 p-5 text-center" style={{ color: coverPreview ? "white" : "var(--text-muted)" }}>
+                    <ImagePlus className="w-7 h-7" />
+                    <p className="text-sm font-medium">{uploadingCover ? "Subiendo portada…" : coverPreview ? "Cambiar arte del evento" : "Añadir arte del evento"}</p>
+                    <p className="text-xs">JPG, PNG o WebP. Se mostrará en el catálogo de la organización.</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={uploadingCover}
+                    className="sr-only"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      setUploadingCover(true);
+                      try {
+                        const uploaded = await uploadImage(file);
+                        setCoverPreview(uploaded.url);
+                        setFormData((previous) => ({ ...previous, imagen_url: uploaded.url }));
+                        toast.success("Portada cargada correctamente");
+                      } catch (error) {
+                        toast.error(extractApiDetail(error, "No se pudo subir la portada."));
+                      } finally {
+                        setUploadingCover(false);
+                        event.target.value = "";
+                      }
+                    }}
+                  />
+                </label>
+              </div>
               {[
                 { label: "Nombre *", key: "nombre", type: "text", placeholder: "Maratón de Solidaridad" },
                 { label: "Descripción", key: "descripcion", type: "text", placeholder: "Descripción opcional" },
@@ -412,6 +466,7 @@ export default function EventsPage() {
                     organizacion_id: activeOrgId!,
                     nombre,
                     descripcion: (fd.descripcion as string) || undefined,
+                    imagen_url: (fd.imagen_url as string) || undefined,
                     fecha_inicio: fechaInicio,
                     fecha_fin: fechaFin,
                     cupo_maximo: Math.max(1, Number(fd.cupo_maximo) || 50),
@@ -431,7 +486,7 @@ export default function EventsPage() {
                 {createMutation.isPending ? "Creando…" : "Crear"}
               </button>
               <button
-                onClick={() => setShowForm(false)}
+                onClick={() => { setShowForm(false); setCoverPreview(null); }}
                 className="px-6 py-2.5 rounded-full text-sm font-medium hover:opacity-70 transition-opacity"
                 style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
               >
@@ -466,17 +521,16 @@ export default function EventsPage() {
             {displayedEvents.map((event) => (
               <div
                 key={event.id}
-                className="p-6 rounded-2xl transition-colors hover:opacity-90"
+                className="overflow-hidden rounded-2xl transition-colors hover:opacity-90"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
+                <div className="relative h-40 bg-cover bg-center" style={{ backgroundImage: event.imagen_url ? `linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,.08)), url(${event.imagen_url})` : "linear-gradient(135deg, var(--accent), #312e81)" }}>
+                  <span className="absolute left-4 bottom-3 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "rgba(0,0,0,.48)", color: "white" }}>{timeUntil(event.fecha_inicio)}</span>
+                  <span className="absolute right-4 top-3 text-xs px-2 py-1 rounded-full" style={{ background: "rgba(255,255,255,.9)", color: "#111" }}>{statusLabels[event.estado] ?? event.estado}</span>
+                </div>
+                <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <h3 className="font-semibold text-sm leading-snug">{event.nombre}</h3>
-                  <span
-                    className="text-xs px-2 py-1 rounded-full"
-                    style={statusColors[event.estado] ?? { background: "var(--bg-subtle)", color: "var(--text-muted)" }}
-                  >
-                    {statusLabels[event.estado] ?? event.estado}
-                  </span>
                 </div>
                 {event.descripcion && (
                   <p className="text-xs mb-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>{event.descripcion}</p>
@@ -488,8 +542,10 @@ export default function EventsPage() {
                 )}
                 <div className="flex items-center gap-2 text-xs mb-4" style={{ color: "var(--text-muted)" }}>
                   <Clock className="w-3.5 h-3.5" />
-                  <span>{formatDate(event.fecha_inicio)}</span>
+                  <span>{formatDate(event.fecha_inicio)} · {formatDate(event.fecha_fin)}</span>
                 </div>
+                {event.ubicacion_geo?.direccion && <div className="flex items-center gap-2 text-xs mb-4" style={{ color: "var(--text-muted)" }}><MapPin className="w-3.5 h-3.5" /><span className="truncate">{event.ubicacion_geo.direccion}</span></div>}
+                <div className="flex items-center gap-2 text-xs mb-4" style={{ color: "var(--text-muted)" }}><Users className="w-3.5 h-3.5" /><span>Hasta {event.cupo_maximo} voluntarios</span></div>
                 <div className="flex flex-wrap gap-2">
                   <Link
                     href={`/dashboard/events/${event.id}`}
@@ -555,6 +611,7 @@ export default function EventsPage() {
                       Ver retrospectiva
                     </Link>
                   )}
+                </div>
                 </div>
               </div>
             ))}

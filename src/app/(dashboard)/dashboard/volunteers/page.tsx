@@ -6,11 +6,15 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { volunteersApi, type Member, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
-import { Users, Crown, User2, Calendar, UserPlus, Check, X, Eye, FileText, CheckSquare, Trophy, Download } from "lucide-react";
+import { Users, Crown, User2, Calendar, UserPlus, Eye, FileText, CheckSquare, Trophy, Download } from "lucide-react";
 import Link from "next/link";
 import { displayPersonName } from "@/shared/utils/utils";
 import { downloadCsv } from "@/shared/lib/csvExport";
 import { toast } from "sonner";
+import { gamificationApi, type Badge, type CompetitiveProfile } from "@/features/gamification/api/gamificationApi";
+import { ProfileBanner } from "@/features/gamification/ui/ProfileBanner";
+import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
+import { Modal } from "@/shared/ui/Modal";
 
 function roleLabel(member: Member): string {
   if (member.es_propietario) return "Propietario";
@@ -97,8 +101,11 @@ export default function VolunteersPage() {
   const { activeOrgId } = useAuthStore();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [selectedSolicitud, setSelectedSolicitud] = useState<Solicitud | null>(null);
+  const [mensajeRespuesta, setMensajeRespuesta] = useState("");
+  const [confirmacionEstado, setConfirmacionEstado] = useState<"aprobada" | "rechazada" | null>(null);
 
-  const { data: solicitudes = [], isLoading: loadingSolicitudes } = useQuery({
+  const { data: solicitudes = [] } = useQuery({
     queryKey: ["solicitudes", activeOrgId],
     queryFn: () => organizationsApi.listSolicitudes(activeOrgId!),
     enabled: !!activeOrgId,
@@ -108,8 +115,8 @@ export default function VolunteersPage() {
   });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ id, estado }: { id: string; estado: "aprobada" | "rechazada" }) =>
-      organizationsApi.reviewSolicitud(id, estado),
+    mutationFn: ({ id, estado, mensaje }: { id: string; estado: "aprobada" | "rechazada"; mensaje?: string }) =>
+      organizationsApi.reviewSolicitud(id, estado, mensaje),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["solicitudes", activeOrgId] });
       qc.invalidateQueries({ queryKey: ["members", activeOrgId] });
@@ -126,6 +133,17 @@ export default function VolunteersPage() {
   });
 
   const volunteers = filterVolunteerMembers(members);
+
+  const { data: applicantProfile, isLoading: loadingApplicantProfile } = useQuery({
+    queryKey: ["membership-applicant-profile", selectedSolicitud?.usuario_id, activeOrgId],
+    queryFn: () => gamificationApi.getProfile(selectedSolicitud!.usuario_id, activeOrgId!),
+    enabled: !!selectedSolicitud?.usuario_id && !!activeOrgId,
+  });
+  const { data: applicantBadges = [] } = useQuery({
+    queryKey: ["membership-applicant-badges", selectedSolicitud?.usuario_id, activeOrgId],
+    queryFn: () => gamificationApi.getBadges(selectedSolicitud!.usuario_id, activeOrgId!),
+    enabled: !!selectedSolicitud?.usuario_id && !!activeOrgId,
+  });
 
   const filtered = volunteers.filter((m) => {
     const q = search.toLowerCase();
@@ -244,7 +262,11 @@ export default function VolunteersPage() {
               {pendientes.map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between gap-4 p-3 rounded-xl"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setSelectedSolicitud(s); setMensajeRespuesta(""); }}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedSolicitud(s); setMensajeRespuesta(""); } }}
+                  className="flex items-center justify-between gap-4 p-3 rounded-xl cursor-pointer transition-opacity hover:opacity-85"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
                   <div>
@@ -257,24 +279,7 @@ export default function VolunteersPage() {
                       {new Date(s.fecha_solicitud).toLocaleDateString("es-ES")}
                     </p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => reviewMutation.mutate({ id: s.id, estado: "aprobada" })}
-                      disabled={reviewMutation.isPending}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium"
-                      style={{ background: "var(--accent)", color: "white" }}
-                    >
-                      <Check className="w-3 h-3" /> Aprobar
-                    </button>
-                    <button
-                      onClick={() => reviewMutation.mutate({ id: s.id, estado: "rechazada" })}
-                      disabled={reviewMutation.isPending}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs"
-                      style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                    >
-                      <X className="w-3 h-3" /> Rechazar
-                    </button>
-                  </div>
+                  <Eye className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />
                 </div>
               ))}
             </div>
@@ -323,6 +328,46 @@ export default function VolunteersPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filtered.map((m) => <MemberCard key={m.id} member={m} orgId={activeOrgId!} />)}
         </div>
+
+        <Modal
+          open={!!selectedSolicitud}
+          onClose={() => { setSelectedSolicitud(null); setMensajeRespuesta(""); }}
+          title="Perfil del solicitante"
+          description="Revisá su experiencia y gamificación antes de aceptar su ingreso a la organización."
+          size="xl"
+          scrollable
+          footer={selectedSolicitud ? <>
+            <button onClick={() => setConfirmacionEstado("rechazada")} disabled={reviewMutation.isPending} className="px-4 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>Rechazar</button>
+            <button onClick={() => setConfirmacionEstado("aprobada")} disabled={reviewMutation.isPending} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ background: "var(--accent)", color: "white" }}>Aprobar</button>
+          </> : undefined}
+        >
+          {loadingApplicantProfile ? (
+            <div className="h-72 rounded-2xl animate-pulse" style={{ background: "var(--bg-subtle)" }} />
+          ) : applicantProfile ? (
+            <div className="space-y-6">
+              <ProfileBanner profile={applicantProfile as CompetitiveProfile} showcase />
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>Tareas aprobadas</p><p className="text-xl font-bold mt-1">{applicantProfile.tareas_completadas ?? 0}</p></div>
+                <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>Experiencia</p><p className="text-xl font-bold mt-1">{applicantProfile.xp_total ?? 0} XP</p></div>
+                <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>Racha</p><p className="text-xl font-bold mt-1">{applicantProfile.racha_entregas ?? 0}</p></div>
+                <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>Insignias</p><p className="text-xl font-bold mt-1">{applicantProfile.insignias_total ?? applicantBadges.length}</p></div>
+              </div>
+              <div><h3 className="text-sm font-semibold mb-3">Medallas obtenidas</h3><BadgeGrid badges={applicantBadges as Badge[]} maxVisible={8} /></div>
+              {selectedSolicitud?.mensaje && <div className="p-4 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}><p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>Mensaje para unirse</p>{selectedSolicitud.mensaje}</div>}
+              <div><label className="block text-sm font-medium mb-2">Mensaje para el voluntario <span className="font-normal" style={{ color: "var(--text-muted)" }}>(opcional)</span></label><textarea value={mensajeRespuesta} onChange={(event) => setMensajeRespuesta(event.target.value)} rows={3} maxLength={2000} placeholder="Ej. Bienvenido/a al equipo, revisá los manuales al ingresar." className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }} /></div>
+            </div>
+          ) : <p className="text-sm" style={{ color: "var(--text-muted)" }}>No se pudo cargar el perfil de este solicitante.</p>}
+        </Modal>
+
+        <Modal
+          open={!!confirmacionEstado && !!selectedSolicitud}
+          onClose={() => setConfirmacionEstado(null)}
+          title={confirmacionEstado === "aprobada" ? "Confirmar aprobación" : "Confirmar rechazo"}
+          description={confirmacionEstado === "aprobada" ? "El voluntario será añadido a la organización y recibirá una notificación." : "El voluntario recibirá una notificación con el resultado de su solicitud."}
+          footer={<><button onClick={() => setConfirmacionEstado(null)} className="px-4 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>Volver</button><button onClick={() => { if (!selectedSolicitud || !confirmacionEstado) return; reviewMutation.mutate({ id: selectedSolicitud.id, estado: confirmacionEstado, mensaje: mensajeRespuesta }, { onSuccess: () => { setConfirmacionEstado(null); setSelectedSolicitud(null); setMensajeRespuesta(""); } }); }} disabled={reviewMutation.isPending} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ background: confirmacionEstado === "aprobada" ? "var(--accent)" : "#dc2626", color: "white" }}>{reviewMutation.isPending ? "Procesando…" : confirmacionEstado === "aprobada" ? "Sí, aprobar" : "Sí, rechazar"}</button></>}
+        >
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Revisá el perfil y el mensaje antes de confirmar esta acción.</p>
+        </Modal>
       </div>
     </>
   );

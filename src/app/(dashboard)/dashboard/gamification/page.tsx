@@ -55,7 +55,7 @@ export default function GamificationPage() {
       gamificationApi.getBadges(user.id, activeOrgId ?? undefined),
       gamificationApi.getRanking(),
       activeOrgId ? gamificationApi.getRanking(activeOrgId) : Promise.resolve([] as RankingEntry[]),
-      gamificationApi.getSeasons(activeOrgId ?? undefined),
+      activeOrgId ? gamificationApi.getSeasons(activeOrgId) : Promise.resolve([] as Season[]),
       gamificationApi.listCertificates(user.id, activeOrgId ?? undefined),
     ])
       .then(([p, b, rGlobal, rOrg, s, c]) => {

@@ -49,16 +49,12 @@ function showBrowserNotification(n: Notification) {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(
+    () => typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted"
+  );
   const panelRef = useRef<HTMLDivElement>(null);
   const prevIdsRef = useRef<Set<string>>(new Set());
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPushEnabled(Notification.permission === "granted");
-    }
-  }, []);
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications"],

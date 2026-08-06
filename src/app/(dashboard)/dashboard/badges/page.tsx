@@ -229,7 +229,7 @@ function BadgeFormPreview({
   );
 }
 
-function BadgeDataExplainer() {
+export function BadgeDataExplainer() {
   return (
     <details
       className="rounded-xl p-3 sm:p-4 text-xs leading-relaxed group min-w-0"
@@ -598,7 +598,6 @@ export default function BadgesPage() {
             />
           </div>
 
-          <BadgeDataExplainer />
         </div>
       </Modal>
 

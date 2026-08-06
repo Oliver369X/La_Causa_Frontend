@@ -54,7 +54,10 @@ export function getNotificationHref(notification: Notification): string | null {
   if (entityType === "certificado" && notification.entidad_id) {
     return "/dashboard/certificates";
   }
-  if (entityType === "evento_solicitud" && notification.entidad_id) {
+  if (entityType === "evento_solicitud_recibida" && notification.entidad_id) {
+    return `/dashboard/events/${notification.entidad_id}?tab=solicitudes`;
+  }
+  if (["evento_solicitud", "evento_solicitud_resultado"].includes(entityType ?? "") && notification.entidad_id) {
     return `/dashboard/events/${notification.entidad_id}`;
   }
   if (entityType === "solicitud_membresia" && notification.entidad_id) {

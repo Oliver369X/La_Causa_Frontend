@@ -14,6 +14,7 @@ export interface Task {
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
+  requiere_evidencia?: boolean;
   insignia_id?: string;
   created_at?: string;
 }
@@ -31,6 +32,7 @@ export interface CreateTaskData {
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
+  requiere_evidencia?: boolean;
   insignia_id?: string;
 }
 
@@ -49,6 +51,7 @@ interface BackendTask {
   fecha_vencimiento?: string;
   multiplicador_elo?: number;
   requiere_revision_manual?: boolean;
+  requiere_evidencia?: boolean;
   created_at?: string;
 }
 
@@ -80,6 +83,7 @@ function toTask(dto: BackendTask): Task {
     fecha_vencimiento: dto.fecha_vencimiento,
     multiplicador_elo: dto.multiplicador_elo ?? 1,
     requiere_revision_manual: dto.requiere_revision_manual ?? false,
+    requiere_evidencia: dto.requiere_evidencia ?? true,
     created_at: dto.created_at,
   };
 }
@@ -163,6 +167,7 @@ export const tasksApi = {
       fecha_vencimiento: payload.fecha_vencimiento,
       multiplicador_elo: payload.multiplicador_elo ?? 1,
       requiere_revision_manual: payload.requiere_revision_manual ?? false,
+      requiere_evidencia: payload.requiere_evidencia ?? true,
       insignia_id: payload.insignia_id,
     });
     return toTask(data);
@@ -198,6 +203,7 @@ export const tasksApi = {
       fecha_vencimiento: payload.fecha_vencimiento,
       multiplicador_elo: payload.multiplicador_elo,
       requiere_revision_manual: payload.requiere_revision_manual,
+      requiere_evidencia: payload.requiere_evidencia,
       estado: payload.estado ? toBackendStatus(payload.estado) : undefined,
     });
     return toTask(data);

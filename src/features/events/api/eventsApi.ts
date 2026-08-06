@@ -18,6 +18,20 @@ export interface EventApplication {
   usuario_email?: string;
 }
 
+export interface EventParticipant {
+  usuario_id: string;
+  nombre: string;
+  avatar_url?: string | null;
+  xp_total: number;
+  elo_score: number;
+  estado: string;
+  horas_acreditadas: number;
+  rol_evento?: "organizador" | "voluntario";
+  medallas?: { nombre: string; imagen_url: string }[];
+  rango_elo?: string;
+  rango_elo_imagen_url?: string | null;
+}
+
 export interface VolunteerRetrospective {
   evento_id: string;
   usuario_id: string;
@@ -33,6 +47,7 @@ export interface Event {
   creador_id?: string;
   nombre: string;
   descripcion?: string;
+  imagen_url?: string | null;
   estado: EventEstado;
   fecha_inicio: string;
   fecha_fin: string;
@@ -44,12 +59,15 @@ export interface Event {
   created_at?: string;
   updated_at?: string;
   mi_estado_solicitud?: string | null;
+  voluntarios_confirmados?: number;
+  permite_postulaciones_en_curso?: boolean;
 }
 
 export interface CreateEventData {
   organizacion_id: string;
   nombre: string;
   descripcion?: string;
+  imagen_url?: string | null;
   fecha_inicio: string;
   fecha_fin: string;
   cupo_maximo: number;
@@ -60,12 +78,14 @@ export interface CreateEventData {
 export interface UpdateEventData {
   nombre?: string;
   descripcion?: string;
+  imagen_url?: string | null;
   estado?: EventEstado;
   fecha_inicio?: string;
   fecha_fin?: string;
   cupo_maximo?: number;
   campana?: string | null;
   ubicacion_geo?: { lat?: number; lng?: number; direccion?: string };
+  permite_postulaciones_en_curso?: boolean;
 }
 
 interface BackendEvent {
@@ -74,6 +94,7 @@ interface BackendEvent {
   creador_id?: string;
   titulo: string;
   descripcion?: string;
+  imagen_url?: string | null;
   estado: EventEstado;
   fecha_inicio: string;
   fecha_fin: string;
@@ -83,6 +104,9 @@ interface BackendEvent {
   temporada_id?: string | null;
   created_at?: string;
   updated_at?: string;
+  mi_estado_solicitud?: string | null;
+  voluntarios_confirmados?: number;
+  permite_postulaciones_en_curso?: boolean;
 }
 
 /**
@@ -110,6 +134,7 @@ function toEvent(dto: BackendEvent): Event {
     creador_id: dto.creador_id,
     nombre: dto.titulo,
     descripcion: dto.descripcion,
+    imagen_url: dto.imagen_url,
     estado: dto.estado,
     fecha_inicio: dto.fecha_inicio,
     fecha_fin: dto.fecha_fin,
@@ -119,6 +144,9 @@ function toEvent(dto: BackendEvent): Event {
     temporada_id: dto.temporada_id,
     created_at: dto.created_at,
     updated_at: dto.updated_at,
+    mi_estado_solicitud: dto.mi_estado_solicitud ?? null,
+    voluntarios_confirmados: dto.voluntarios_confirmados ?? 0,
+    permite_postulaciones_en_curso: dto.permite_postulaciones_en_curso ?? true,
   };
 }
 
@@ -136,8 +164,16 @@ export const eventsApi = {
     return data.map(toEvent);
   },
 
-  apply: async (eventId: string, mensaje?: string): Promise<unknown> => {
-    const { data } = await apiClient.post(`/eventos/${eventId}/solicitudes`, {
+  /** Catálogo visible desde el perfil público de una organización. */
+  listPublicForOrg: async (orgId: string): Promise<Event[]> => {
+    const { data } = await apiClient.get<BackendEvent[]>('/eventos', {
+      params: { org_id: orgId, publico: true },
+    });
+    return data.map(toEvent);
+  },
+
+  apply: async (eventId: string, mensaje?: string): Promise<EventApplication> => {
+    const { data } = await apiClient.post<EventApplication>(`/eventos/${eventId}/solicitudes`, {
       mensaje_solicitud: mensaje ?? undefined,
     });
     return data;
@@ -164,6 +200,7 @@ export const eventsApi = {
       organizacion_id: payload.organizacion_id,
       titulo: payload.nombre,
       descripcion: payload.descripcion,
+      imagen_url: payload.imagen_url ?? null,
       fecha_inicio: localToIso(payload.fecha_inicio),
       fecha_fin: localToIso(payload.fecha_fin),
       cupo_maximo: payload.cupo_maximo,
@@ -177,12 +214,14 @@ export const eventsApi = {
     const body: Record<string, unknown> = {};
     if (payload.nombre != null) body.titulo = payload.nombre;
     if (payload.descripcion != null) body.descripcion = payload.descripcion;
+    if (payload.imagen_url !== undefined) body.imagen_url = payload.imagen_url;
     if (payload.estado != null) body.estado = payload.estado;
     if (payload.fecha_inicio != null) body.fecha_inicio = localToIso(payload.fecha_inicio);
     if (payload.fecha_fin != null) body.fecha_fin = localToIso(payload.fecha_fin);
     if (payload.cupo_maximo != null) body.cupo_maximo = payload.cupo_maximo;
     if (payload.campana !== undefined) body.campana = payload.campana?.trim() || null;
     if (payload.ubicacion_geo != null) body.ubicacion_geo = payload.ubicacion_geo;
+    if (payload.permite_postulaciones_en_curso != null) body.permite_postulaciones_en_curso = payload.permite_postulaciones_en_curso;
     const { data } = await apiClient.put<BackendEvent>(`/eventos/${eventId}`, body);
     return toEvent(data);
   },
@@ -208,6 +247,16 @@ export const eventsApi = {
     await apiClient.post(`/eventos/${eventId}/retro-voluntario`, payload);
   },
 
+  listParticipants: async (eventId: string): Promise<EventParticipant[]> => {
+    const { data } = await apiClient.get<EventParticipant[]>(`/eventos/${eventId}/participantes`);
+    return data;
+  },
+
+  listPublicParticipants: async (eventId: string): Promise<EventParticipant[]> => {
+    const { data } = await apiClient.get<EventParticipant[]>(`/eventos/${eventId}/participantes-publicos`);
+    return data;
+  },
+
   getMyVoluntarioRetro: async (eventId: string): Promise<VolunteerRetrospective | null> => {
     try {
       const { data } = await apiClient.get<VolunteerRetrospective>(
@@ -231,8 +280,8 @@ export const eventsApi = {
     await apiClient.delete(`/eventos/${eventId}`);
   },
 
-  addOrganizer: async (eventId: string, userId: string): Promise<any> => {
-    const { data } = await apiClient.post(`/eventos/${eventId}/organizadores/${userId}`);
+  addOrganizer: async (eventId: string, userId: string): Promise<unknown> => {
+    const { data } = await apiClient.post<unknown>(`/eventos/${eventId}/organizadores/${userId}`);
     return data;
   },
 

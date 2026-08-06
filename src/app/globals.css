@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Oculta las barras nativas sin desactivar el desplazamiento con rueda o táctil. */
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 /* ── Design tokens ──────────────────────────────── */
 :root {
   --bg:          #ffffff;

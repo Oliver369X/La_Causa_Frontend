@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { analyticsApi } from "@/features/analytics/api/analyticsApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
+import { eventsApi } from "@/features/events/api/eventsApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import {
   FileText,
@@ -22,6 +23,8 @@ import {
   Clock,
   Timer,
   GraduationCap,
+  Wallet,
+  Plus,
 } from "lucide-react";
 import { generateReportPdf } from "@/features/reportes/utils/generateReportPdf";
 import type { ReportMetrics, ReporteTipo } from "@/features/reportes/utils/generateReportPdf";
@@ -97,6 +100,9 @@ export default function ReportesDinamicosPage() {
   const [downloading, setDownloading] = useState(false);
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ categoria: "OperaciÃ³n", descripcion: "", cantidad: "1", costo_unitario: "", moneda: "BOB" });
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats", activeOrgId, startDate, endDate],
@@ -126,6 +132,21 @@ export default function ReportesDinamicosPage() {
       toEndOfDayIso(endDate)
     ),
     enabled: !!activeOrgId && !!startDate && !!endDate && startDate <= endDate,
+  });
+  const { data: events = [] } = useQuery({
+    queryKey: ["analytics-events", activeOrgId],
+    queryFn: () => eventsApi.list(activeOrgId!),
+    enabled: !!activeOrgId,
+  });
+  const { data: eventAnalytics, isLoading: eventAnalyticsLoading } = useQuery({
+    queryKey: ["event-analytics", selectedEventId],
+    queryFn: () => analyticsApi.event(selectedEventId),
+    enabled: !!selectedEventId,
+  });
+  const { data: expenses = [], refetch: refetchExpenses } = useQuery({
+    queryKey: ["event-expenses", selectedEventId],
+    queryFn: () => analyticsApi.listExpenses(selectedEventId),
+    enabled: !!selectedEventId,
   });
 
   const totalVolunteers = stats?.total_volunteers ?? 0;
@@ -220,6 +241,18 @@ export default function ReportesDinamicosPage() {
 
   const toggleMetric = (key: keyof ReportMetrics) => {
     setMetrics((m) => ({ ...m, [key]: !m[key] }));
+  };
+
+  const handleCreateExpense = async () => {
+    if (!selectedEventId || !expenseForm.descripcion || !expenseForm.costo_unitario) return;
+    await analyticsApi.createExpense(selectedEventId, {
+      ...expenseForm,
+      cantidad: Number(expenseForm.cantidad),
+      costo_unitario: Number(expenseForm.costo_unitario),
+    });
+    setExpenseForm({ categoria: "OperaciÃ³n", descripcion: "", cantidad: "1", costo_unitario: "", moneda: "BOB" });
+    setShowExpenseForm(false);
+    await refetchExpenses();
   };
 
   return (
@@ -584,6 +617,62 @@ export default function ReportesDinamicosPage() {
                 </div>
               </div>
             )}
+
+            {/* Notificaciones recientes */}
+            <div className="p-6 rounded-2xl mt-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                  <p className="font-semibold text-sm">Detalle por evento</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Tareas, participación, impacto y gastos del evento seleccionado.</p>
+                </div>
+                <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} className="px-3 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                  <option value="">Selecciona un evento</option>
+                  {events.map((event) => <option key={event.id} value={event.id}>{event.nombre}</option>)}
+                </select>
+              </div>
+              {selectedEventId && eventAnalyticsLoading && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando detalle...</p>}
+              {selectedEventId && eventAnalytics && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                    <StatCard label="Voluntarios" value={eventAnalytics.voluntarios_registrados} icon={Users} />
+                    <StatCard label="Tareas" value={`${eventAnalytics.tareas_completadas}/${eventAnalytics.tareas_totales}`} icon={CheckSquare} />
+                    <StatCard label="Horas" value={eventAnalytics.horas_voluntarias} icon={Clock} />
+                    <StatCard label="ELO máximo" value={eventAnalytics.elo_maximo} icon={TrendingUp} />
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-xs mb-5" style={{ color: "var(--text-muted)" }}>
+                    <span>Entregas aprobadas: <strong style={{ color: "var(--text)" }}>{eventAnalytics.entregas_aprobadas}</strong></span>
+                    <span>Rechazadas: <strong style={{ color: "var(--text)" }}>{eventAnalytics.entregas_rechazadas}</strong></span>
+                    <span>XP acumulada de participantes: <strong style={{ color: "var(--text)" }}>{eventAnalytics.xp_generada}</strong></span>
+                    {eventAnalytics.mejor_voluntario && <span>Mejor voluntario: <strong style={{ color: "var(--text)" }}>{eventAnalytics.mejor_voluntario.nombre}</strong></span>}
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div>
+                      <p className="text-sm font-semibold mb-3">Voluntarios destacados</p>
+                      {eventAnalytics.voluntarios.length === 0 ? <p className="text-sm" style={{ color: "var(--text-muted)" }}>Sin voluntarios registrados.</p> : (
+                        <div className="space-y-2">
+                          {eventAnalytics.voluntarios.slice(0, 8).map((volunteer, index) => (
+                            <div key={volunteer.usuario_id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                              <div><span className="text-xs mr-2" style={{ color: "var(--text-muted)" }}>#{index + 1}</span><span className="text-sm font-medium">{volunteer.nombre}</span><p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{volunteer.tareas_completadas} tareas · {volunteer.horas} h · {volunteer.elo} ELO</p></div>
+                              <span className="text-xs" style={{ color: "var(--accent)" }}>{volunteer.xp} XP</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold">Gastos del evento</p><button onClick={() => setShowExpenseForm((v) => !v)} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}><Plus className="w-3 h-3" /> Añadir</button></div>
+                      {showExpenseForm && <div className="grid grid-cols-2 gap-2 mb-3 p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}><input placeholder="Categoría" value={expenseForm.categoria} onChange={(e) => setExpenseForm({ ...expenseForm, categoria: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input placeholder="Descripción" value={expenseForm.descripcion} onChange={(e) => setExpenseForm({ ...expenseForm, descripcion: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input type="number" min="0" placeholder="Cantidad" value={expenseForm.cantidad} onChange={(e) => setExpenseForm({ ...expenseForm, cantidad: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input type="number" min="0" step="0.01" placeholder="Costo unitario" value={expenseForm.costo_unitario} onChange={(e) => setExpenseForm({ ...expenseForm, costo_unitario: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><button onClick={handleCreateExpense} className="col-span-2 py-2 rounded-lg text-sm" style={{ background: "var(--accent)", color: "white" }}>Guardar gasto</button></div>}
+                      {Object.entries(eventAnalytics.gastos_por_moneda).length === 0 ? <p className="text-sm" style={{ color: "var(--text-muted)" }}>Sin gastos registrados.</p> : Object.entries(eventAnalytics.gastos_por_moneda).map(([currency, total]) => <div key={currency} className="flex justify-between p-3 rounded-xl mb-2" style={{ background: "var(--bg-subtle)" }}><span className="text-sm flex items-center gap-2"><Wallet className="w-4 h-4" />Total {currency}</span><span className="font-semibold">{Number(total).toFixed(2)}</span></div>)}
+                      {expenses.length > 0 && <div className="mt-3 space-y-2">{expenses.map((expense) => <div key={expense.id} className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}><span>{expense.descripcion} · {expense.cantidad} × {expense.costo_unitario}</span><span>{expense.total.toFixed(2)} {expense.moneda}</span></div>)}</div>}
+                    </div>
+                  </div>
+                  <div className="mt-5">
+                    <p className="text-sm font-semibold mb-3">Desglose de tareas</p>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr style={{ color: "var(--text-muted)" }}><th className="text-left py-2">Tarea</th><th className="text-right py-2">Asignaciones</th><th className="text-right py-2">Completadas</th><th className="text-right py-2">Gastos</th></tr></thead><tbody>{eventAnalytics.tareas.map((task) => <tr key={task.tarea_id} style={{ borderTop: "1px solid var(--border)" }}><td className="py-2">{task.titulo}</td><td className="text-right">{task.asignaciones}</td><td className="text-right">{task.completadas}</td><td className="text-right">{Object.entries(task.gastos).map(([currency, total]) => `${Number(total).toFixed(2)} ${currency}`).join(" · ") || "—"}</td></tr>)}</tbody></table></div>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Notificaciones recientes */}
             <div className="p-6 rounded-2xl mt-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>

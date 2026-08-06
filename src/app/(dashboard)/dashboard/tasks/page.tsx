@@ -616,6 +616,19 @@ function TasksPageContent() {
               <div className="md:col-span-2 flex items-start gap-3">
                 <input
                   type="checkbox"
+                  id="req-evidence"
+                  checked={(formData as { requiere_evidencia?: boolean }).requiere_evidencia !== false}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, requiere_evidencia: e.target.checked }))}
+                  className="mt-1"
+                />
+                <label htmlFor="req-evidence" className="text-sm cursor-pointer" style={{ color: "var(--text-muted)" }}>
+                  <span className="font-medium" style={{ color: "var(--text)" }}>Requiere entrega de evidencia</span>
+                  {" — "}Desactívalo si esta tarea se valida por asistencia, registro u otro control interno.
+                </label>
+              </div>
+              <div className="md:col-span-2 flex items-start gap-3">
+                <input
+                  type="checkbox"
                   id="req-revision-manual"
                   checked={Boolean((formData as { requiere_revision_manual?: boolean }).requiere_revision_manual)}
                   onChange={(e) => setFormData((prev) => ({ ...prev, requiere_revision_manual: e.target.checked }))}

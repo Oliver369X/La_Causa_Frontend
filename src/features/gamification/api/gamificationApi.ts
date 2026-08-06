@@ -259,8 +259,8 @@ export const gamificationApi = {
     return data;
   },
 
-  getSeasons: async (organizacionId?: string): Promise<Season[]> => {
-    const params = organizacionId ? { organizacion_id: organizacionId } : {};
+  getSeasons: async (organizacionId: string): Promise<Season[]> => {
+    const params = { organizacion_id: organizacionId };
     const { data } = await apiClient.get<Season[]>(EP.SEASONS, { params });
     return data;
   },
