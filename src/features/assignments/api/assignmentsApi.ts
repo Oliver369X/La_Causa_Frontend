@@ -35,6 +35,7 @@ export interface CreateAssignmentData {
   tipo?: "individual" | "equipo";
   usuario_id?: UUID;
   equipo_id?: UUID;
+  confirmar_conflicto_evento?: boolean;
 }
 
 export interface UpdateAssignmentData {

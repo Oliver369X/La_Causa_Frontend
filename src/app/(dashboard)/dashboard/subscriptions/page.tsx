@@ -9,10 +9,10 @@ import { Badge } from "@/shared/ui/Badge";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
 import { CreditCard, Check } from "lucide-react";
-import { bobToUsdHint, formatBob } from "@/shared/config/pricingPlans";
+import { usdBillingHint, formatUsd } from "@/shared/config/pricingPlans";
 
 export default function SubscriptionsPage() {
-  const { activeOrgId, user } = useAuthStore();
+  const { activeOrgId, setActiveOrg, user } = useAuthStore();
   const { can, isVolunteerExperience } = usePermissions();
   const canManage      = can("managePlans");
   const isVolunteer    = isVolunteerExperience;
@@ -41,6 +41,7 @@ export default function SubscriptionsPage() {
     if (typeof window === "undefined" || !activeOrgId || stripeReturnSynced.current) return;
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
+    const checkoutOrgId = params.get("checkout_org_id") || activeOrgId;
     if (!sessionId) return;
     stripeReturnSynced.current = true;
 
@@ -48,8 +49,9 @@ export default function SubscriptionsPage() {
       try {
         const res = await subscriptionsApi.syncCheckoutSession({
           session_id: sessionId,
-          organizacion_id: activeOrgId,
+          organizacion_id: checkoutOrgId,
         });
+        if (checkoutOrgId !== activeOrgId) setActiveOrg(checkoutOrgId);
         toast.success(res.mensaje);
         if (res.factura_url) {
           toast.message("Factura / comprobante", {
@@ -60,7 +62,7 @@ export default function SubscriptionsPage() {
             },
           });
         }
-        const sub = await subscriptionsApi.getOrgSubscription(activeOrgId);
+        const sub = await subscriptionsApi.getOrgSubscription(checkoutOrgId);
         setSubscription(sub);
       } catch (err: unknown) {
         const detail =
@@ -72,7 +74,7 @@ export default function SubscriptionsPage() {
         window.history.replaceState({}, "", "/dashboard/subscriptions");
       }
     })();
-  }, [activeOrgId]);
+  }, [activeOrgId, setActiveOrg]);
 
   const handleSubscribe = async (plan: Plan) => {
     if (!activeOrgId) return;
@@ -94,7 +96,9 @@ export default function SubscriptionsPage() {
         organizacion_id: activeOrgId,
         plan_id: plan.id,
         frecuencia: "mensual",
-        success_url: `${origin}/dashboard/subscriptions`,
+        // Stripe sustituye este placeholder al completar el pago. Sin él no
+        // podemos ejecutar el sync local cuando el webhook no está levantado.
+        success_url: `${origin}/dashboard/subscriptions?checkout_org_id=${encodeURIComponent(activeOrgId)}&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/dashboard/subscriptions`,
       });
       if (checkout_url) {
@@ -106,7 +110,7 @@ export default function SubscriptionsPage() {
       const msg = err && typeof err === "object" && "response" in err
         ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
         : null;
-      setCheckoutError(msg || "Error al crear la sesión de pago. Verifica que Stripe esté configurado.");
+      setCheckoutError(msg || "Error al crear la sesión de pago. Verifica STRIPE_SECRET_KEY y STRIPE_PRICE_PROFESSIONAL.");
     } finally {
       setSubscribing(null);
     }
@@ -214,6 +218,12 @@ export default function SubscriptionsPage() {
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {plans.map((plan) => {
             const isActive = subscription?.plan_id === plan.id;
+            const hasActiveSubscription = subscription != null &&
+              (subscription.estado === "activa" || subscription.estado === "periodo_prueba");
+            const activePlan = plans.find((candidate) => candidate.id === subscription?.plan_id);
+            const activePlanIsPaid = hasActiveSubscription && Number(activePlan?.precio_mensual ?? 0) > 0;
+            const planIsUpgrade = Number(plan.precio_mensual) > Number(activePlan?.precio_mensual ?? 0);
+            const canChoosePlan = !hasActiveSubscription || !activePlanIsPaid || planIsUpgrade;
             return (
               <Card key={plan.id} className={isActive ? "ring-2 ring-[var(--accent)]" : ""}>
                 <div className="flex items-start justify-between mb-2">
@@ -224,14 +234,14 @@ export default function SubscriptionsPage() {
                   <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>{plan.descripcion}</p>
                 )}
                 <p className="text-2xl font-bold mb-1">
-                  {formatBob(plan.precio_mensual)}
+                  {formatUsd(plan.precio_mensual)}
                   {plan.precio_mensual > 0 && (
                     <span className="text-xs font-normal ml-1" style={{ color: "var(--text-muted)" }}>/mes</span>
                   )}
                 </p>
                 {plan.precio_mensual > 0 && (
                   <p className="text-[11px] mb-4" style={{ color: "var(--text-muted)" }}>
-                    {bobToUsdHint(plan.precio_mensual)}
+                    {usdBillingHint(plan.precio_mensual)}
                   </p>
                 )}
                 {plan.precio_mensual <= 0 && <div className="mb-4" />}
@@ -251,7 +261,7 @@ export default function SubscriptionsPage() {
                     </li>
                   ))}
                 </ul>
-                {canManage && !isActive && (
+                {canManage && !isActive && canChoosePlan && (
                   <Button
                     size="sm"
                     className="w-full"
@@ -269,6 +279,11 @@ export default function SubscriptionsPage() {
                 {isActive && (
                   <Button variant="outline" size="sm" className="w-full" disabled>
                     Plan actual
+                  </Button>
+                )}
+                {canManage && !isActive && !canChoosePlan && (
+                  <Button variant="outline" size="sm" className="w-full" disabled>
+                    Plan no disponible
                   </Button>
                 )}
               </Card>

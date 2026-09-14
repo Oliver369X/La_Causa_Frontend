@@ -49,6 +49,12 @@ export default function RetrospectivaPage() {
     enabled: !!eventId,
   });
 
+  const { data: volunteerRetros = [] } = useQuery({
+    queryKey: ["volunteer-retrospectives", eventId],
+    queryFn: () => eventsApi.listVolunteerRetrospectives(eventId),
+    enabled: !!eventId,
+  });
+
   const createMutation = useMutation({
     mutationFn: () => retrospectivaApi.create(eventId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["retrospectiva", eventId] }),
@@ -88,6 +94,7 @@ export default function RetrospectivaPage() {
     if (noRetroYet && !createMutation.isPending) {
       const canCreate = event?.estado === "finalizado";
       return (
+        <div className="space-y-6">
         <div className="text-center py-16 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
           <MessageSquare className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--text-muted)" }} />
           <p className="mb-2" style={{ color: "var(--text-muted)" }}>
@@ -109,11 +116,14 @@ export default function RetrospectivaPage() {
             </button>
           )}
         </div>
+        <VolunteerReflections retros={volunteerRetros} />
+        </div>
       );
     }
 
     if (retro) {
       return (
+        <div className="space-y-8">
         <RetrospectivaBoard
           retro={retro}
           onAddItem={(columna, contenido, es_anonimo) =>
@@ -124,6 +134,8 @@ export default function RetrospectivaPage() {
           isAdding={addItemMutation.isPending}
           isClosing={closeMutation.isPending}
         />
+        <VolunteerReflections retros={volunteerRetros} />
+        </div>
       );
     }
 
@@ -155,6 +167,35 @@ export default function RetrospectivaPage() {
         {renderContent()}
       </div>
     </>
+  );
+}
+
+function VolunteerReflections({
+  retros,
+}: {
+  retros: import("@/features/events/api/eventsApi").VolunteerRetrospective[];
+}) {
+  return (
+    <section className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <h3 className="text-lg font-semibold mb-1">Reflexiones de voluntarios</h3>
+      <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
+        Respuestas enviadas después de finalizar el evento.
+      </p>
+      {retros.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Todavía no hay reflexiones enviadas.</p>
+      ) : (
+        <div className="space-y-4">
+          {retros.map((retro, index) => (
+            <article key={`${retro.usuario_id}-${index}`} className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-subtle)" }}>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>Voluntario {index + 1}</p>
+              <div><strong className="text-sm">Qué salió bien</strong><p className="text-sm mt-1">{retro.que_bien}</p></div>
+              <div><strong className="text-sm">Qué mejorar</strong><p className="text-sm mt-1">{retro.que_mejorar}</p></div>
+              <div><strong className="text-sm">Acción propuesta</strong><p className="text-sm mt-1">{retro.accion}</p></div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

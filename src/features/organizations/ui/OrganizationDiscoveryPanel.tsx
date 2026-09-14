@@ -19,6 +19,7 @@ interface OrganizationDiscoveryPanelProps {
   emptyMessage?: string;
   limit?: number;
   onExplore?: () => void;
+  isVolunteer?: boolean;
 }
 
 export function OrganizationDiscoveryPanel({
@@ -35,6 +36,7 @@ export function OrganizationDiscoveryPanel({
   emptyMessage = "No hay organizaciones disponibles aún.",
   limit,
   onExplore,
+  isVolunteer = true,
 }: OrganizationDiscoveryPanelProps) {
   const [modalOrg, setModalOrg] = useState<Organization | null>(null);
   const [aceptoTerminos, setAceptoTerminos] = useState(false);
@@ -57,11 +59,17 @@ export function OrganizationDiscoveryPanel({
     };
   }, [modalOrg]);
 
-  const yaEsMiembro = (orgId: string) => misOrgs.some((org) => org.id === orgId);
+  const yaEsMiembro = (orgId: string) =>
+    misOrgs.some((org) => org.id === orgId) ||
+    misSolicitudes.some((solicitud) => solicitud.organizacion_id === orgId && solicitud.estado === "aprobada");
   const tieneSolicitud = (orgId: string) =>
     misSolicitudes.some((solicitud) => solicitud.organizacion_id === orgId && ["pendiente", "aprobada"].includes(solicitud.estado));
 
   const puedeUnirse = (org: Organization) => !yaEsMiembro(org.id) && !tieneSolicitud(org.id);
+  const esDuenio = (orgId: string) => {
+    const org = misOrgs.find((o) => o.id === orgId);
+    return org ? Boolean(org.soy_propietario) : false;
+  };
 
   return (
     <>
@@ -159,16 +167,18 @@ export function OrganizationDiscoveryPanel({
                   ) : null}
 
                   {puedeUnirse(org) ? (
-                    <button
-                      onClick={() => {
-                        onExplore?.();
-                        setModalOrg(org);
-                      }}
-                      className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-medium"
-                      style={{ background: "var(--accent)", color: "white" }}
-                    >
-                      <UserPlus className="w-3 h-3" /> Solicitar unirme
-                    </button>
+                    isVolunteer ? (
+                      <button
+                        onClick={() => {
+                          onExplore?.();
+                          setModalOrg(org);
+                        }}
+                        className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ background: "var(--accent)", color: "white" }}
+                      >
+                        <UserPlus className="w-3 h-3" /> Solicitar unirme
+                      </button>
+                    ) : null
                   ) : tieneSolicitud(org.id) ? (
                     <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                       Solicitud enviada
@@ -182,7 +192,7 @@ export function OrganizationDiscoveryPanel({
                       >
                         <Trophy className="w-3 h-3" /> Ver como miembro
                       </Link>
-                      {onLeave ? (
+                      {onLeave && !esDuenio(org.id) ? (
                         <button
                           onClick={() => {
                             if (confirm("¿Dejar esta organización?")) onLeave(org.id);

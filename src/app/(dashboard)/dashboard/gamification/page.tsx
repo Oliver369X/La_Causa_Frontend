@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, GraduationCap, Share2, Target, Award, ChevronRight } from "lucide-react";
-import { gamificationApi, type RankingEntry, type Badge, type CompetitiveProfile, type Season, type Certificate } from "@/features/gamification/api/gamificationApi";
+import { gamificationApi, type RankingEntry, type Badge, type CompetitiveProfile, type Season, type Certificate, type HistoricalRankingEntry } from "@/features/gamification/api/gamificationApi";
 import { shareApi, type ShareCanal } from "@/features/share/api/shareApi";
 import { ShareModal } from "@/features/share/ui/ShareModal";
 import { useAuthStore } from "@/shared/store/authStore";
@@ -15,11 +16,14 @@ import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
 import { GamificationSoundPanel } from "@/features/gamification/ui/GamificationSoundPanel";
 import { RewardCard, ProgressCard } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
+import { useCelebrationStore } from "@/shared/store/celebrationStore";
 
 const XP_PER_LEVEL = 100;
 
 export default function GamificationPage() {
   const { user, activeOrgId } = useAuthStore();
+  const searchParams = useSearchParams();
+  const showCelebration = useCelebrationStore((s) => s.show);
 
   const [profile, setProfile] = useState<CompetitiveProfile | null>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
@@ -27,12 +31,14 @@ export default function GamificationPage() {
   const [rankingOrg, setRankingOrg] = useState<RankingEntry[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [seasonHistory, setSeasonHistory] = useState<Array<{ season: Season; snapshot: HistoricalRankingEntry | null; badgeCount: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"badges" | "certificados" | "ranking">("badges");
   const [rankingScope, setRankingScope] = useState<"org" | "global">(activeOrgId ? "org" : "global");
   const [shareBadgeId, setShareBadgeId] = useState<string | null>(null);
   const [shareCertId, setShareCertId] = useState<string | null>(null);
   const [shareProfileOpen, setShareProfileOpen] = useState(false);
+  const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
 
   const activeSeason = seasons.find((s) => s.activa);
 
@@ -45,12 +51,12 @@ export default function GamificationPage() {
     if (!user?.id) return;
     setLoading(true);
     Promise.all([
-      gamificationApi.getProfile(user.id),
-      gamificationApi.getBadges(user.id),
+      gamificationApi.getProfile(user.id, activeOrgId ?? undefined),
+      gamificationApi.getBadges(user.id, activeOrgId ?? undefined),
       gamificationApi.getRanking(),
       activeOrgId ? gamificationApi.getRanking(activeOrgId) : Promise.resolve([] as RankingEntry[]),
-      gamificationApi.getSeasons(activeOrgId ?? undefined),
-      gamificationApi.listCertificates(user.id),
+      activeOrgId ? gamificationApi.getSeasons(activeOrgId) : Promise.resolve([] as Season[]),
+      gamificationApi.listCertificates(user.id, activeOrgId ?? undefined),
     ])
       .then(([p, b, rGlobal, rOrg, s, c]) => {
         setProfile(p);
@@ -64,11 +70,59 @@ export default function GamificationPage() {
       .finally(() => setLoading(false));
   }, [user?.id, activeOrgId]);
 
+  useEffect(() => {
+    if (!user?.id || !activeOrgId || seasons.length === 0) {
+      setSeasonHistory([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      seasons.map(async (season) => {
+        const rows = season.activa ? [] : await gamificationApi.getHistoricalRanking(season.id);
+        const snapshot = rows.find((row) => row.usuario_id === user.id) ?? null;
+        const start = new Date(`${season.fecha_inicio}T00:00:00`).getTime();
+        const end = new Date(`${season.fecha_fin}T23:59:59`).getTime();
+        const badgeCount = badges.filter((badge) => {
+          if (badge.organizacion_id !== activeOrgId || !badge.fecha_obtencion) return false;
+          const obtained = new Date(badge.fecha_obtencion).getTime();
+          return obtained >= start && obtained <= end;
+        }).length;
+        return { season, snapshot, badgeCount };
+      }),
+    ).then((history) => { if (!cancelled) setSeasonHistory(history); }).catch(() => { if (!cancelled) setSeasonHistory([]); });
+    return () => { cancelled = true; };
+  }, [user?.id, activeOrgId, seasons, badges]);
+
+  useEffect(() => {
+    const badgeId = searchParams.get("badge_id");
+    if (badgeId && badges.length > 0) {
+      setSelectedBadge(badges.find((badge) => badge.id === badgeId || badge.insignia_id === badgeId) ?? null);
+    }
+  }, [badges, searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("celebration") !== "reward") return;
+    showCelebration({
+      tarea_titulo: searchParams.get("task") ?? undefined,
+      delta_xp: Number(searchParams.get("xp")) || undefined,
+      delta_elo: Number(searchParams.get("elo")) || undefined,
+    });
+  }, [searchParams, showCelebration]);
+
   const xpTotal = profile?.xp_total ?? 0;
   const nivel = profile?.nivel ?? Math.floor(xpTotal / XP_PER_LEVEL) + 1;
   const xpEnNivel = xpTotal % XP_PER_LEVEL;
   const xpFaltante = XP_PER_LEVEL - xpEnNivel;
   const recentBadges = badges.slice(0, 3);
+  const badgesByOrganization = Array.from(
+    badges.reduce((groups, badge) => {
+      const organizationName = badge.organizacion_nombre ?? "Medallas generales";
+      const group = groups.get(organizationName) ?? [];
+      group.push(badge);
+      groups.set(organizationName, group);
+      return groups;
+    }, new Map<string, Badge[]>()),
+  );
   const visibleRanking = rankingScope === "org" && activeOrgId ? rankingOrg : ranking;
   const myRank = visibleRanking.findIndex((e) => e.usuario_id === user?.id) + 1;
 
@@ -85,6 +139,35 @@ export default function GamificationPage() {
           throw new Error("No item to share");
         }}
       />
+
+      {selectedBadge && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,.58)" }}
+          onClick={() => setSelectedBadge(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-6"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden shrink-0" style={{ background: "var(--g-epic-soft)", border: "2px solid var(--g-epic)" }}>
+                {selectedBadge.imagen_url ? <img src={selectedBadge.imagen_url} alt={selectedBadge.nombre} className="w-full h-full object-cover" /> : <Award className="w-9 h-9" />}
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold">{selectedBadge.nombre}</h2>
+                <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>{selectedBadge.descripcion || "Sin descripción."}</p>
+                <div className="flex flex-wrap gap-2 mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                  <span className="px-2 py-1 rounded-full" style={{ background: "var(--bg-subtle)" }}>{selectedBadge.rareza ?? "common"}</span>
+                  {selectedBadge.puntos != null && <span className="px-2 py-1 rounded-full" style={{ background: "var(--bg-subtle)" }}>+{selectedBadge.puntos} XP</span>}
+                  {selectedBadge.fecha_obtencion && <span className="px-2 py-1 rounded-full" style={{ background: "var(--bg-subtle)" }}>{new Date(selectedBadge.fecha_obtencion).toLocaleDateString("es-ES")}</span>}
+                </div>`r`n              </div>
+            </div>
+            <button type="button" onClick={() => setSelectedBadge(null)} className="w-full mt-6 px-4 py-2 rounded-full text-sm font-medium" style={{ background: "var(--text)", color: "var(--bg)" }}>Cerrar</button>
+          </div>
+        </div>
+      )}
 
       {/* Hero header */}
       <motion.div
@@ -138,6 +221,14 @@ export default function GamificationPage() {
                       nombre: profile.nombre ?? user?.nombre ?? "Voluntario",
                       avatar_url: profile.avatar_url ?? user?.avatar_url,
                     }}
+                    currentBadge={badges.find((badge) =>
+                      badge.organizacion_id === activeOrgId &&
+                      badge.nombre?.toUpperCase().startsWith(`${(profile.rango ?? "").toUpperCase()}-`),
+                    ) ?? null}
+                    currentBadgeOrgName={badges.find((badge) =>
+                      badge.organizacion_id === activeOrgId &&
+                      badge.nombre?.toUpperCase().startsWith(`${(profile.rango ?? "").toUpperCase()}-`),
+                    )?.organizacion_nombre}
                   />
                 </div>
                 <motion.button
@@ -154,6 +245,27 @@ export default function GamificationPage() {
                 </motion.button>
               </div>
             </div>
+          )}
+
+          {seasonHistory.length > 0 && (
+            <ProgressCard>
+              <h3 className="text-sm font-semibold mb-3">Historial por temporada</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {seasonHistory.map(({ season, snapshot, badgeCount }) => (
+                  <div key={season.id} className="rounded-xl p-4" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="font-semibold text-sm">{season.nombre}</p>
+                      <span className="text-[10px]" style={{ color: season.activa ? "var(--g-logro)" : "var(--text-muted)" }}>{season.activa ? "Activa" : "Cerrada"}</span>
+                    </div>
+                    {snapshot ? (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>Rango maximo: {snapshot.rango_final ?? "-"} · {snapshot.elo_final} ELO · {badgeCount} medallas</p>
+                    ) : (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{season.activa ? "Temporada en curso." : "Sin registro historico."}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ProgressCard>
           )}
 
           {/* Next goal + Recent rewards */}
@@ -301,7 +413,7 @@ export default function GamificationPage() {
                                 </p>
                               </div>
                               <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--g-energia)" }}>
-                                {entry.puntos_elo ?? entry.elo_score ?? 0} ELO
+                                {rankingScope === "global" ? `${entry.xp_total ?? 0} XP` : `${entry.puntos_elo ?? entry.elo_score ?? 0} ELO`}
                               </span>
                             </Link>
                           </motion.li>
@@ -330,14 +442,22 @@ export default function GamificationPage() {
                   </ProgressCard>
                 ) : (
                   <div className="g-progress-card p-5">
-                    <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+                    <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
                       Tus medallas: {badges.length} insignia{badges.length !== 1 ? "s" : ""} obtenida{badges.length !== 1 ? "s" : ""}
                     </p>
-                    <BadgeGrid
-                      badges={badges.map((b) => ({ ...b, rareza: (b.rareza ?? "common") as Badge["rareza"] }))}
-                      maxVisible={50}
-                      onShare={(b) => setShareBadgeId(b.id)}
-                    />
+                    <div className="space-y-6">
+                      {badgesByOrganization.map(([organizationName, organizationBadges]) => (
+                        <section key={organizationName}>
+                          <h3 className="text-sm font-semibold mb-3">{organizationName}</h3>
+                          <BadgeGrid
+                            badges={organizationBadges.map((b) => ({ ...b, rareza: (b.rareza ?? "common") as Badge["rareza"] }))}
+                            maxVisible={50}
+                            onShare={(b) => setShareBadgeId(b.id)}
+                            onSelect={setSelectedBadge}
+                          />
+                        </section>
+                      ))}
+                    </div>
                   </div>
                 )}
               </motion.div>

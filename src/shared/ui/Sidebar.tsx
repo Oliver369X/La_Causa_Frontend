@@ -22,9 +22,11 @@ import {
   FileText,
   PanelLeftClose,
   PanelLeft,
+  Crown,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
+import { subscriptionsApi } from "@/features/subscriptions/api/subscriptionsApi";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useTheme } from "@/shared/store/themeStore";
@@ -92,6 +94,24 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     enabled: !!user?.id,
   });
 
+  const { data: activeBilling } = useQuery({
+    queryKey: ["org-subscription", activeOrgId],
+    queryFn: async () => {
+      const [subscription, plans] = await Promise.all([
+        subscriptionsApi.getOrgSubscription(activeOrgId!),
+        subscriptionsApi.listPlans(),
+      ]);
+      return { subscription, plan: plans.find((plan) => plan.id === subscription?.plan_id) };
+    },
+    enabled: !!activeOrgId,
+    refetchInterval: 30_000,
+  });
+  const activePlanName = activeBilling?.plan?.nombre.toLowerCase() ?? "";
+  const isActivePaidPlan = activeBilling?.subscription?.estado === "activa" ||
+    activeBilling?.subscription?.estado === "periodo_prueba";
+  const isCorporateOrganization = isActivePaidPlan && activePlanName.includes("corpor");
+  const isProOrganization = isActivePaidPlan && !isCorporateOrganization && activePlanName.includes("pro");
+
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const selectedOrg = myOrgs.find((o) => o.id === activeOrgId);
   const activeRoleLabel =
@@ -119,6 +139,15 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     void qc.invalidateQueries({ queryKey: ["events"] });
     void qc.invalidateQueries({ queryKey: ["members"] });
     void qc.invalidateQueries({ queryKey: ["tasks"] });
+    void qc.invalidateQueries({ queryKey: ["myAssignments"] });
+    void qc.invalidateQueries({ queryKey: ["tasksAvailable"] });
+    void qc.invalidateQueries({ queryKey: ["ranking"] });
+    void qc.invalidateQueries({ queryKey: ["seasons"] });
+    void qc.invalidateQueries({ queryKey: ["temporadas"] });
+    void qc.invalidateQueries({ queryKey: ["org-badges-for-task"] });
+    void qc.invalidateQueries({ queryKey: ["certificados"] });
+    void qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    void qc.invalidateQueries({ queryKey: ["org-subscription"] });
     router.push("/dashboard");
   };
 
@@ -138,8 +167,33 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       <div className="p-4 sm:p-5" style={{ borderBottom: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between gap-2">
           <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-sm" onClick={onClose}>
-            <span className="inline-block h-6 w-6 shrink-0 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500" />
+            <span
+              className={cn(
+                "inline-block h-6 w-6 shrink-0 rounded-full",
+                isCorporateOrganization
+                  ? "bg-gradient-to-tr from-amber-300 via-yellow-500 to-orange-600 ring-2 ring-amber-300/60 shadow-[0_0_12px_rgba(245,158,11,.7)]"
+                  : "bg-gradient-to-tr from-purple-500 to-blue-500",
+              )}
+            />
             <span className="truncate">La Causa AI</span>
+            {isCorporateOrganization && (
+              <span
+                className="flex shrink-0 items-center gap-1 rounded-md border border-amber-300/70 bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-500 px-1.5 py-0.5 text-[10px] font-black tracking-wider text-black shadow-[0_0_10px_rgba(245,158,11,.45)]"
+                title="Organización con plan Corporativo"
+              >
+                <Crown className="h-3 w-3" strokeWidth={2.8} aria-hidden />
+                CORPORATIVO
+              </span>
+            )}
+            {isProOrganization && (
+              <span
+                className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-wider text-white"
+                style={{ background: "linear-gradient(135deg, #7c3aed, #2563eb)" }}
+                title="Organización con plan Pro"
+              >
+                PRO
+              </span>
+            )}
           </Link>
           {onClose && (
             <button
@@ -246,7 +300,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 p-4 overflow-y-auto space-y-1">
+      <nav className="flex-1 p-4 overflow-y-auto space-y-1 no-scrollbar">
         {isVolunteer ? (
           <>
             {navBase?.map((item) => {
@@ -372,6 +426,15 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           </button>
         </div>
       </div>
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none !important;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+        }
+      `}</style>
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { analyticsApi } from "@/features/analytics/api/analyticsApi";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
+import { eventsApi } from "@/features/events/api/eventsApi";
+import { gamificationApi } from "@/features/gamification/api/gamificationApi";
 import { TopBar } from "@/shared/ui/Sidebar";
 import {
   FileText,
@@ -22,8 +24,10 @@ import {
   Clock,
   Timer,
   GraduationCap,
+  Wallet,
+  Plus,
 } from "lucide-react";
-import { generateReportPdf } from "@/features/reportes/utils/generateReportPdf";
+import { generateEventReportPdf, generateReportPdf } from "@/features/reportes/utils/generateReportPdf";
 import type { ReportMetrics, ReporteTipo } from "@/features/reportes/utils/generateReportPdf";
 
 const METRIC_GROUPS: { key: keyof ReportMetrics; label: string }[] = [
@@ -95,8 +99,13 @@ export default function ReportesDinamicosPage() {
   const [tipoReporte, setTipoReporte] = useState<ReporteTipo>("formal");
   const [showPersonalizar, setShowPersonalizar] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingEvent, setDownloadingEvent] = useState(false);
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ categoria: "Operación", descripcion: "", cantidad: "1", costo_unitario: "", moneda: "BOB", estado: "pagado", proveedor: "", numero_comprobante: "", fecha_gasto: "" });
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats", activeOrgId, startDate, endDate],
@@ -126,6 +135,35 @@ export default function ReportesDinamicosPage() {
       toEndOfDayIso(endDate)
     ),
     enabled: !!activeOrgId && !!startDate && !!endDate && startDate <= endDate,
+  });
+  const { data: periodFinances, isLoading: periodFinancesLoading, isError: periodFinancesError } = useQuery({
+    queryKey: ["period-finances", activeOrgId, startDate, endDate],
+    queryFn: () => analyticsApi.periodFinances(
+      activeOrgId!,
+      toStartOfDayIso(startDate),
+      toEndOfDayIso(endDate),
+    ),
+    enabled: !!activeOrgId && !!startDate && !!endDate && startDate <= endDate,
+  });
+  const { data: events = [] } = useQuery({
+    queryKey: ["analytics-events", activeOrgId],
+    queryFn: () => eventsApi.list(activeOrgId!),
+    enabled: !!activeOrgId,
+  });
+  const { data: seasons = [] } = useQuery({
+    queryKey: ["seasons", activeOrgId],
+    queryFn: () => gamificationApi.getSeasons(activeOrgId!),
+    enabled: !!activeOrgId,
+  });
+  const { data: eventAnalytics, isLoading: eventAnalyticsLoading } = useQuery({
+    queryKey: ["event-analytics", selectedEventId],
+    queryFn: () => analyticsApi.event(selectedEventId),
+    enabled: !!selectedEventId,
+  });
+  const { data: expenses = [], refetch: refetchExpenses } = useQuery({
+    queryKey: ["event-expenses", selectedEventId],
+    queryFn: () => analyticsApi.listExpenses(selectedEventId),
+    enabled: !!selectedEventId,
   });
 
   const totalVolunteers = stats?.total_volunteers ?? 0;
@@ -222,18 +260,41 @@ export default function ReportesDinamicosPage() {
     setMetrics((m) => ({ ...m, [key]: !m[key] }));
   };
 
+  const handleDownloadEventPdf = async () => {
+    if (!eventAnalytics) return;
+    setDownloadingEvent(true);
+    try {
+      await generateEventReportPdf(eventAnalytics, org?.nombre, expenses);
+    } finally {
+      setDownloadingEvent(false);
+    }
+  };
+
+  const handleCreateExpense = async () => {
+    if (!selectedEventId || !expenseForm.descripcion || !expenseForm.costo_unitario) return;
+    await analyticsApi.createExpense(selectedEventId, {
+      ...expenseForm,
+      cantidad: Number(expenseForm.cantidad),
+      costo_unitario: Number(expenseForm.costo_unitario),
+      fecha_gasto: expenseForm.fecha_gasto ? `${expenseForm.fecha_gasto}T00:00:00` : null,
+    });
+    setExpenseForm({ categoria: "Operación", descripcion: "", cantidad: "1", costo_unitario: "", moneda: "BOB", estado: "pagado", proveedor: "", numero_comprobante: "", fecha_gasto: "" });
+    setShowExpenseForm(false);
+    await refetchExpenses();
+  };
+
   return (
     <>
-      <TopBar title="Reporte Dinámico" />
+      <TopBar title="Reportes por período" />
       <div className="flex-1 p-5 sm:p-8 max-w-6xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
             <h2 className="text-xl font-bold flex items-center gap-2">
               <FileText className="w-5 h-5" style={{ color: "var(--accent)" }} />
-              Reporte Dinámico
+              Reportes por evento y período
             </h2>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              Panel unificado de analítica y reportes. Personaliza, analiza y descarga.
+              Analiza la organización por fechas, temporada o evento; revisa resultados y costos, y descarga el informe.
             </p>
           </div>
 
@@ -259,6 +320,49 @@ export default function ReportesDinamicosPage() {
         </div>
 
         {/* Panel de personalización */}
+        {activeOrgId && (
+          <section className="mb-6 p-4 rounded-2xl flex flex-col gap-4 md:flex-row md:items-end"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div className="min-w-52">
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Temporada</p>
+              <select
+                value={selectedSeasonId}
+                onChange={(e) => {
+                  const seasonId = e.target.value;
+                  setSelectedSeasonId(seasonId);
+                  const season = seasons.find((item) => item.id === seasonId);
+                  if (season) {
+                    setStartDate(season.fecha_inicio.slice(0, 10));
+                    setEndDate(season.fecha_fin.slice(0, 10));
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+              >
+                <option value="">Rango personalizado</option>
+                {seasons.map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.nombre}{season.activa ? " (activa)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Desde</p>
+              <input type="date" value={startDate} onChange={(e) => { setSelectedSeasonId(""); setStartDate(e.target.value); }}
+                className="px-3 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }} />
+            </div>
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Hasta</p>
+              <input type="date" value={endDate} onChange={(e) => { setSelectedSeasonId(""); setEndDate(e.target.value); }}
+                className="px-3 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }} />
+            </div>
+            <p className="text-xs md:pb-2" style={{ color: "var(--text-muted)" }}>
+              El detalle inferior permite concentrar el análisis y los gastos en un evento específico.
+            </p>
+          </section>
+        )}
+
         {showPersonalizar && activeOrgId && (
           <div
             className="mb-6 p-5 rounded-2xl"
@@ -313,6 +417,32 @@ export default function ReportesDinamicosPage() {
               </div>
               <div>
                 <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>
+                  Temporada
+                </p>
+                <select
+                  value={selectedSeasonId}
+                  onChange={(e) => {
+                    const seasonId = e.target.value;
+                    setSelectedSeasonId(seasonId);
+                    const season = seasons.find((item) => item.id === seasonId);
+                    if (season) {
+                      setStartDate(season.fecha_inicio.slice(0, 10));
+                      setEndDate(season.fecha_fin.slice(0, 10));
+                    }
+                  }}
+                  className="px-2 py-1 rounded-lg text-sm max-w-52"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+                >
+                  <option value="">Rango personalizado</option>
+                  {seasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      {season.nombre}{season.activa ? " (activa)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>
                   Rango de fechas
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -364,6 +494,36 @@ export default function ReportesDinamicosPage() {
                 {" "}({completionRate}% de cierre), con una intensidad promedio de {tasksPerEvent.toFixed(1)} tareas por evento.
               </p>
             </div>
+
+            <section className="mb-6 p-5 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-sm font-semibold">Resumen financiero del período</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    {periodFinances?.eventos.length ?? 0} eventos incluidos según las fechas seleccionadas.
+                  </p>
+                </div>
+                <Wallet className="w-5 h-5" style={{ color: "var(--accent)" }} />
+              </div>
+              {periodFinancesLoading ? <p className="text-sm" style={{ color: "var(--text-muted)" }}>Calculando costos del período...</p> : periodFinancesError ? <p className="text-sm" style={{ color: "var(--danger, #ef4444)" }}>No se pudo calcular el resumen financiero. Intentá recargar la página.</p> : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <div className="p-4 rounded-xl" style={{ background: "var(--bg-subtle)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>Presupuesto estimado</p><p className="font-bold mt-1">{Object.entries(periodFinances?.costos_estimados_por_moneda ?? {}).map(([currency, total]) => `${Number(total).toFixed(2)} ${currency}`).join(" · ") || "—"}</p></div>
+                    <div className="p-4 rounded-xl" style={{ background: "var(--bg-subtle)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>Costo real consolidado</p><p className="font-bold mt-1">{Object.entries(periodFinances?.gastos_reales_por_moneda ?? {}).map(([currency, total]) => `${Number(total).toFixed(2)} ${currency}`).join(" · ") || "—"}</p></div>
+                    <div className="p-4 rounded-xl" style={{ background: "var(--accent-soft)" }}><p className="text-xs" style={{ color: "var(--text-muted)" }}>Pendiente de aprobación</p><p className="font-bold mt-1">{Object.entries(periodFinances?.gastos_pendientes_por_moneda ?? {}).map(([currency, total]) => `${Number(total).toFixed(2)} ${currency}`).join(" · ") || "—"}</p></div>
+                  </div>
+                  <div className="space-y-2">
+                    {periodFinances?.eventos.map((event) => (
+                      <button key={event.evento_id} type="button" onClick={() => setSelectedEventId(event.evento_id)} className="w-full text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                        <span className="text-sm font-medium">{event.titulo}</span>
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>Estimado: {Object.entries(event.costos_estimados_por_moneda).map(([currency, total]) => `${Number(total).toFixed(2)} ${currency}`).join(" · ") || "—"} · Real: {Object.entries(event.gastos_reales_por_moneda).map(([currency, total]) => `${Number(total).toFixed(2)} ${currency}`).join(" · ") || "—"}</span>
+                      </button>
+                    ))}
+                    {periodFinances && periodFinances.eventos.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>No hay eventos dentro de este período.</p>}
+                  </div>
+                </>
+              )}
+            </section>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard label="Voluntarios" value={totalVolunteers} icon={Users} visible={metrics.voluntarios} />
@@ -584,6 +744,105 @@ export default function ReportesDinamicosPage() {
                 </div>
               </div>
             )}
+
+            {/* Notificaciones recientes */}
+            <div className="p-6 rounded-2xl mt-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="mb-4">
+                <p className="font-semibold text-sm">Detalle por evento</p>
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Elegí una tarjeta para ver participación, tareas, impacto y gastos.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-6">
+                {events.map((event) => {
+                  const isSelected = event.id === selectedEventId;
+                  return (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => { setSelectedEventId(event.id); setShowExpenseForm(false); }}
+                      className="relative min-h-40 overflow-hidden text-left p-4 rounded-2xl transition-all hover:-translate-y-0.5"
+                      style={{
+                        background: isSelected ? "var(--accent-soft)" : "var(--bg-subtle)",
+                        border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                      }}
+                    >
+                      {event.imagen_url && (
+                        <img
+                          src={event.imagen_url}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover opacity-45"
+                        />
+                      )}
+                      {event.imagen_url && <div className="absolute inset-0 bg-gradient-to-t from-black via-black/65 to-black/10" />}
+                      <div className="relative z-10 flex min-h-32 flex-col justify-end">
+                        <p className="font-semibold line-clamp-2">{event.nombre}</p>
+                        <p className="text-xs mt-2" style={{ color: event.imagen_url ? "rgba(255,255,255,.78)" : "var(--text-muted)" }}>
+                          {new Date(event.fecha_inicio).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" })}
+                        </p>
+                        <span className="inline-flex w-fit mt-3 px-2 py-1 rounded-lg text-[11px] font-medium" style={{ background: "var(--bg-card)", color: "var(--accent)" }}>
+                          {isSelected ? "Viendo detalle" : "Ver métricas"}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {events.length === 0 && <p className="text-sm pb-4" style={{ color: "var(--text-muted)" }}>No hay eventos en esta organización.</p>}
+              {selectedEventId && eventAnalyticsLoading && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando detalle...</p>}
+              {selectedEventId && eventAnalytics && (
+                <>
+                  <div className="flex justify-end mb-4">
+                    <button
+                      onClick={handleDownloadEventPdf}
+                      disabled={downloadingEvent}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
+                      style={{ background: "var(--accent)", color: "white" }}
+                    >
+                      <Download className="w-4 h-4" />
+                      {downloadingEvent ? "Generando…" : "Descargar PDF del evento"}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                    <StatCard label="Voluntarios" value={eventAnalytics.voluntarios_registrados} icon={Users} />
+                    <StatCard label="Tareas" value={`${eventAnalytics.tareas_completadas}/${eventAnalytics.tareas_totales}`} icon={CheckSquare} />
+                    <StatCard label="Horas" value={eventAnalytics.horas_voluntarias} icon={Clock} />
+                    <StatCard label="ELO máximo" value={eventAnalytics.elo_maximo} icon={TrendingUp} />
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-xs mb-5" style={{ color: "var(--text-muted)" }}>
+                    <span>Entregas aprobadas: <strong style={{ color: "var(--text)" }}>{eventAnalytics.entregas_aprobadas}</strong></span>
+                    <span>Rechazadas: <strong style={{ color: "var(--text)" }}>{eventAnalytics.entregas_rechazadas}</strong></span>
+                    <span>XP acumulada de participantes: <strong style={{ color: "var(--text)" }}>{eventAnalytics.xp_generada}</strong></span>
+                    {eventAnalytics.mejor_voluntario && <span>Mejor voluntario: <strong style={{ color: "var(--text)" }}>{eventAnalytics.mejor_voluntario.nombre}</strong></span>}
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div>
+                      <p className="text-sm font-semibold mb-3">Voluntarios destacados</p>
+                      {eventAnalytics.voluntarios.length === 0 ? <p className="text-sm" style={{ color: "var(--text-muted)" }}>Sin voluntarios registrados.</p> : (
+                        <div className="space-y-2">
+                          {eventAnalytics.voluntarios.slice(0, 8).map((volunteer, index) => (
+                            <div key={volunteer.usuario_id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                              <div><span className="text-xs mr-2" style={{ color: "var(--text-muted)" }}>#{index + 1}</span><span className="text-sm font-medium">{volunteer.nombre}</span><p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{volunteer.tareas_completadas} tareas · {volunteer.horas} h · {volunteer.elo} ELO</p></div>
+                              <span className="text-xs" style={{ color: "var(--accent)" }}>{volunteer.xp} XP</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-3"><p className="text-sm font-semibold">Gastos del evento</p><button onClick={() => setShowExpenseForm((v) => !v)} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}><Plus className="w-3 h-3" /> Añadir</button></div>
+                      {showExpenseForm && <div className="grid grid-cols-2 gap-2 mb-3 p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}><input placeholder="Categoría" value={expenseForm.categoria} onChange={(e) => setExpenseForm({ ...expenseForm, categoria: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input placeholder="Descripción" value={expenseForm.descripcion} onChange={(e) => setExpenseForm({ ...expenseForm, descripcion: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input type="number" min="0" placeholder="Cantidad" value={expenseForm.cantidad} onChange={(e) => setExpenseForm({ ...expenseForm, cantidad: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input type="number" min="0" step="0.01" placeholder="Costo unitario" value={expenseForm.costo_unitario} onChange={(e) => setExpenseForm({ ...expenseForm, costo_unitario: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><select value={expenseForm.estado} onChange={(e) => setExpenseForm({ ...expenseForm, estado: e.target.value })} className="px-2 py-2 rounded-lg text-sm"><option value="estimado">Presupuesto estimado</option><option value="pendiente_aprobacion">Pendiente de aprobación</option><option value="aprobado">Aprobado</option><option value="pagado">Pagado</option></select><input placeholder="Proveedor" value={expenseForm.proveedor} onChange={(e) => setExpenseForm({ ...expenseForm, proveedor: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input placeholder="N.º factura/recibo" value={expenseForm.numero_comprobante} onChange={(e) => setExpenseForm({ ...expenseForm, numero_comprobante: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><input type="date" value={expenseForm.fecha_gasto} onChange={(e) => setExpenseForm({ ...expenseForm, fecha_gasto: e.target.value })} className="px-2 py-2 rounded-lg text-sm" /><button onClick={handleCreateExpense} className="py-2 rounded-lg text-sm" style={{ background: "var(--accent)", color: "white" }}>Guardar gasto</button></div>}
+                      {Object.entries(eventAnalytics.costos_estimados_por_moneda).map(([currency, total]) => <div key={`estimated-${currency}`} className="flex justify-between p-3 rounded-xl mb-2" style={{ background: "var(--bg-subtle)" }}><span className="text-sm">Presupuesto estimado {currency}</span><span className="font-semibold">{Number(total).toFixed(2)}</span></div>)}
+                      {Object.entries(eventAnalytics.gastos_por_moneda).length === 0 ? <p className="text-sm" style={{ color: "var(--text-muted)" }}>Sin gastos registrados.</p> : Object.entries(eventAnalytics.gastos_por_moneda).map(([currency, total]) => <div key={currency} className="flex justify-between p-3 rounded-xl mb-2" style={{ background: "var(--bg-subtle)" }}><span className="text-sm flex items-center gap-2"><Wallet className="w-4 h-4" />Costo real {currency}</span><span className="font-semibold">{Number(total).toFixed(2)}</span></div>)}
+                      {Object.entries(eventAnalytics.gastos_pendientes_por_moneda).map(([currency, total]) => <div key={`pending-${currency}`} className="flex justify-between p-3 rounded-xl mb-2" style={{ background: "var(--accent-soft)" }}><span className="text-sm">Pendiente de aprobación {currency}</span><span className="font-semibold">{Number(total).toFixed(2)}</span></div>)}
+                      {expenses.length > 0 && <div className="mt-3 space-y-2">{expenses.map((expense) => <div key={expense.id} className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}><span>{expense.descripcion} · {expense.cantidad} × {expense.costo_unitario}</span><span>{expense.total.toFixed(2)} {expense.moneda}</span></div>)}</div>}
+                    </div>
+                  </div>
+                  <div className="mt-5">
+                    <p className="text-sm font-semibold mb-3">Desglose de tareas</p>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr style={{ color: "var(--text-muted)" }}><th className="text-left py-2">Tarea</th><th className="text-right py-2">Asignaciones</th><th className="text-right py-2">Completadas</th><th className="text-right py-2">Gastos</th></tr></thead><tbody>{eventAnalytics.tareas.map((task) => <tr key={task.tarea_id} style={{ borderTop: "1px solid var(--border)" }}><td className="py-2">{task.titulo}</td><td className="text-right">{task.asignaciones}</td><td className="text-right">{task.completadas}</td><td className="text-right">{Object.entries(task.gastos).map(([currency, total]) => `${Number(total).toFixed(2)} ${currency}`).join(" · ") || "—"}</td></tr>)}</tbody></table></div>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Notificaciones recientes */}
             <div className="p-6 rounded-2xl mt-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>

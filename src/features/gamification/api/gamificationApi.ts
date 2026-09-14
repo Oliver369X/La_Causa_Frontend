@@ -24,6 +24,12 @@ export interface CompetitiveProfile {
   /** Backend raw fields */
   elo_score?: number;
   xp_total?: number;
+  xp_en_nivel?: number;
+  xp_para_siguiente_nivel?: number;
+  elo_puntos_min?: number | null;
+  elo_puntos_max?: number | null;
+  elo_para_siguiente_rango?: number | null;
+  horas_totales_voluntario?: number;
 }
 
 export interface PerformanceMetrics {
@@ -47,6 +53,9 @@ export interface Badge {
   rareza?: "common" | "uncommon" | "rare" | "epic" | "legendary";
   fecha_obtencion?: string;
   insignia_id?: UUID;
+  organizacion_id?: UUID | null;
+  organizacion_nombre?: string | null;
+  regla_asignacion?: string | null;
 }
 
 export interface Medal {
@@ -99,6 +108,18 @@ export interface Season {
   fecha_fin: string;
   activa: boolean;
   created_at?: string;
+  certificados_generados?: number;
+  certificado_preview?: {
+    organizacion?: string | null;
+    temporada?: string;
+    eventos?: number;
+    tareas_completadas?: number;
+    horas?: number;
+    xp?: number;
+    elo?: number;
+    rango?: string;
+    medallas?: string[];
+  } | null;
 }
 
 /** Cuerpo de POST /temporadas (SeasonCreateRequest en backend). */
@@ -128,6 +149,8 @@ export interface HistoricalRankingEntry {
   elo_final: number;
   xp_acumulada: number;
   created_at: string;
+  usuario_id?: string;
+  rango_final?: string | null;
 }
 
 export interface ConfigGamificacionOrg {
@@ -163,8 +186,10 @@ export const gamificationApi = {
     return data;
   },
 
-  getProfile: async (userId: UUID): Promise<CompetitiveProfile> => {
-    const { data } = await apiClient.get(EP.PROFILE_COMPETITIVE(userId));
+  getProfile: async (userId: UUID, organizacionId?: string): Promise<CompetitiveProfile> => {
+    const { data } = await apiClient.get(EP.PROFILE_COMPETITIVE(userId), {
+      params: organizacionId ? { organizacion_id: organizacionId } : undefined,
+    });
     const raw = data as Record<string, unknown>;
     return {
       usuario_id: raw.usuario_id as UUID,
@@ -173,18 +198,25 @@ export const gamificationApi = {
       bio: raw.bio as string | undefined,
       puntos_elo: (raw.puntos_elo ?? raw.elo_score ?? 0) as number,
       rango: (raw.rango ?? "Principiante") as string,
-      nivel: (raw.nivel ?? Math.floor(((raw.xp_total as number) ?? 0) / 100) + 1) as number,
       racha_entregas: (raw.racha_entregas ?? raw.racha_dias ?? 0) as number,
       eventos_completados: (raw.eventos_completados ?? 0) as number,
       tareas_completadas: (raw.tareas_completadas ?? 0) as number,
       insignias_total: (raw.insignias_total ?? 0) as number,
       elo_score: raw.elo_score as number | undefined,
       xp_total: raw.xp_total as number | undefined,
+      nivel: (raw.nivel ?? 1) as number,
+      xp_en_nivel: (raw.xp_en_nivel ?? 0) as number,
+      xp_para_siguiente_nivel: (raw.xp_para_siguiente_nivel ?? 100) as number,
+      elo_puntos_min: raw.elo_puntos_min as number | null | undefined,
+      elo_puntos_max: raw.elo_puntos_max as number | null | undefined,
+      elo_para_siguiente_rango: raw.elo_para_siguiente_rango as number | null | undefined,
     };
   },
 
-  getBadges: async (userId: UUID): Promise<Badge[]> => {
-    const { data } = await apiClient.get<Badge[]>(EP.PROFILE_BADGES(userId));
+  getBadges: async (userId: UUID, organizacionId?: string): Promise<Badge[]> => {
+    const { data } = await apiClient.get<Badge[]>(EP.PROFILE_BADGES(userId), {
+      params: organizacionId ? { organizacion_id: organizacionId } : undefined,
+    });
     return data;
   },
 
@@ -227,8 +259,8 @@ export const gamificationApi = {
     return data;
   },
 
-  getSeasons: async (organizacionId?: string): Promise<Season[]> => {
-    const params = organizacionId ? { organizacion_id: organizacionId } : {};
+  getSeasons: async (organizacionId: string): Promise<Season[]> => {
+    const params = { organizacion_id: organizacionId };
     const { data } = await apiClient.get<Season[]>(EP.SEASONS, { params });
     return data;
   },
@@ -266,8 +298,10 @@ export const gamificationApi = {
     return data;
   },
 
-  listCertificates: async (userId?: string): Promise<Certificate[]> => {
-    const params = userId ? { user_id: userId } : {};
+  listCertificates: async (userId?: string, organizacionId?: string): Promise<Certificate[]> => {
+    const params: Record<string, string> = {};
+    if (userId) params.user_id = userId;
+    if (organizacionId) params.organizacion_id = organizacionId;
     const { data } = await apiClient.get<Certificate[]>(EP.CERTIFICATES, { params });
     return data;
   },

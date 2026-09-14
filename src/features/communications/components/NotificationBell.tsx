@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Bell, CheckCheck, BellRing } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { communicationsApi, type Notification } from "@/features/communications/api/communicationsApi";
+import { communicationsApi, getNotificationHref, type Notification } from "@/features/communications/api/communicationsApi";
 import { Badge } from "@/shared/ui/Badge";
 import { cn } from "@/shared/utils/utils";
 
@@ -49,22 +49,19 @@ function showBrowserNotification(n: Notification) {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(
+    () => typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted"
+  );
   const panelRef = useRef<HTMLDivElement>(null);
   const prevIdsRef = useRef<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPushEnabled(Notification.permission === "granted");
-    }
-  }, []);
-
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => communicationsApi.list(),
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
     refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 
   const handleNewNotifications = useCallback((notifs: Notification[]) => {
@@ -179,12 +176,7 @@ export function NotificationBell() {
               <div className="divide-y" style={{ borderColor: "var(--border)" }}>
                 {recent.map((n) => {
                   const unread = isUnread(n);
-                  const actionHref =
-                    n.entidad_tipo === "evento_feedback_ml" && n.entidad_id
-                      ? `/dashboard/events/${n.entidad_id}/feedback-ml`
-                      : n.entidad_tipo === "evento_retro_voluntario" && n.entidad_id
-                        ? `/dashboard/events/${n.entidad_id}/retro-voluntario`
-                        : null;
+                  const actionHref = getNotificationHref(n);
                   const inner = (
                     <>
                       <div className="flex items-start gap-2">

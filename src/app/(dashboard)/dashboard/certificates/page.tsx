@@ -15,6 +15,7 @@ import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { Modal } from "@/shared/ui/Modal";
+import { CertificatePreview } from "@/features/certificates/ui/CertificatePreview";
 
 function formatDate(str: string) {
   return new Date(str).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
@@ -43,7 +44,7 @@ export default function CertificatesPage() {
   const loadCerts = useCallback(async () => {
     setLoading(true);
     try {
-      if (canManageCerts && activeOrgId) {
+      if (activeOrgId) {
         const data = await certificatesApi.list({ organizacion_id: activeOrgId });
         setCerts(data);
       } else {
@@ -288,9 +289,10 @@ export default function CertificatesPage() {
             />
           </motion.div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto max-w-6xl space-y-8">
             {certs.map((cert, i) => (
               <RewardCard key={cert.id} delay={staggerFast * i}>
+                <CertificatePreview certificate={cert} className="mb-5 shadow-2xl" />
                 <div className="flex items-start gap-4">
                   <div
                     className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
@@ -302,6 +304,11 @@ export default function CertificatesPage() {
                     <p className="font-semibold text-sm line-clamp-2">{cert.titulo}</p>
                     {cert.descripcion && (
                       <p className="text-xs line-clamp-2 mt-0.5" style={{ color: "var(--text-muted)" }}>{cert.descripcion}</p>
+                    )}
+                    {cert.firma_digital_metadata?.resumen && (
+                      <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                        {cert.firma_digital_metadata.resumen.eventos ?? 0} eventos · {cert.firma_digital_metadata.resumen.tareas_completadas ?? 0} tareas · {cert.firma_digital_metadata.resumen.xp ?? 0} XP · {cert.firma_digital_metadata.resumen.elo ?? 0} ELO · {cert.firma_digital_metadata.resumen.rango ?? "Principiante"}
+                      </p>
                     )}
                     <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
                       {cert.horas_acreditadas > 0 && `${cert.horas_acreditadas} h acreditadas · `}

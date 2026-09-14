@@ -29,6 +29,86 @@ export interface DashboardComparison {
   previous_end_date: string;
 }
 
+export interface EventAnalytics {
+  evento_id: string;
+  titulo: string;
+  estado: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  voluntarios_registrados: number;
+  tareas_totales: number;
+  tareas_completadas: number;
+  entregas_aprobadas: number;
+  entregas_rechazadas: number;
+  horas_voluntarias: number;
+  xp_generada: number;
+  elo_maximo: number;
+  mejor_voluntario: EventVolunteerAnalytics | null;
+  costos_estimados_por_moneda: Record<string, number>;
+  gastos_por_moneda: Record<string, number>;
+  gastos_pendientes_por_moneda: Record<string, number>;
+  tareas: EventTaskAnalytics[];
+  voluntarios: EventVolunteerAnalytics[];
+}
+
+export interface PeriodFinancialEvent {
+  evento_id: string;
+  titulo: string;
+  fecha_inicio: string;
+  costos_estimados_por_moneda: Record<string, number>;
+  gastos_reales_por_moneda: Record<string, number>;
+  gastos_pendientes_por_moneda: Record<string, number>;
+}
+
+export interface PeriodFinancialReport {
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  eventos: PeriodFinancialEvent[];
+  costos_estimados_por_moneda: Record<string, number>;
+  gastos_reales_por_moneda: Record<string, number>;
+  gastos_pendientes_por_moneda: Record<string, number>;
+}
+
+export interface EventTaskAnalytics {
+  tarea_id: string;
+  titulo: string;
+  estado: string;
+  asignaciones: number;
+  completadas: number;
+  costo_estimado: number | null;
+  costo_real: number | null;
+  gastos: Record<string, number>;
+}
+
+export interface EventVolunteerAnalytics {
+  usuario_id: string;
+  nombre: string;
+  estado_evento: string;
+  tareas_asignadas: number;
+  tareas_completadas: number;
+  elo: number;
+  xp: number;
+  calificacion: number | null;
+  horas: number;
+}
+
+export interface EventExpense {
+  id: string;
+  evento_id: string;
+  tarea_id?: string | null;
+  categoria: string;
+  descripcion: string;
+  cantidad: number;
+  costo_unitario: number;
+  total: number;
+  moneda: string;
+  estado: string;
+  proveedor?: string | null;
+  numero_comprobante?: string | null;
+  fecha_gasto?: string | null;
+  comprobante_url?: string | null;
+}
+
 export interface Notification {
   id: string;
   usuario_id: string;
@@ -113,6 +193,44 @@ export const analyticsApi = {
       previous_start_date: data.fecha_inicio_anterior,
       previous_end_date: data.fecha_fin_anterior,
     };
+  },
+
+  periodFinances: async (
+    orgId: string,
+    startDate?: string,
+    endDate?: string,
+  ): Promise<PeriodFinancialReport> => {
+    const { data } = await apiClient.get<PeriodFinancialReport>(`/analytics/dashboard/${orgId}/finanzas`, {
+      params: { start_date: startDate, end_date: endDate },
+    });
+    return data;
+  },
+
+  event: async (eventId: string): Promise<EventAnalytics> => {
+    const { data } = await apiClient.get<EventAnalytics>(`/analytics/events/${eventId}`);
+    return data;
+  },
+
+  listExpenses: async (eventId: string): Promise<EventExpense[]> => {
+    const { data } = await apiClient.get<EventExpense[]>(`/eventos/${eventId}/gastos`);
+    return data;
+  },
+
+  createExpense: async (eventId: string, payload: {
+    categoria: string;
+    descripcion: string;
+    cantidad: number;
+    costo_unitario: number;
+    moneda?: string;
+    tarea_id?: string | null;
+    estado?: string;
+    proveedor?: string | null;
+    numero_comprobante?: string | null;
+    fecha_gasto?: string | null;
+    comprobante_url?: string | null;
+  }): Promise<EventExpense> => {
+    const { data } = await apiClient.post<EventExpense>(`/eventos/${eventId}/gastos`, payload);
+    return data;
   },
 
   notifications: async (): Promise<Notification[]> => {

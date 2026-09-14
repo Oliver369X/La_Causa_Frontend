@@ -278,7 +278,7 @@ export default function DashboardPage() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <GamificationPanel />
-              <TaskAssignmentWidget />
+              <TaskAssignmentWidget volunteerMode={isVolunteer} />
             </div>
           </div>
         ) : !activeOrgId ? (
@@ -302,7 +302,8 @@ export default function DashboardPage() {
         ) : (
           <>
             <header className="rounded-2xl p-5 sm:p-6 mb-8" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-start gap-3">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--accent-soft)" }}>
                   <Building2 className="w-5 h-5" style={{ color: "var(--accent)" }} />
                 </div>
@@ -314,9 +315,17 @@ export default function DashboardPage() {
                     {organizerOrg?.nombre ?? "Resumen operativo"}
                   </h1>
                   <p className="text-sm mt-2 max-w-2xl" style={{ color: "var(--text-muted)" }}>
-                    Métricas de tu equipo, tareas y reportes de la organización activa (últimos 30 días). Los voluntarios ven un inicio distinto, centrado en su perfil y causas.
+                    Resumen operativo global de la organización activa (últimos 30 días). Los voluntarios ven un inicio distinto, centrado en su perfil y causas.
                   </p>
                 </div>
+                </div>
+                <Link
+                  href="/dashboard/reportes-dinamicos"
+                  className="shrink-0 px-4 py-2 rounded-xl text-sm font-semibold"
+                  style={{ background: "var(--accent)", color: "white" }}
+                >
+                  Analizar por período o evento
+                </Link>
               </div>
             </header>
 
@@ -398,7 +407,7 @@ export default function DashboardPage() {
             {/* Widgets row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <GamificationPanel />
-              <TaskAssignmentWidget />
+              <TaskAssignmentWidget volunteerMode={isVolunteer} />
               <ReporteDinamicoWidget />
             </div>
           </>

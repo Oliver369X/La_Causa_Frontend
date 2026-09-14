@@ -28,7 +28,7 @@ export const LANDING_PRICING_PLANS: PublicPlanCard[] = [
   },
   {
     name: "Plan Pro",
-    priceLabel: "Bs 140",
+    priceLabel: "US$ 14",
     period: "/mes",
     items: [
       "Asignación con IA",
@@ -40,7 +40,7 @@ export const LANDING_PRICING_PLANS: PublicPlanCard[] = [
   },
   {
     name: "Plan Corporativo",
-    priceLabel: "Bs 350",
+    priceLabel: "US$ 35",
     period: "/mes",
     items: [
       "Para empresas y RSE",
@@ -52,17 +52,16 @@ export const LANDING_PRICING_PLANS: PublicPlanCard[] = [
   },
 ];
 
-export function formatBob(amount: number): string {
+export function formatUsd(amount: number): string {
   if (amount <= 0) return "Gratis";
-  return new Intl.NumberFormat("es-BO", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "BOB",
-    maximumFractionDigits: 0,
+    currency: "USD",
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
-export function bobToUsdHint(bob: number): string {
-  if (bob <= 0) return "";
-  const usd = (bob / BOB_PER_USD).toFixed(2);
+export function usdBillingHint(usd: number): string {
+  if (usd <= 0) return "";
   return `≈ US$ ${usd}/mes en Stripe`;
 }

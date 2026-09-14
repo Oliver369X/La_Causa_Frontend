@@ -150,8 +150,15 @@ export const organizationsApi = {
     return data;
   },
 
-  reviewSolicitud: async (solicitudId: string, estado: "aprobada" | "rechazada") => {
-    const { data } = await apiClient.patch(EP.SOLICITUD_REVIEW(solicitudId), { estado });
+  reviewSolicitud: async (
+    solicitudId: string,
+    estado: "aprobada" | "rechazada",
+    mensajeRespuesta?: string,
+  ) => {
+    const { data } = await apiClient.patch(EP.SOLICITUD_REVIEW(solicitudId), {
+      estado,
+      mensaje_respuesta: mensajeRespuesta?.trim() || undefined,
+    });
     return data;
   },
 };
