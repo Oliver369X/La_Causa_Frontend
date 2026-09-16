@@ -57,7 +57,9 @@ export default function LoginPage() {
     if (typeof window === "undefined") return;
     try {
       const cb = new URLSearchParams(window.location.search).get("callbackUrl");
-      if (cb) setCallbackUrl(cb);
+      if (cb && !/\.(?:webmanifest|json|ico|svg|png|jpg|jpeg|webp|js|css)$/i.test(cb) && !cb.includes("manifest")) {
+        setCallbackUrl(cb);
+      }
     } catch {
       // ignore
     }
@@ -144,7 +146,7 @@ export default function LoginPage() {
         // Sin orgs todavía — el dashboard mostrará el prompt de onboarding.
       }
 
-      if (callbackUrl?.startsWith("/")) {
+      if (callbackUrl?.startsWith("/") && !/\.(?:webmanifest|json|ico|svg|png|jpg|jpeg|webp|js|css)$/i.test(callbackUrl) && !callbackUrl.includes("manifest")) {
         router.push(callbackUrl);
         return;
       }

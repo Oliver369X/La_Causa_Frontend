@@ -39,14 +39,14 @@ function validateEventDates(fechaInicio: string, fechaFin: string): string | nul
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
     return "Las fechas no son válidas.";
   }
-  const nowWithMargin = new Date(now.getTime() - 30_000); // 30s margin
-  if (inicio < nowWithMargin) {
+  const margin24h = 24 * 60 * 60 * 1000;
+  if (inicio.getTime() < now.getTime() - margin24h) {
     return "La fecha de inicio no puede estar en el pasado.";
   }
   if (fin <= inicio) {
     return "La fecha de fin debe ser posterior a la de inicio.";
   }
-  if (fin < now) {
+  if (fin.getTime() < now.getTime() - margin24h) {
     return "La fecha de fin no puede estar en el pasado.";
   }
   return null;
@@ -318,7 +318,7 @@ export default function EventsPage() {
           )}
         </div>
 
-        {!isVolunteer && activeOrgId && paidAccess?.can_use && (
+        {!isVolunteer && activeOrgId && (paidAccess?.can_use || paidAccess?.is_paid) && (
           <div
             className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl text-sm"
             style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
@@ -400,10 +400,8 @@ export default function EventsPage() {
                       type={f.type}
                       placeholder={f.placeholder}
                       min={
-                        f.type === "datetime-local"
-                          ? f.key === "fecha_fin"
-                            ? minFechaFinLocal
-                            : minDateTimeLocal
+                        f.type === "datetime-local" && f.key === "fecha_fin"
+                          ? (formData.fecha_inicio || undefined)
                           : undefined
                       }
                       value={(formData as Record<string, string>)[f.key] ?? ""}

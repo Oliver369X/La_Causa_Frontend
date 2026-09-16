@@ -70,7 +70,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     queryFn: () => agentApi.getAccess(activeOrgId ?? null),
     enabled: !!activeOrgId && !isVolunteer,
   });
-  const agentCanUse = agentAccess?.can_use ?? false;
+  const isPaidPlan = (agentAccess?.is_paid ?? false) || (agentAccess?.can_use ?? false);
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const toggleSection = (key: string) => setCollapsedSections((s) => ({ ...s, [key]: !s[key] }));
@@ -79,13 +79,13 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     items.filter((item) => {
       const i = item as { superAdminOnly?: boolean; paidOnly?: boolean; permissionAction?: PermissionAction };
       if (i.superAdminOnly && !canSeeGlobalAdmin) return false;
-      if (i.paidOnly && !agentCanUse) return false;
+      if (i.paidOnly && !isPaidPlan) return false;
       if (i.permissionAction && !can(i.permissionAction)) return false;
       return true;
     });
 
   const navBase = isVolunteer ? volunteerNavItemsBase : null;
-  const showAgentQuickAccess = !isVolunteer && agentCanUse;
+  const showAgentQuickAccess = !isVolunteer;
 
   // Una sola lista de membresías: el menú cambia según el rol en la org activa.
   const { data: myOrgs = [] } = useQuery({

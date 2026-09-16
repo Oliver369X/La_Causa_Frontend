@@ -106,9 +106,13 @@ export default function OnboardingPage() {
       try {
         if (Number(plan.precio_mensual) <= 0) {
           await subscriptionsApi.subscribe({ organizacion_id: org.id, plan_id: plan.id });
-          await qc.invalidateQueries({ queryKey: ["org-subscription", org.id] });
+          await Promise.all([
+            qc.invalidateQueries({ queryKey: ["orgs"] }),
+            qc.invalidateQueries({ queryKey: ["org-subscription", org.id] }),
+            qc.invalidateQueries({ queryKey: ["org", org.id] }),
+          ]);
           toast.success("Organización creada con Plan Semilla");
-          router.push("/onboarding");
+          router.refresh();
           return;
         }
 
