@@ -8,9 +8,10 @@ interface AuthCardProps {
   subtitle: string;
   children: React.ReactNode;
   footer: React.ReactNode;
+  wide?: boolean;
 }
 
-export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
+export function AuthCard({ title, subtitle, children, footer, wide = false }: AuthCardProps) {
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4 transition-colors duration-200"
@@ -26,7 +27,7 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45 }}
-        className="w-full max-w-md"
+        className={wide ? "w-full max-w-6xl" : "w-full max-w-md"}
       >
         <Link href="/" className="flex items-center justify-center gap-2 font-semibold mb-10">
           <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 inline-block" />

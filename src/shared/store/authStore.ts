@@ -29,6 +29,7 @@ export interface UserPerfilExtra {
     steps?: {
       welcome_seen?: boolean;
       profile_seen?: boolean;
+      season_seen?: boolean;
       team_seen?: boolean;
       event_seen?: boolean;
       task_seen?: boolean;
