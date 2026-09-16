@@ -5,6 +5,7 @@ import type { UUID } from "@/shared/types";
 // ─ Types ──────────────────────────────────────────────────────────────────
 export interface Plan {
   id: UUID;
+  slug?: string;
   nombre: string;
   descripcion?: string;
   precio_mensual: number;
@@ -67,6 +68,7 @@ export const subscriptionsApi = {
     const { data } = await apiClient.get<
       Array<{
         id: UUID;
+        slug?: string;
         nombre: string;
         descripcion?: string;
         precio_mensual: number;
@@ -78,6 +80,7 @@ export const subscriptionsApi = {
     >(EP.PLANS);
     return data.map((plan) => ({
       id: plan.id,
+      slug: plan.slug,
       nombre: plan.nombre,
       descripcion: plan.descripcion,
       precio_mensual: Number(plan.precio_mensual),
@@ -94,8 +97,9 @@ export const subscriptionsApi = {
     try {
       const { data } = await apiClient.get<Subscription>(EP.ORG_SUBSCRIPTION(orgId));
       return data;
-    } catch {
-      return null;
+    } catch (error) {
+      if ((error as { response?: { status?: number } }).response?.status === 404) return null;
+      throw error;
     }
   },
 

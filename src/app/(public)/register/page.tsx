@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { suspend401SessionRedirect } from "@/shared/api/client";
 import { authApi } from "@/features/auth/api/authApi";
 import { useAuthStore } from "@/shared/store/authStore";
@@ -28,6 +29,7 @@ const TIPO_OPTIONS: { value: Tipo; label: string; icon: string; desc: string }[]
 
 export default function RegisterPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const setAuth = useAuthStore((s) => s.setAuth);
   const resetVolunteerOnboarding = useAuthStore((s) => s.resetVolunteerOnboarding);
   const [tipo, setTipo] = useState<Tipo>("voluntario");
@@ -55,12 +57,14 @@ export default function RegisterPage() {
         setError("La contraseña debe tener al menos 8 caracteres.");
         return;
       }
-      await authApi.register({ nombre: nombreVal, email: emailVal, password: passwordVal, tipo });
+      const registeredUser = await authApi.register({ nombre: nombreVal, email: emailVal, password: passwordVal, tipo });
 
       // Auto-login después del registro
       const { access_token } = await authApi.login({ email: emailVal, password: passwordVal });
+      queryClient.clear();
+      useAuthStore.getState().setActiveOrg(null);
       setAuthSessionCookie(access_token);
-      useAuthStore.getState().setAuth(access_token, { id: "", email: emailVal, nombre: nombreVal, is_active: true });
+      setAuth(access_token, registeredUser);
 
       // Cargar perfil completo (fallo tolerado — el token ya está en el store)
       try {

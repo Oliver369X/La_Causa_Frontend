@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
-import { subscriptionsApi } from "@/features/subscriptions/api/subscriptionsApi";
+import { useOrganizationBilling } from "@/features/subscriptions/useOrganizationBilling";
 import { agentApi } from "@/features/agent/api/agentApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useTheme } from "@/shared/store/themeStore";
@@ -42,21 +42,21 @@ import { useSidebarLayoutStore } from "@/shared/store/sidebarLayoutStore";
 import { OrgLogoBox } from "@/shared/ui/OrgLogoBox";
 
 const volunteerNavItemsBase = [
-  { href: "/dashboard",                icon: LayoutDashboard, label: "Dashboard"      },
-  { href: "/dashboard/organizaciones", icon: Building2,       label: "Explorar orgs" },
-  { href: "/dashboard/events",        icon: Calendar,        label: "Eventos"       },
-  { href: "/dashboard/tasks",         icon: CheckSquare,     label: "Mis Tareas"    },
-  { href: "/dashboard/gamification",  icon: Trophy,          label: "Gamificación"   },
-  { href: "/dashboard/temporadas",     icon: History,         label: "Temporadas"    },
-  { href: "/dashboard/certificates",  icon: Award,           label: "Certificados"  },
-  { href: "/dashboard/manuales",     icon: FileText,        label: "Manuales"      },
-  { href: "/dashboard/settings",     icon: Settings,        label: "Mi Perfil"     },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/dashboard/organizaciones", icon: Building2, label: "Explorar orgs" },
+  { href: "/dashboard/events", icon: Calendar, label: "Eventos" },
+  { href: "/dashboard/tasks", icon: CheckSquare, label: "Mis Tareas" },
+  { href: "/dashboard/gamification", icon: Trophy, label: "Gamificación" },
+  { href: "/dashboard/temporadas", icon: History, label: "Temporadas" },
+  { href: "/dashboard/certificates", icon: Award, label: "Certificados" },
+  { href: "/dashboard/manuales", icon: FileText, label: "Manuales" },
+  { href: "/dashboard/settings", icon: Settings, label: "Mi Perfil" },
 ];
 
 /* ─── Inner sidebar content ───────────────────────────────────────────── */
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
-  const router   = useRouter();
+  const router = useRouter();
   const qc = useQueryClient();
   const { theme, toggle } = useTheme();
   const { user, logout, activeOrgId, setActiveOrg } = useAuthStore();
@@ -94,23 +94,18 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     enabled: !!user?.id,
   });
 
-  const { data: activeBilling } = useQuery({
-    queryKey: ["org-subscription", activeOrgId],
-    queryFn: async () => {
-      const [subscription, plans] = await Promise.all([
-        subscriptionsApi.getOrgSubscription(activeOrgId!),
-        subscriptionsApi.listPlans(),
-      ]);
-      return { subscription, plan: plans.find((plan) => plan.id === subscription?.plan_id) };
-    },
-    enabled: !!activeOrgId,
-    refetchInterval: 30_000,
-  });
+  const { data: activeBilling } = useOrganizationBilling(activeOrgId);
   const activePlanName = activeBilling?.plan?.nombre.toLowerCase() ?? "";
   const isActivePaidPlan = activeBilling?.subscription?.estado === "activa" ||
     activeBilling?.subscription?.estado === "periodo_prueba";
-  const isCorporateOrganization = isActivePaidPlan && activePlanName.includes("corpor");
-  const isProOrganization = isActivePaidPlan && !isCorporateOrganization && activePlanName.includes("pro");
+  const isCorporateOrganization = isActivePaidPlan && (activeBilling?.plan?.slug === "corp_tier" || /corpor|empres|enterprise/.test(activePlanName));
+  const isProOrganization = isActivePaidPlan && !isCorporateOrganization && (activeBilling?.plan?.slug === "pro_tier" || activePlanName.includes("pro"));
+  const isSeedOrganization = !!activeBilling && (!activeBilling.subscription || (isActivePaidPlan && Number(activeBilling.plan?.precio_mensual) === 0));
+
+  // Refresh premium navigation whenever a webhook or checkout changes the plan.
+  useEffect(() => {
+    void qc.invalidateQueries({ queryKey: ["agent-access", activeOrgId] });
+  }, [qc, activeOrgId, activeBilling?.subscription?.plan_id, activeBilling?.subscription?.estado]);
 
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const selectedOrg = myOrgs.find((o) => o.id === activeOrgId);
@@ -166,7 +161,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Logo · ocultar (solo escritorio) · cerrar (drawer móvil) */}
       <div className="p-4 sm:p-5" style={{ borderBottom: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between gap-2">
-          <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-sm" onClick={onClose}>
+          <Link href="/dashboard" className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 font-semibold text-xs" onClick={onClose}>
             <span
               className={cn(
                 "inline-block h-6 w-6 shrink-0 rounded-full",
@@ -175,23 +170,28 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                   : "bg-gradient-to-tr from-purple-500 to-blue-500",
               )}
             />
-            <span className="truncate">La Causa AI</span>
+            <span className="min-w-0 flex-1 truncate" title="La Causa AI">La Causa AI</span>
             {isCorporateOrganization && (
               <span
                 className="flex shrink-0 items-center gap-1 rounded-md border border-amber-300/70 bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-500 px-1.5 py-0.5 text-[10px] font-black tracking-wider text-black shadow-[0_0_10px_rgba(245,158,11,.45)]"
-                title="Organización con plan Corporativo"
+                title="Organización con plan Empresarial"
               >
                 <Crown className="h-3 w-3" strokeWidth={2.8} aria-hidden />
-                CORPORATIVO
+                EMPRESARIAL
               </span>
             )}
             {isProOrganization && (
               <span
                 className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-wider text-white"
                 style={{ background: "linear-gradient(135deg, #7c3aed, #2563eb)" }}
-                title="Organización con plan Pro"
+                title="Organización con plan Profesional"
               >
-                PRO
+                PROFESIONAL
+              </span>
+            )}
+            {isSeedOrganization && (
+              <span className="shrink-0 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black tracking-wider text-emerald-500" title="Organización con plan Semilla">
+                SEMILLA
               </span>
             )}
           </Link>
@@ -421,7 +421,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{user?.email ?? ""}</p>
           </div>
           <button onClick={handleLogout} title="Cerrar sesión"
-                  className="p-1.5 rounded-lg opacity-50 hover:opacity-100 transition-opacity">
+            className="p-1.5 rounded-lg opacity-50 hover:opacity-100 transition-opacity">
             <LogOut className="w-4 h-4" />
           </button>
         </div>

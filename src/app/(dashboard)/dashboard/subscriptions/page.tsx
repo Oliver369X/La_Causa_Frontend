@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { subscriptionsApi, type Plan, type Subscription } from "@/features/subscriptions/api/subscriptionsApi";
+import { subscriptionsApi, type Plan } from "@/features/subscriptions/api/subscriptionsApi";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOrganizationBilling } from "@/features/subscriptions/useOrganizationBilling";
 import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { Card } from "@/shared/ui/Card";
@@ -9,7 +11,7 @@ import { Badge } from "@/shared/ui/Badge";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
 import { CreditCard, Check } from "lucide-react";
-import { usdBillingHint, formatUsd } from "@/shared/config/pricingPlans";
+import { formatBob } from "@/shared/config/pricingPlans";
 
 export default function SubscriptionsPage() {
   const { activeOrgId, setActiveOrg, user } = useAuthStore();
@@ -17,21 +19,11 @@ export default function SubscriptionsPage() {
   const canManage      = can("managePlans");
   const isVolunteer    = isVolunteerExperience;
 
-  const [plans, setPlans]                   = useState<Plan[]>([]);
-  const [subscription, setSubscription]     = useState<Subscription | null>(null);
-  const [loading, setLoading]               = useState(true);
+  const qc = useQueryClient();
+  const { data: billing, isLoading: loading, isError: hasError } = useOrganizationBilling(activeOrgId);
+  const plans = billing?.plans ?? [];
+  const subscription = billing?.subscription ?? null;
   const [subscribing, setSubscribing]       = useState<string | null>(null);
-  const [hasError, setHasError]             = useState(false);
-
-  useEffect(() => {
-    Promise.all([
-      subscriptionsApi.listPlans(),
-      activeOrgId ? subscriptionsApi.getOrgSubscription(activeOrgId) : Promise.resolve(null),
-    ])
-      .then(([p, s]) => { setPlans(p); setSubscription(s); setHasError(false); })
-      .catch(() => setHasError(true))
-      .finally(() => setLoading(false));
-  }, [activeOrgId]);
 
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const stripeReturnSynced = useRef(false);
@@ -62,19 +54,20 @@ export default function SubscriptionsPage() {
             },
           });
         }
-        const sub = await subscriptionsApi.getOrgSubscription(checkoutOrgId);
-        setSubscription(sub);
+        await qc.invalidateQueries({ queryKey: ["org-subscription", checkoutOrgId] });
+        await qc.invalidateQueries({ queryKey: ["agent-access", checkoutOrgId] });
+        // Refresh mounted dashboard data that depends on plan entitlements.
+        await qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+        window.history.replaceState({}, "", "/dashboard/subscriptions");
       } catch (err: unknown) {
         const detail =
           err && typeof err === "object" && "response" in err
             ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
             : null;
         toast.error(typeof detail === "string" ? detail : "No se pudo confirmar el pago. ¿Webhook o sync falló?");
-      } finally {
-        window.history.replaceState({}, "", "/dashboard/subscriptions");
       }
     })();
-  }, [activeOrgId, setActiveOrg]);
+  }, [activeOrgId, setActiveOrg, qc]);
 
   const handleSubscribe = async (plan: Plan) => {
     if (!activeOrgId) return;
@@ -83,11 +76,13 @@ export default function SubscriptionsPage() {
     try {
       // Planes gratuitos no pasan por Stripe: se activan directo en backend.
       if (Number(plan.precio_mensual) <= 0) {
-        const sub = await subscriptionsApi.subscribe({
+        await subscriptionsApi.subscribe({
           organizacion_id: activeOrgId,
           plan_id: plan.id,
         });
-        setSubscription(sub);
+        await qc.invalidateQueries({ queryKey: ["org-subscription", activeOrgId] });
+        await qc.invalidateQueries({ queryKey: ["agent-access", activeOrgId] });
+        toast.success("Plan Semilla activado");
         return;
       }
 
@@ -150,7 +145,7 @@ export default function SubscriptionsPage() {
         >
           <CreditCard className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#a855f7" }} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Plan activo</p>
+            <p className="text-sm font-semibold">{billing?.plan?.nombre ?? "Suscripción"}</p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               Estado: <Badge label={subscription.estado} variant={subscription.estado === "activa" ? "success" : "warning"} />
               &nbsp;·&nbsp;Desde {new Date(subscription.fecha_inicio).toLocaleDateString("es-ES")}
@@ -161,7 +156,7 @@ export default function SubscriptionsPage() {
               subscription.limite_tareas_pactado != null) && (
               <ul className="text-xs mt-3 space-y-1 list-disc list-inside" style={{ color: "var(--text-muted)" }}>
                 {subscription.limite_voluntarios_pactado != null && (
-                  <li>Hasta {subscription.limite_voluntarios_pactado} miembros activos en la organización</li>
+                  <li>{subscription.limite_voluntarios_pactado === 0 ? "Voluntarios ilimitados" : `Hasta ${subscription.limite_voluntarios_pactado} voluntarios activos`}</li>
                 )}
                 {subscription.limite_eventos_pactado != null && (
                   <li>Hasta {subscription.limite_eventos_pactado} eventos creados por mes calendario</li>
@@ -217,7 +212,7 @@ export default function SubscriptionsPage() {
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {plans.map((plan) => {
-            const isActive = subscription?.plan_id === plan.id;
+            const isActive = subscription?.plan_id === plan.id && (subscription.estado === "activa" || subscription.estado === "periodo_prueba");
             const hasActiveSubscription = subscription != null &&
               (subscription.estado === "activa" || subscription.estado === "periodo_prueba");
             const activePlan = plans.find((candidate) => candidate.id === subscription?.plan_id);
@@ -234,14 +229,14 @@ export default function SubscriptionsPage() {
                   <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>{plan.descripcion}</p>
                 )}
                 <p className="text-2xl font-bold mb-1">
-                  {formatUsd(plan.precio_mensual)}
+                  {formatBob(plan.precio_mensual)}
                   {plan.precio_mensual > 0 && (
                     <span className="text-xs font-normal ml-1" style={{ color: "var(--text-muted)" }}>/mes</span>
                   )}
                 </p>
                 {plan.precio_mensual > 0 && (
                   <p className="text-[11px] mb-4" style={{ color: "var(--text-muted)" }}>
-                    {usdBillingHint(plan.precio_mensual)}
+                    Facturación mensual en bolivianos (BOB)
                   </p>
                 )}
                 {plan.precio_mensual <= 0 && <div className="mb-4" />}
@@ -250,7 +245,7 @@ export default function SubscriptionsPage() {
                     ...(plan.caracteristicas.length > 0
                       ? plan.caracteristicas
                       : [
-                          `Hasta ${plan.max_voluntarios} voluntarios`,
+                          plan.max_voluntarios === 0 ? "Voluntarios ilimitados" : `Hasta ${plan.max_voluntarios} voluntarios`,
                           `Hasta ${plan.max_eventos} eventos por mes`,
                           `Hasta ${plan.max_tareas_mes} tareas por mes`,
                         ]),

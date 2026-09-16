@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,7 +20,7 @@ import { useCelebrationStore } from "@/shared/store/celebrationStore";
 
 const XP_PER_LEVEL = 100;
 
-export default function GamificationPage() {
+function GamificationPageContent() {
   const { user, activeOrgId } = useAuthStore();
   const searchParams = useSearchParams();
   const showCelebration = useCelebrationStore((s) => s.show);
@@ -525,3 +525,12 @@ export default function GamificationPage() {
     </div>
   );
 }
+
+export default function GamificationPage() {
+  return (
+    <Suspense fallback={<GamificationSkeleton />}>
+      <GamificationPageContent />
+    </Suspense>
+  );
+}
+
