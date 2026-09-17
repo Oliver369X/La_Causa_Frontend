@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Star, Zap, Trophy, Target, Award, Clock, ThumbsUp, AlertTriangle, Link2 } from "lucide-react";
+import { Star, Zap, Trophy, Target, Award, Clock, ThumbsUp, AlertTriangle, Link2, Sparkles } from "lucide-react";
 import type { Badge, CompetitiveProfile, PerformanceMetrics } from "../api/gamificationApi";
 import { ProgressCard, StreakState } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
@@ -16,9 +16,29 @@ interface Props {
   certificatesCount?: number;
   currentBadge?: Badge | null;
   currentBadgeOrgName?: string | null;
+  onSelectBadge?: (badge: Badge) => void;
 }
 
-export function ProfileBanner({ profile, compact = false, showcase = false, metrics, certificatesCount = 0, currentBadge, currentBadgeOrgName }: Props) {
+function formatBadgeRankName(name?: string, defaultRank?: string) {
+  if (!name) return defaultRank ? `Rango ${defaultRank}` : "Medalla de Honor";
+  if (/^[A-Z0-9]+-[A-Z0-9_-]+$/i.test(name)) {
+    const parts = name.split("-");
+    const rank = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+    return `Rango ${rank}`;
+  }
+  return name;
+}
+
+export function ProfileBanner({
+  profile,
+  compact = false,
+  showcase = false,
+  metrics,
+  certificatesCount = 0,
+  currentBadge,
+  currentBadgeOrgName,
+  onSelectBadge,
+}: Props) {
   const xpTotal = profile.xp_total ?? 0;
   const nivel = profile.nivel ?? 1;
   const xpEnNivel = profile.xp_en_nivel ?? 0;
@@ -125,13 +145,46 @@ export function ProfileBanner({ profile, compact = false, showcase = false, metr
               </div>
             </div>
             {currentBadge && (
-              <div className="flex flex-col items-center gap-1 shrink-0 sm:ml-auto" title={currentBadge.nombre}>
-                {currentBadge.imagen_url ? (
-                  <img src={currentBadge.imagen_url} alt={currentBadge.nombre ?? "Medalla actual"} className="w-16 h-16 object-contain" />
-                ) : <Award className="w-10 h-10" />}
-                <span className="text-[10px] font-semibold text-center max-w-24 truncate">{currentBadge.nombre}</span>
-                {currentBadgeOrgName && <span className="text-[10px] text-center max-w-24 truncate" style={{ color: "var(--text-muted)" }}>{currentBadgeOrgName}</span>}
-              </div>
+              <motion.div
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => onSelectBadge?.(currentBadge)}
+                role={onSelectBadge ? "button" : undefined}
+                tabIndex={onSelectBadge ? 0 : undefined}
+                className="flex flex-col items-center gap-1 shrink-0 sm:ml-auto p-2.5 rounded-2xl transition-all cursor-pointer group"
+                style={{
+                  background: "linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)",
+                  border: "1px solid var(--border)",
+                  boxShadow: "0 8px 24px -6px rgba(0,0,0,0.28)",
+                }}
+                title={onSelectBadge ? "Ver reconocimiento oficial" : (currentBadge.nombre ?? "Medalla")}
+              >
+                <div className="flex items-center gap-1 text-[10px] font-extrabold tracking-wider uppercase" style={{ color: "var(--accent)" }}>
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span>{profile.rango ? `Rango ${profile.rango}` : "Medalla"}</span>
+                </div>
+                <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center p-1">
+                  <div
+                    className="absolute inset-0 rounded-full blur-md opacity-35 group-hover:opacity-75 transition-opacity"
+                    style={{ background: "var(--accent)" }}
+                  />
+                  {currentBadge.imagen_url ? (
+                    <img
+                      src={currentBadge.imagen_url}
+                      alt={currentBadge.nombre ?? "Medalla actual"}
+                      className="relative z-10 w-full h-full object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <Award className="relative z-10 w-10 h-10 text-amber-400" />
+                  )}
+                </div>
+                <span className="text-xs font-bold text-center max-w-28 truncate" style={{ color: "var(--text)" }}>
+                  {formatBadgeRankName(currentBadge.nombre, profile.rango)}
+                </span>
+                <span className="text-[10px] text-center max-w-28 truncate" style={{ color: "var(--text-muted)" }}>
+                  {currentBadgeOrgName || "Acreditada"}
+                </span>
+              </motion.div>
             )}
           </div>
 

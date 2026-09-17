@@ -13,7 +13,9 @@ import { GamificationSkeleton } from "@/shared/ui/Skeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ProfileBanner } from "@/features/gamification/ui/ProfileBanner";
 import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
+import { BadgeRecognitionModal } from "@/features/gamification/ui/BadgeRecognitionModal";
 import { GamificationSoundPanel } from "@/features/gamification/ui/GamificationSoundPanel";
+import type { UUID } from "@/shared/types";
 import { RewardCard, ProgressCard } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import { useCelebrationStore } from "@/shared/store/celebrationStore";
@@ -126,6 +128,62 @@ function GamificationPageContent() {
   const visibleRanking = rankingScope === "org" && activeOrgId ? rankingOrg : ranking;
   const myRank = visibleRanking.findIndex((e) => e.usuario_id === user?.id) + 1;
 
+  // Resolver la medalla activa para mostrar en la esquina superior derecha del perfil
+  const currentActiveBadge: Badge | null = (() => {
+    // 1. Si hay activeOrgId y rango, buscar medalla de rango de esa organización
+    if (activeOrgId && profile?.rango) {
+      const orgRankBadge = badges.find(
+        (b) =>
+          b.organizacion_id === activeOrgId &&
+          (b.nombre?.toUpperCase().startsWith(`${profile.rango!.toUpperCase()}-`) ||
+           b.nombre?.toUpperCase().includes(profile.rango!.toUpperCase()))
+      );
+      if (orgRankBadge) return orgRankBadge;
+    }
+    // 2. Buscar medalla que coincida con el rango del perfil en cualquier organización o global
+    if (profile?.rango) {
+      const rankBadge = badges.find(
+        (b) =>
+          b.nombre?.toUpperCase().startsWith(`${profile.rango!.toUpperCase()}-`) ||
+          b.nombre?.toUpperCase() === profile.rango!.toUpperCase() ||
+          b.nombre?.toUpperCase().includes(profile.rango!.toUpperCase())
+      );
+      if (rankBadge) return rankBadge;
+    }
+    // 3. Si hay activeOrgId, la medalla más reciente de esa org
+    if (activeOrgId) {
+      const orgBadge = badges.find((b) => b.organizacion_id === activeOrgId);
+      if (orgBadge) return orgBadge;
+    }
+    // 4. La medalla más reciente del usuario
+    if (badges.length > 0) {
+      return badges[0];
+    }
+    // 5. Fallback si no tiene medallas en BD aún: sintetizar la medalla oficial correspondiente a su rango
+    if (profile?.rango) {
+      const rangoClean = profile.rango.toLowerCase();
+      const validRanks = ["aspirante", "bronce", "plata", "oro", "platino", "diamante", "prospecto", "centenario"];
+      const medalImg = validRanks.includes(rangoClean) ? `/medals/${rangoClean}.png` : "/medals/bronce.png";
+      return {
+        id: `rango-${profile.rango}` as UUID,
+        nombre: `Medalla de Rango: ${profile.rango}`,
+        descripcion: `Distinción honorífica acreditada por alcanzar el rango ELO ${profile.rango} en La Causa.`,
+        imagen_url: medalImg,
+        rareza: (rangoClean === "diamante" || rangoClean === "centenario"
+          ? "legendary"
+          : rangoClean === "oro" || rangoClean === "platino"
+            ? "epic"
+            : rangoClean === "plata"
+              ? "rare"
+              : "uncommon") as Badge["rareza"],
+        puntos: profile.puntos_elo ?? profile.elo_score ?? 0,
+      } as Badge;
+    }
+    return null;
+  })();
+
+  const currentActiveBadgeOrgName = currentActiveBadge?.organizacion_nombre ?? (activeOrgId ? "Organización activa" : "La Causa");
+
   return (
     <div className="p-5 md:p-8 space-y-6" style={{ color: "var(--text)" }}>
       <ShareModal
@@ -140,34 +198,13 @@ function GamificationPageContent() {
         }}
       />
 
-      {selectedBadge && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,.58)" }}
-          onClick={() => setSelectedBadge(null)}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl p-6"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden shrink-0" style={{ background: "var(--g-epic-soft)", border: "2px solid var(--g-epic)" }}>
-                {selectedBadge.imagen_url ? <img src={selectedBadge.imagen_url} alt={selectedBadge.nombre} className="w-full h-full object-cover" /> : <Award className="w-9 h-9" />}
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold">{selectedBadge.nombre}</h2>
-                <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>{selectedBadge.descripcion || "Sin descripción."}</p>
-                <div className="flex flex-wrap gap-2 mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
-                  <span className="px-2 py-1 rounded-full" style={{ background: "var(--bg-subtle)" }}>{selectedBadge.rareza ?? "common"}</span>
-                  {selectedBadge.puntos != null && <span className="px-2 py-1 rounded-full" style={{ background: "var(--bg-subtle)" }}>+{selectedBadge.puntos} XP</span>}
-                  {selectedBadge.fecha_obtencion && <span className="px-2 py-1 rounded-full" style={{ background: "var(--bg-subtle)" }}>{new Date(selectedBadge.fecha_obtencion).toLocaleDateString("es-ES")}</span>}
-                </div>`r`n              </div>
-            </div>
-            <button type="button" onClick={() => setSelectedBadge(null)} className="w-full mt-6 px-4 py-2 rounded-full text-sm font-medium" style={{ background: "var(--text)", color: "var(--bg)" }}>Cerrar</button>
-          </div>
-        </div>
-      )}
+      <BadgeRecognitionModal
+        badge={selectedBadge}
+        onClose={() => setSelectedBadge(null)}
+        onShare={(badge) => {
+          if (badge.id) setShareBadgeId(badge.id);
+        }}
+      />
 
       {/* Hero header */}
       <motion.div
@@ -221,14 +258,9 @@ function GamificationPageContent() {
                       nombre: profile.nombre ?? user?.nombre ?? "Voluntario",
                       avatar_url: profile.avatar_url ?? user?.avatar_url,
                     }}
-                    currentBadge={badges.find((badge) =>
-                      badge.organizacion_id === activeOrgId &&
-                      badge.nombre?.toUpperCase().startsWith(`${(profile.rango ?? "").toUpperCase()}-`),
-                    ) ?? null}
-                    currentBadgeOrgName={badges.find((badge) =>
-                      badge.organizacion_id === activeOrgId &&
-                      badge.nombre?.toUpperCase().startsWith(`${(profile.rango ?? "").toUpperCase()}-`),
-                    )?.organizacion_nombre}
+                    currentBadge={currentActiveBadge}
+                    currentBadgeOrgName={currentActiveBadgeOrgName}
+                    onSelectBadge={setSelectedBadge}
                   />
                 </div>
                 <motion.button

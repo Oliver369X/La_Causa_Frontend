@@ -3,7 +3,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { History, Calendar, Trophy, Lock, Clock, CheckCircle, Plus } from "lucide-react";
+import { History, Calendar, Trophy, Lock, Clock, CheckCircle, Plus, Crown, Shield, Zap } from "lucide-react";
 import { gamificationApi, type Season, type HistoricalRankingEntry } from "@/features/gamification/api/gamificationApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { usePermissions } from "@/shared/hooks/usePermissions";
@@ -12,9 +12,66 @@ import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { Modal } from "@/shared/ui/Modal";
-import { SeasonCard, PodiumCard } from "@/shared/ui/gamification";
+import { SeasonCard } from "@/shared/ui/gamification";
 import { motionSpring, staggerFast } from "@/shared/lib/motion";
 import { toast } from "sonner";
+
+const RANK_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  aspirante: {
+    bg: "var(--bg-subtle)",
+    text: "var(--text-muted)",
+    border: "var(--border)",
+  },
+  bronce: {
+    bg: "rgba(180, 83, 9, 0.10)",
+    text: "#b45309",
+    border: "rgba(180, 83, 9, 0.28)",
+  },
+  plata: {
+    bg: "rgba(100, 116, 139, 0.10)",
+    text: "#475569",
+    border: "rgba(100, 116, 139, 0.28)",
+  },
+  oro: {
+    bg: "rgba(245, 158, 11, 0.12)",
+    text: "#b45309",
+    border: "rgba(245, 158, 11, 0.35)",
+  },
+  platino: {
+    bg: "rgba(14, 165, 233, 0.10)",
+    text: "#0369a1",
+    border: "rgba(14, 165, 233, 0.28)",
+  },
+  diamante: {
+    bg: "rgba(124, 58, 237, 0.10)",
+    text: "#6d28d9",
+    border: "rgba(124, 58, 237, 0.28)",
+  },
+  prospecto: {
+    bg: "rgba(225, 29, 72, 0.10)",
+    text: "#be123c",
+    border: "rgba(225, 29, 72, 0.28)",
+  },
+  centenario: {
+    bg: "rgba(168, 85, 247, 0.12)",
+    text: "#7e22ce",
+    border: "rgba(168, 85, 247, 0.35)",
+  },
+};
+
+function getRankStyle(rankName?: string | null) {
+  const clean = (rankName || "aspirante").toLowerCase().trim();
+  return RANK_STYLES[clean] || RANK_STYLES.aspirante;
+}
+
+function getMedalUrl(rankName?: string | null, medallaUrl?: string | null): string {
+  if (medallaUrl) return medallaUrl;
+  const clean = (rankName || "aspirante").toLowerCase().trim();
+  const valid = ["aspirante", "bronce", "plata", "oro", "platino", "diamante", "prospecto", "centenario"];
+  if (clean === "platino") return "/medals/oro.png";
+  if (valid.includes(clean)) return `/medals/${clean}.png`;
+  return "/medals/aspirante.png";
+}
 
 function formatDate(str: string) {
   return new Date(str).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
@@ -469,66 +526,468 @@ export default function TemporadasPage() {
                   transition={motionSpring.tab}
                   className="overflow-hidden"
                 >
-                  <div className="rounded-2xl p-5 mt-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <Trophy className="w-4 h-4" style={{ color: "var(--g-progreso)" }} />
-                      Ranking histórico – {selectedSeason?.nombre ?? "Temporada"}
-                    </h3>
+                  <div
+                    className="rounded-2xl p-5 md:p-7 mt-6"
+                    style={{
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    {/* Header */}
+                    <div
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4"
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className="p-1.5 rounded-lg flex items-center justify-center"
+                            style={{ background: "var(--g-energia-soft)", color: "var(--g-energia)" }}
+                          >
+                            <Trophy className="w-5 h-5" />
+                          </span>
+                          <h3 className="text-lg md:text-xl font-bold" style={{ color: "var(--text)" }}>
+                            Ranking histórico – {selectedSeason?.nombre ?? "Temporada"}
+                          </h3>
+                        </div>
+                        <p className="text-xs md:text-sm" style={{ color: "var(--text-muted)" }}>
+                          Posiciones finales, ELO acumulado y medallas oficiales alcanzadas en la temporada.
+                        </p>
+                      </div>
+
+                      {historicalRanking.length > 0 && (
+                        <div
+                          className="px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 self-start sm:self-auto"
+                          style={{
+                            background: "var(--bg-subtle)",
+                            border: "1px solid var(--border)",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          <span className="w-2 h-2 rounded-full" style={{ background: "var(--g-logro)" }} />
+                          <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
+                            {historicalRanking.length} participantes
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
                     {loadingHistory ? (
-                      <div className="flex justify-center py-12"><Spinner /></div>
+                      <div className="flex flex-col items-center justify-center py-16 gap-3">
+                        <Spinner size="lg" />
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          Cargando ranking histórico...
+                        </span>
+                      </div>
                     ) : historicalRanking.length === 0 ? (
                       <EmptyState
-                        title="Sin datos"
-                        description="No hay registros de ranking para esta temporada."
+                        title="Sin registros de ranking"
+                        description="No hay registros de ranking para esta temporada o aún no se ha cerrado."
                       />
                     ) : (
-                      <div className="space-y-3">
-                        {historicalRanking.slice(0, 3).map((entry, i) => (
-                          <PodiumCard key={entry.id} position={(i + 1) as 1 | 2 | 3} delay={staggerFast * i}>
-                            <div className="flex items-center gap-4">
-                              <span className="text-2xl" aria-hidden>
-                                {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
-                              </span>
-                              <div className="flex-1">
-                                <p className="font-semibold">Puesto #{entry.posicion_final}</p>
-                                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                                  {entry.elo_final} ELO · {entry.xp_acumulada} XP
-                                </p>
-                              </div>
-                              <span className="text-sm font-bold tabular-nums" style={{ color: "var(--g-energia)" }}>
-                                {entry.elo_final} ELO
-                              </span>
-                            </div>
-                          </PodiumCard>
-                        ))}
-                        {historicalRanking.length > 3 && (
-                          <ul className="divide-y mt-4" style={{ borderColor: "var(--border)" }}>
-                            {historicalRanking.slice(3).map((entry, i) => (
-                              <motion.li
+                      <div className="space-y-6">
+                        {/* Top 3 Podium (Esports Style with Theme Backgrounds) */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                          {/* 2nd Place (Desktop: Col 1, Mobile: Order 2) */}
+                          {historicalRanking[1] && (() => {
+                            const entry = historicalRanking[1];
+                            const rankStyle = getRankStyle(entry.rango_final);
+                            return (
+                              <motion.div
                                 key={entry.id}
-                                initial={{ opacity: 0, x: -8 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: staggerFast * (i + 4) }}
-                                className="flex items-center gap-4 py-3"
-                                style={{ borderBottom: "1px solid var(--border)" }}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ ...motionSpring.celebration, delay: 0.1 }}
+                                className="order-2 md:order-1 rounded-2xl p-5 text-center relative flex flex-col items-center justify-between"
+                                style={{
+                                  background: "linear-gradient(180deg, var(--g-common-soft) 0%, var(--bg-card) 60%)",
+                                  border: "1px solid var(--border)",
+                                  boxShadow: "0 4px 16px rgba(0,0,0,0.03)",
+                                }}
                               >
-                                <span
-                                  className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
+                                <div
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-4"
                                   style={{
                                     background: "var(--bg-subtle)",
-                                    color: "var(--text-muted)",
+                                    border: "1px solid var(--border)",
+                                    color: "var(--text)",
                                   }}
                                 >
-                                  {entry.posicion_final}
-                                </span>
-                                <span className="text-sm tabular-nums">{entry.elo_final} ELO</span>
-                                <span className="text-sm tabular-nums">{entry.xp_acumulada} XP</span>
-                                <span className="text-xs ml-auto" style={{ color: "var(--text-muted)" }}>
-                                  {formatDate(entry.created_at)}
-                                </span>
-                              </motion.li>
-                            ))}
-                          </ul>
+                                  🥈 #2 SUBCAMPEÓN
+                                </div>
+
+                                <div className="relative my-2">
+                                  <div
+                                    className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-slate-400 shadow-sm flex items-center justify-center"
+                                    style={{
+                                      background: "var(--bg-subtle)",
+                                      boxShadow: "0 0 0 2px var(--bg-card)",
+                                    }}
+                                  >
+                                    {entry.avatar_url ? (
+                                      <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span className="text-xl font-bold" style={{ color: "var(--text)" }}>
+                                        {(entry.nombre || "V")[0]?.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div
+                                    className="absolute -bottom-2 -right-1 w-9 h-9 rounded-full p-0.5 shadow-md"
+                                    style={{
+                                      background: "var(--bg-elevated)",
+                                      border: "1px solid var(--border)",
+                                    }}
+                                  >
+                                    <img src={getMedalUrl(entry.rango_final, entry.medalla_url)} alt="" className="w-full h-full object-contain" />
+                                  </div>
+                                </div>
+
+                                <h4
+                                  className="text-base font-bold mt-3 truncate max-w-[200px]"
+                                  style={{ color: "var(--text)" }}
+                                  title={entry.nombre || "Voluntario"}
+                                >
+                                  {entry.nombre || "Voluntario"}
+                                </h4>
+
+                                <div className="my-2">
+                                  <span
+                                    className="text-[11px] font-bold px-2.5 py-0.5 rounded uppercase tracking-wider"
+                                    style={{ background: rankStyle.bg, color: rankStyle.text, border: `1px solid ${rankStyle.border}` }}
+                                  >
+                                    {entry.rango_final || "Aspirante"}
+                                  </span>
+                                </div>
+
+                                <div
+                                  className="w-full mt-4 pt-3 grid grid-cols-2 gap-2 text-center"
+                                  style={{ borderTop: "1px solid var(--border)" }}
+                                >
+                                  <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>ELO</span>
+                                    <span className="text-base font-bold tabular-nums" style={{ color: "var(--text)" }}>{entry.elo_final}</span>
+                                  </div>
+                                  <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>XP</span>
+                                    <span className="text-base font-bold tabular-nums" style={{ color: "var(--g-progreso)" }}>{entry.xp_acumulada}</span>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            );
+                          })()}
+
+                          {/* 1st Place (Desktop: Col 2, Mobile: Order 1) */}
+                          {historicalRanking[0] && (() => {
+                            const entry = historicalRanking[0];
+                            const rankStyle = getRankStyle(entry.rango_final);
+                            return (
+                              <motion.div
+                                key={entry.id}
+                                initial={{ opacity: 0, scale: 0.96 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ ...motionSpring.celebration, delay: 0 }}
+                                className="order-1 md:order-2 rounded-2xl p-6 text-center relative flex flex-col items-center justify-between md:-translate-y-2"
+                                style={{
+                                  background: "linear-gradient(180deg, var(--g-energia-soft) 0%, var(--bg-card) 60%)",
+                                  border: "2px solid var(--g-energia)",
+                                  boxShadow: "0 8px 24px var(--g-energia-soft)",
+                                }}
+                              >
+                                <div
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider shadow-sm mb-4"
+                                  style={{
+                                    background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                                    color: "#ffffff",
+                                  }}
+                                >
+                                  <Crown className="w-4 h-4 fill-white" /> #1 CAMPEÓN
+                                </div>
+
+                                <div className="relative my-2">
+                                  <div
+                                    className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-amber-400 shadow-md flex items-center justify-center"
+                                    style={{
+                                      background: "var(--bg-subtle)",
+                                      boxShadow: "0 0 0 2px var(--bg-card)",
+                                    }}
+                                  >
+                                    {entry.avatar_url ? (
+                                      <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span className="text-2xl font-black" style={{ color: "var(--g-energia)" }}>
+                                        {(entry.nombre || "V")[0]?.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div
+                                    className="absolute -bottom-2 -right-1 w-11 h-11 rounded-full p-1 shadow-md"
+                                    style={{
+                                      background: "var(--bg-elevated)",
+                                      border: "2px solid var(--g-energia)",
+                                    }}
+                                  >
+                                    <img src={getMedalUrl(entry.rango_final, entry.medalla_url)} alt="" className="w-full h-full object-contain" />
+                                  </div>
+                                </div>
+
+                                <h4
+                                  className="text-lg font-bold mt-3 truncate max-w-[220px]"
+                                  style={{ color: "var(--text)" }}
+                                  title={entry.nombre || "Campeón"}
+                                >
+                                  {entry.nombre || "Campeón"}
+                                </h4>
+
+                                <div className="my-2">
+                                  <span
+                                    className="text-xs font-bold px-3 py-1 rounded uppercase tracking-wider"
+                                    style={{ background: rankStyle.bg, color: rankStyle.text, border: `1px solid ${rankStyle.border}` }}
+                                  >
+                                    {entry.rango_final || "Aspirante"}
+                                  </span>
+                                </div>
+
+                                <div
+                                  className="w-full mt-4 pt-3 grid grid-cols-2 gap-2 text-center"
+                                  style={{ borderTop: "1px solid var(--border)" }}
+                                >
+                                  <div className="rounded-xl p-2.5" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>ELO Final</span>
+                                    <span className="text-xl font-black tabular-nums" style={{ color: "var(--g-energia)" }}>{entry.elo_final}</span>
+                                  </div>
+                                  <div className="rounded-xl p-2.5" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>XP Acumulada</span>
+                                    <span className="text-xl font-black tabular-nums" style={{ color: "var(--g-progreso)" }}>{entry.xp_acumulada}</span>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            );
+                          })()}
+
+                          {/* 3rd Place (Desktop: Col 3, Mobile: Order 3) */}
+                          {historicalRanking[2] && (() => {
+                            const entry = historicalRanking[2];
+                            const rankStyle = getRankStyle(entry.rango_final);
+                            return (
+                              <motion.div
+                                key={entry.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ ...motionSpring.celebration, delay: 0.2 }}
+                                className="order-3 md:order-3 rounded-2xl p-5 text-center relative flex flex-col items-center justify-between"
+                                style={{
+                                  background: "linear-gradient(180deg, var(--g-advertencia-soft) 0%, var(--bg-card) 60%)",
+                                  border: "1px solid var(--border)",
+                                  boxShadow: "0 4px 16px rgba(0,0,0,0.03)",
+                                }}
+                              >
+                                <div
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-4"
+                                  style={{
+                                    background: "var(--g-advertencia-soft)",
+                                    border: "1px solid var(--border)",
+                                    color: "var(--g-advertencia)",
+                                  }}
+                                >
+                                  🥉 #3 TERCER PUESTO
+                                </div>
+
+                                <div className="relative my-2">
+                                  <div
+                                    className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-amber-600 shadow-sm flex items-center justify-center"
+                                    style={{
+                                      background: "var(--bg-subtle)",
+                                      boxShadow: "0 0 0 2px var(--bg-card)",
+                                    }}
+                                  >
+                                    {entry.avatar_url ? (
+                                      <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span className="text-xl font-bold" style={{ color: "var(--g-advertencia)" }}>
+                                        {(entry.nombre || "V")[0]?.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div
+                                    className="absolute -bottom-2 -right-1 w-9 h-9 rounded-full p-0.5 shadow-md"
+                                    style={{
+                                      background: "var(--bg-elevated)",
+                                      border: "1px solid var(--border)",
+                                    }}
+                                  >
+                                    <img src={getMedalUrl(entry.rango_final, entry.medalla_url)} alt="" className="w-full h-full object-contain" />
+                                  </div>
+                                </div>
+
+                                <h4
+                                  className="text-base font-bold mt-3 truncate max-w-[200px]"
+                                  style={{ color: "var(--text)" }}
+                                  title={entry.nombre || "Voluntario"}
+                                >
+                                  {entry.nombre || "Voluntario"}
+                                </h4>
+
+                                <div className="my-2">
+                                  <span
+                                    className="text-[11px] font-bold px-2.5 py-0.5 rounded uppercase tracking-wider"
+                                    style={{ background: rankStyle.bg, color: rankStyle.text, border: `1px solid ${rankStyle.border}` }}
+                                  >
+                                    {entry.rango_final || "Aspirante"}
+                                  </span>
+                                </div>
+
+                                <div
+                                  className="w-full mt-4 pt-3 grid grid-cols-2 gap-2 text-center"
+                                  style={{ borderTop: "1px solid var(--border)" }}
+                                >
+                                  <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>ELO</span>
+                                    <span className="text-base font-bold tabular-nums" style={{ color: "var(--g-advertencia)" }}>{entry.elo_final}</span>
+                                  </div>
+                                  <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>XP</span>
+                                    <span className="text-base font-bold tabular-nums" style={{ color: "var(--g-progreso)" }}>{entry.xp_acumulada}</span>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Positions 4+ (Competitive Ladder Table with Dynamic Theme Tokens) */}
+                        {historicalRanking.length > 3 && (
+                          <div className="mt-6">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Shield className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                              <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                                Tabla Clasificatoria
+                              </h4>
+                            </div>
+
+                            <div
+                              className="rounded-2xl overflow-hidden"
+                              style={{
+                                background: "var(--bg-card)",
+                                border: "1px solid var(--border)",
+                              }}
+                            >
+                              {/* Table Header */}
+                              <div
+                                className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-wider"
+                                style={{
+                                  background: "var(--bg-subtle)",
+                                  borderBottom: "1px solid var(--border)",
+                                  color: "var(--text-muted)",
+                                }}
+                              >
+                                <div className="col-span-1 text-center">#</div>
+                                <div className="col-span-4">Voluntario</div>
+                                <div className="col-span-3">Rango y Medalla</div>
+                                <div className="col-span-2 text-right">ELO Final</div>
+                                <div className="col-span-2 text-right">XP Acumulada</div>
+                              </div>
+
+                              {/* Table Body */}
+                              <div>
+                                {historicalRanking.slice(3).map((entry, idx) => {
+                                  const rankStyle = getRankStyle(entry.rango_final);
+                                  return (
+                                    <motion.div
+                                      key={entry.id}
+                                      initial={{ opacity: 0, x: -8 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: staggerFast * (idx + 3) }}
+                                      className="grid grid-cols-12 gap-2 sm:gap-4 px-4 sm:px-5 py-3.5 items-center transition-colors hover:bg-[var(--bg-subtle)]"
+                                      style={{
+                                        borderBottom: idx === historicalRanking.length - 4 ? "none" : "1px solid var(--border)",
+                                      }}
+                                    >
+                                      {/* Position */}
+                                      <div className="col-span-2 sm:col-span-1 flex items-center justify-center">
+                                        <span
+                                          className="w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center tabular-nums"
+                                          style={{
+                                            background: "var(--bg-subtle)",
+                                            border: "1px solid var(--border)",
+                                            color: "var(--text-muted)",
+                                          }}
+                                        >
+                                          #{entry.posicion_final}
+                                        </span>
+                                      </div>
+
+                                      {/* Volunteer Info */}
+                                      <div className="col-span-6 sm:col-span-4 flex items-center gap-3 min-w-0">
+                                        <div
+                                          className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
+                                          style={{
+                                            background: "var(--bg-subtle)",
+                                            border: "1px solid var(--border)",
+                                          }}
+                                        >
+                                          {entry.avatar_url ? (
+                                            <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
+                                              {(entry.nombre || "V")[0]?.toUpperCase()}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p
+                                            className="font-bold text-sm truncate"
+                                            style={{ color: "var(--text)" }}
+                                            title={entry.nombre || "Voluntario"}
+                                          >
+                                            {entry.nombre || "Voluntario"}
+                                          </p>
+                                          <p className="text-[11px] sm:hidden" style={{ color: "var(--text-muted)" }}>
+                                            {entry.rango_final || "Aspirante"}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      {/* Rank & Medal */}
+                                      <div className="hidden sm:flex col-span-3 items-center gap-2">
+                                        <img
+                                          src={getMedalUrl(entry.rango_final, entry.medalla_url)}
+                                          alt=""
+                                          className="w-7 h-7 object-contain shrink-0"
+                                        />
+                                        <span
+                                          className="text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider truncate"
+                                          style={{ background: rankStyle.bg, color: rankStyle.text, border: `1px solid ${rankStyle.border}` }}
+                                        >
+                                          {entry.rango_final || "Aspirante"}
+                                        </span>
+                                      </div>
+
+                                      {/* ELO */}
+                                      <div className="col-span-2 text-right">
+                                        <span className="font-extrabold text-sm tabular-nums" style={{ color: "var(--g-energia)" }}>
+                                          {entry.elo_final} <span className="text-[10px] font-semibold opacity-70">ELO</span>
+                                        </span>
+                                      </div>
+
+                                      {/* XP */}
+                                      <div className="col-span-2 text-right">
+                                        <span
+                                          className="text-xs font-bold tabular-nums px-2 py-0.5 rounded inline-block"
+                                          style={{
+                                            background: "var(--g-progreso-soft)",
+                                            color: "var(--g-progreso)",
+                                          }}
+                                        >
+                                          ⚡ {entry.xp_acumulada} XP
+                                        </span>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}

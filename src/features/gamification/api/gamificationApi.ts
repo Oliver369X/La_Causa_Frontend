@@ -151,6 +151,9 @@ export interface HistoricalRankingEntry {
   created_at: string;
   usuario_id?: string;
   rango_final?: string | null;
+  nombre?: string | null;
+  avatar_url?: string | null;
+  medalla_url?: string | null;
 }
 
 export interface ConfigGamificacionOrg {
