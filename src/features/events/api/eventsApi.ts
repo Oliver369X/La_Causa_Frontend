@@ -35,6 +35,8 @@ export interface EventParticipant {
 export interface VolunteerRetrospective {
   evento_id: string;
   usuario_id: string;
+  nombre_voluntario?: string;
+  avatar_url?: string | null;
   que_bien: string;
   que_mejorar: string;
   accion: string;

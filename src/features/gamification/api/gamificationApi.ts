@@ -156,6 +156,17 @@ export interface HistoricalRankingEntry {
   medalla_url?: string | null;
 }
 
+export interface OrganizationRankingEntry {
+  posicion: number;
+  id: string;
+  nombre: string;
+  slug: string;
+  logo_url?: string | null;
+  sector?: string | null;
+  miembros_activos: number;
+  xp_total: number;
+}
+
 export interface ConfigGamificacionOrg {
   id: string;
   organizacion_id: string;
@@ -259,6 +270,14 @@ export const gamificationApi = {
   /** Ranking histórico por temporada (no por usuario). */
   getHistoricalRanking: async (seasonId: UUID): Promise<HistoricalRankingEntry[]> => {
     const { data } = await apiClient.get<HistoricalRankingEntry[]>(EP.RANKING_HISTORY(seasonId));
+    return data;
+  },
+
+  /** Ranking de organizaciones ordenado por XP acumulada. */
+  getOrganizationsRanking: async (limit?: number): Promise<OrganizationRankingEntry[]> => {
+    const { data } = await apiClient.get<OrganizationRankingEntry[]>("/ranking/organizaciones", {
+      params: limit ? { limit } : undefined,
+    });
     return data;
   },
 

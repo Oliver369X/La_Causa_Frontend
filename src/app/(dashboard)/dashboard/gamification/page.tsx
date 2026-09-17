@@ -4,8 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, GraduationCap, Share2, Target, Award, ChevronRight } from "lucide-react";
-import { gamificationApi, type RankingEntry, type Badge, type CompetitiveProfile, type Season, type Certificate, type HistoricalRankingEntry } from "@/features/gamification/api/gamificationApi";
+import { Trophy, GraduationCap, Share2, Target, Award, ChevronRight, Building2 } from "lucide-react";
+import { gamificationApi, type RankingEntry, type Badge, type CompetitiveProfile, type Season, type Certificate, type HistoricalRankingEntry, type OrganizationRankingEntry } from "@/features/gamification/api/gamificationApi";
 import { shareApi, type ShareCanal } from "@/features/share/api/shareApi";
 import { ShareModal } from "@/features/share/ui/ShareModal";
 import { useAuthStore } from "@/shared/store/authStore";
@@ -31,12 +31,13 @@ function GamificationPageContent() {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [rankingOrg, setRankingOrg] = useState<RankingEntry[]>([]);
+  const [rankingOrgs, setRankingOrgs] = useState<OrganizationRankingEntry[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [seasonHistory, setSeasonHistory] = useState<Array<{ season: Season; snapshot: HistoricalRankingEntry | null; badgeCount: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"badges" | "certificados" | "ranking">("badges");
-  const [rankingScope, setRankingScope] = useState<"org" | "global">(activeOrgId ? "org" : "global");
+  const [rankingScope, setRankingScope] = useState<"org" | "global" | "organizaciones">(activeOrgId ? "org" : "global");
   const [shareBadgeId, setShareBadgeId] = useState<string | null>(null);
   const [shareCertId, setShareCertId] = useState<string | null>(null);
   const [shareProfileOpen, setShareProfileOpen] = useState(false);
@@ -59,8 +60,10 @@ function GamificationPageContent() {
       activeOrgId ? gamificationApi.getRanking(activeOrgId) : Promise.resolve([] as RankingEntry[]),
       activeOrgId ? gamificationApi.getSeasons(activeOrgId) : Promise.resolve([] as Season[]),
       gamificationApi.listCertificates(user.id, activeOrgId ?? undefined),
+      gamificationApi.getOrganizationsRanking(),
     ])
-      .then(([p, b, rGlobal, rOrg, s, c]) => {
+      .then(([p, b, rGlobal, rOrg, s, c, rOrgs]) => {
+        setRankingOrgs(rOrgs ?? []);
         setProfile(p);
         setBadges(b);
         setRanking(rGlobal);
@@ -377,83 +380,210 @@ function GamificationPageContent() {
                 exit={{ opacity: 0, x: -8 }}
                 transition={motionSpring.tab}
               >
-                {activeOrgId && (
-                  <div className="flex gap-1 mb-4 p-1 rounded-xl w-fit" style={{ background: "var(--bg-subtle)" }}>
-                    {(["org", "global"] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setRankingScope(s)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                        style={{
-                          background: rankingScope === s ? "var(--bg-card)" : "transparent",
-                          color: rankingScope === s ? "var(--text)" : "var(--text-muted)",
-                          boxShadow: rankingScope === s ? "0 1px 4px rgba(0,0,0,.12)" : undefined,
-                        }}
-                      >
-                        {s === "org" ? "Mi organización" : "Global"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <ProgressCard>
-                  {visibleRanking.length === 0 ? (
-                    <EmptyState
-                      title="Sin datos de ranking"
-                      description={
-                        rankingScope === "org"
-                          ? "El ranking de la organización se actualiza al completar tareas en la temporada activa."
-                          : "El ranking global se actualiza al finalizar cada evento."
-                      }
-                    />
-                  ) : (
-                    <>
-                      {myRank > 0 && (
-                        <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-                          Tu posición ({rankingScope === "org" && activeOrgId ? "org" : "global"}):{" "}
-                          <span className="font-medium" style={{ color: "var(--g-progreso)" }}>#{myRank}</span>
-                        </p>
-                      )}
-                      <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
-                        {visibleRanking.map((entry, i) => (
-                          <motion.li
-                            key={entry.usuario_id}
-                            initial={{ opacity: 0, x: -8 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: staggerFast * i }}
-                            className="first:pt-0"
-                            style={{ borderBottom: i < visibleRanking.length - 1 ? "1px solid var(--border)" : undefined }}
-                          >
-                            <Link
-                              href={`/voluntario/${entry.usuario_id}?returnTo=${encodeURIComponent("/dashboard/gamification")}`}
-                              className="flex items-center gap-4 px-0 py-3 w-full hover:opacity-90 transition-opacity"
-                              style={{ color: "var(--text)" }}
-                            >
-                              <span
-                                className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
-                                style={{
-                                  background: entry.posicion <= 3 ? "var(--g-progreso)" : "var(--bg-subtle)",
-                                  color: entry.posicion <= 3 ? "#fff" : "var(--text-muted)",
-                                }}
-                              >
-                                {entry.posicion}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{entry.nombre}</p>
-                                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                                  {entry.tareas_completadas ?? 0} tareas
-                                </p>
-                              </div>
-                              <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--g-energia)" }}>
-                                {rankingScope === "global" ? `${entry.xp_total ?? 0} XP` : `${entry.puntos_elo ?? entry.elo_score ?? 0} ELO`}
-                              </span>
-                            </Link>
-                          </motion.li>
-                        ))}
-                      </ul>
-                    </>
+                <div className="flex flex-wrap gap-1 mb-4 p-1 rounded-xl w-fit" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                  {activeOrgId && (
+                    <button
+                      type="button"
+                      onClick={() => setRankingScope("org")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{
+                        background: rankingScope === "org" ? "var(--bg-card)" : "transparent",
+                        color: rankingScope === "org" ? "var(--text)" : "var(--text-muted)",
+                        boxShadow: rankingScope === "org" ? "0 1px 4px rgba(0,0,0,.08)" : undefined,
+                      }}
+                    >
+                      Mi organización
+                    </button>
                   )}
-                </ProgressCard>
+                  <button
+                    type="button"
+                    onClick={() => setRankingScope("global")}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: rankingScope === "global" ? "var(--bg-card)" : "transparent",
+                      color: rankingScope === "global" ? "var(--text)" : "var(--text-muted)",
+                      boxShadow: rankingScope === "global" ? "0 1px 4px rgba(0,0,0,.08)" : undefined,
+                    }}
+                  >
+                    Voluntarios (Global)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRankingScope("organizaciones")}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
+                    style={{
+                      background: rankingScope === "organizaciones" ? "var(--bg-card)" : "transparent",
+                      color: rankingScope === "organizaciones" ? "var(--text)" : "var(--text-muted)",
+                      boxShadow: rankingScope === "organizaciones" ? "0 1px 4px rgba(0,0,0,.08)" : undefined,
+                    }}
+                  >
+                    <Building2 className="w-3.5 h-3.5" style={{ color: "var(--g-progreso)" }} />
+                    🏆 Organizaciones (XP)
+                  </button>
+                </div>
+
+                {rankingScope === "organizaciones" ? (
+                  <ProgressCard>
+                    {rankingOrgs.length === 0 ? (
+                      <EmptyState
+                        title="Sin organizaciones en el ranking"
+                        description="Aún no hay organizaciones con experiencia acumulada registrada."
+                        icon={<Building2 className="w-10 h-10" style={{ color: "var(--text-muted)" }} />}
+                      />
+                    ) : (
+                      <>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                          <div>
+                            <h4 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                              Ranking de Organizaciones por Experiencia
+                            </h4>
+                            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                              Clasificación oficial basada en la experiencia acumulada (XP) por su comunidad de voluntarios.
+                            </p>
+                          </div>
+                          <span
+                            className="text-xs px-2.5 py-1 rounded-full font-semibold self-start sm:self-auto"
+                            style={{ background: "var(--bg-subtle)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
+                          >
+                            {rankingOrgs.length} organizaciones
+                          </span>
+                        </div>
+
+                        <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
+                          {rankingOrgs.map((org, i) => (
+                            <motion.li
+                              key={org.id}
+                              initial={{ opacity: 0, x: -8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: staggerFast * i }}
+                              className="first:pt-0"
+                              style={{ borderBottom: i < rankingOrgs.length - 1 ? "1px solid var(--border)" : undefined }}
+                            >
+                              <Link
+                                href={`/org/${org.slug}?returnTo=${encodeURIComponent("/dashboard/gamification")}`}
+                                className="flex items-center gap-3 sm:gap-4 py-3.5 w-full hover:opacity-90 transition-opacity"
+                                style={{ color: "var(--text)" }}
+                              >
+                                <span
+                                  className="w-8 h-8 text-xs font-black rounded-full flex items-center justify-center shrink-0 tabular-nums"
+                                  style={{
+                                    background:
+                                      org.posicion === 1
+                                        ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+                                        : org.posicion === 2
+                                        ? "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)"
+                                        : org.posicion === 3
+                                        ? "linear-gradient(135deg, #d97706 0%, #b45309 100%)"
+                                        : "var(--bg-subtle)",
+                                    color: org.posicion <= 3 ? "#ffffff" : "var(--text-muted)",
+                                    border: "1px solid var(--border)",
+                                  }}
+                                >
+                                  {org.posicion === 1 ? "🥇" : org.posicion === 2 ? "🥈" : org.posicion === 3 ? "🥉" : `#${org.posicion}`}
+                                </span>
+
+                                <div
+                                  className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex items-center justify-center"
+                                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+                                >
+                                  {org.logo_url ? (
+                                    <img src={org.logo_url} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Building2 className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                                  )}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-sm font-bold truncate">{org.nombre}</p>
+                                    {org.sector && (
+                                      <span
+                                        className="text-[10px] px-2 py-0.5 rounded-md font-medium"
+                                        style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                                      >
+                                        {org.sector}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                    {org.miembros_activos} voluntario{org.miembros_activos !== 1 ? "s" : ""} registrado{org.miembros_activos !== 1 ? "s" : ""}
+                                  </p>
+                                </div>
+
+                                <div className="text-right shrink-0">
+                                  <span className="text-sm sm:text-base font-black tabular-nums" style={{ color: "var(--g-energia)" }}>
+                                    ⚡ {org.xp_total.toLocaleString()} XP
+                                  </span>
+                                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>XP acumulada</p>
+                                </div>
+                              </Link>
+                            </motion.li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </ProgressCard>
+                ) : (
+                  <ProgressCard>
+                    {visibleRanking.length === 0 ? (
+                      <EmptyState
+                        title="Sin datos de ranking"
+                        description={
+                          rankingScope === "org"
+                            ? "El ranking de la organización se actualiza al completar tareas en la temporada activa."
+                            : "El ranking global se actualiza al finalizar cada evento."
+                        }
+                      />
+                    ) : (
+                      <>
+                        {myRank > 0 && (
+                          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+                            Tu posición ({rankingScope === "org" && activeOrgId ? "org" : "global"}):{" "}
+                            <span className="font-medium" style={{ color: "var(--g-progreso)" }}>#{myRank}</span>
+                          </p>
+                        )}
+                        <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
+                          {visibleRanking.map((entry, i) => (
+                            <motion.li
+                              key={entry.usuario_id}
+                              initial={{ opacity: 0, x: -8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: staggerFast * i }}
+                              className="first:pt-0"
+                              style={{ borderBottom: i < visibleRanking.length - 1 ? "1px solid var(--border)" : undefined }}
+                            >
+                              <Link
+                                href={`/voluntario/${entry.usuario_id}?returnTo=${encodeURIComponent("/dashboard/gamification")}`}
+                                className="flex items-center gap-4 px-0 py-3 w-full hover:opacity-90 transition-opacity"
+                                style={{ color: "var(--text)" }}
+                              >
+                                <span
+                                  className="w-8 h-8 text-xs font-bold rounded-full flex items-center justify-center shrink-0"
+                                  style={{
+                                    background: entry.posicion <= 3 ? "var(--g-progreso)" : "var(--bg-subtle)",
+                                    color: entry.posicion <= 3 ? "#fff" : "var(--text-muted)",
+                                    border: "1px solid var(--border)",
+                                  }}
+                                >
+                                  {entry.posicion}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{entry.nombre}</p>
+                                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                    {entry.tareas_completadas ?? 0} tareas
+                                  </p>
+                                </div>
+                                <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--g-energia)" }}>
+                                  {rankingScope === "global" ? `${entry.xp_total ?? 0} XP` : `${entry.puntos_elo ?? entry.elo_score ?? 0} ELO`}
+                                </span>
+                              </Link>
+                            </motion.li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </ProgressCard>
+                )}
               </motion.div>
             )}
 
