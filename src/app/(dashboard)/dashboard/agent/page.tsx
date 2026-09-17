@@ -1,4 +1,5 @@
 "use client";
+import { EventProposalPanel } from "@/features/agent/components/EventProposalPanel";
 
 import { useState, useRef, useEffect, type MouseEvent } from "react";
 import Link from "next/link";
@@ -426,7 +427,11 @@ function AgentConversationList({
 }
 
 export default function AgentPage() {
-  const { activeOrgId } = useAuthStore();
+  const { activeOrgId: selectedOrgId } = useAuthStore();
+  const [resolvedAgentOrg, setResolvedAgentOrg] = useState<{ requested: string | null; id: string | null } | null>(null);
+  // The backend also supports an implicit organization. Use that same scope for
+  // cards/history instead of silently hiding them when the sidebar is in global mode.
+  const activeOrgId = selectedOrgId ?? (resolvedAgentOrg?.requested === (selectedOrgId ?? null) ? resolvedAgentOrg.id : null);
   const { data: billing } = useOrganizationBilling(activeOrgId);
   const [access, setAccess] = useState<{ can_use: boolean; reason?: string; is_enterprise?: boolean; is_paid?: boolean } | null>(null);
   const [messages, setMessages] = useState<Message[]>([
@@ -472,19 +477,22 @@ export default function AgentPage() {
   // Restaurar conversación guardada solo al montar / cambiar org (no al crear sesión tras el primer envío).
   useEffect(() => {
     if (!access?.can_use || !activeOrgId || typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(sessionStorageKey);
+    const saved = window.localStorage.getItem(sessionStorageKey) || window.localStorage.getItem("agent-session:no-org");
     if (!saved) return;
     setSessionId(saved);
     setBootstrapping(true);
     agentApi
       .getConversationMessages(saved, activeOrgId)
       .then((res) => {
+        // Only migrate the legacy unscoped session after the server verifies ownership.
+        window.localStorage.setItem(sessionStorageKey, saved);
         if (res.messages.length > 0) {
           setMessages(
             res.messages.map((m) => ({
               role: m.role as "user" | "assistant",
               content: m.content,
               actions: m.actions,
+              trace_id: m.trace_id,
               quick_replies: m.quick_replies,
             }))
           );
@@ -499,10 +507,16 @@ export default function AgentPage() {
   }, [access?.can_use, activeOrgId, sessionStorageKey]);
 
   useEffect(() => {
-    agentApi.getAccess(activeOrgId ?? null)
-      .then((r) => setAccess({ can_use: r.can_use, reason: r.reason, is_enterprise: r.is_enterprise, is_paid: r.is_paid }))
-      .catch(() => setAccess({ can_use: false, reason: "sin_organizacion", is_enterprise: false, is_paid: false }));
-  }, [activeOrgId]);
+    let alive = true;
+    agentApi.getAccess(selectedOrgId ?? null)
+      .then((r) => {
+        if (!alive) return;
+        setResolvedAgentOrg({ requested: selectedOrgId ?? null, id: r.org_id ?? selectedOrgId ?? null });
+        setAccess({ can_use: r.can_use, reason: r.reason, is_enterprise: r.is_enterprise, is_paid: r.is_paid });
+      })
+      .catch(() => { if (alive) setAccess({ can_use: false, reason: "sin_organizacion", is_enterprise: false, is_paid: false }); });
+    return () => { alive = false; };
+  }, [selectedOrgId]);
 
   useEffect(() => {
     if (!access?.can_use || !activeOrgId) return;
@@ -802,6 +816,7 @@ export default function AgentPage() {
               role: m.role as "user" | "assistant",
               content: m.content,
               actions: m.actions,
+              trace_id: m.trace_id,
               quick_replies: m.quick_replies,
             }))
           );
@@ -1176,8 +1191,8 @@ export default function AgentPage() {
                 ? parseUserContent(prevUserMsg.content).text || prevUserMsg.content
                 : undefined;
             return (
+              <div key={`${msg.trace_id || "message"}:${i}`} className="space-y-4">
               <Bubble
-                key={i}
                 msg={msg}
                 onConfirm={msg.pending ? handleConfirm : undefined}
                 onQuickReply={(sendText) => sendMessage(sendText, undefined, undefined, { skipAttachments: true })}
@@ -1195,6 +1210,12 @@ export default function AgentPage() {
                 }
                 inferenceInput={msg.role === "assistant" ? prevForFeedback : undefined}
               />
+              {msg.role === "assistant" && msg.trace_id && sessionId && activeOrgId && (
+                <EventProposalPanel sessionId={sessionId} orgId={activeOrgId} traceId={msg.trace_id}
+                  refreshKey={messages.length} disabled={loading}
+                  onAdjust={() => sendMessage("Quiero ajustar la propuesta de este mensaje: " + msg.content, undefined, undefined, { skipAttachments: true })} />
+              )}
+              </div>
             );
           })}
           {loading && (

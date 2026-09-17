@@ -1,4 +1,5 @@
 "use client";
+import { CreationCard, creationStyles as editor } from "@/shared/ui/CreationCard";
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -337,10 +338,9 @@ export default function EventsPage() {
         )}
 
         {!isVolunteer && showForm && (
-          <div className="mb-8 p-6 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <h3 className="font-semibold mb-5">Crear nuevo evento</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
+          <CreationCard kind="event" onClose={() => { setShowForm(false); setCoverPreview(null); }}>
+            <div className={editor.fields}>
+              <div data-editor="block">
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Arte o portada del evento</label>
                 <label className="group block relative min-h-44 rounded-2xl overflow-hidden cursor-pointer" style={{ background: "var(--bg-subtle)", border: "1px dashed var(--border)" }}>
                   {coverPreview ? (
@@ -384,7 +384,7 @@ export default function EventsPage() {
                 { label: "Campaña / proyecto (opcional)", key: "campana", type: "text", placeholder: "Ej. Educación comunitaria 2026" },
                 { label: "Ubicación (dirección)", key: "ubicacion", type: "text", placeholder: "Busca o escribe; al ubicar en el mapa se completa aquí" },
               ].map((f) => (
-                <div key={f.key} className={f.key === "descripcion" || f.key === "ubicacion" ? "md:col-span-2" : ""}>
+                <div key={f.key} data-editor={f.key === "nombre" ? "title" : f.key === "descripcion" ? "description" : undefined}>
                   <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>{f.label}</label>
                   {f.key === "descripcion" ? (
                     <textarea
@@ -412,7 +412,7 @@ export default function EventsPage() {
                   )}
                 </div>
               ))}
-              <div className="md:col-span-2">
+              <div data-editor="block">
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>
                   Mapa (se actualiza al escribir la dirección o puedes marcar a mano)
                 </label>
@@ -441,7 +441,7 @@ export default function EventsPage() {
                 {extractApiDetail(createMutation.error, "Error al crear el evento.")}
               </p>
             )}
-            <div className="flex gap-3 mt-5">
+            <div className={editor.actions}>
               <button
                 disabled={createMutation.isPending}
                 onClick={() => {
@@ -491,7 +491,7 @@ export default function EventsPage() {
                 Cancelar
               </button>
             </div>
-          </div>
+          </CreationCard>
         )}
 
         {isLoading ? (

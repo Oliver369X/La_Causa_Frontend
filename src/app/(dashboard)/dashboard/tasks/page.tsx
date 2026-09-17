@@ -1,4 +1,5 @@
 "use client";
+import { CreationCard, creationStyles as editor } from "@/shared/ui/CreationCard";
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
@@ -476,9 +477,8 @@ function TasksPageContent() {
         </div>
 
         {showForm && (
-          <div className="mb-8 p-6 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <h3 className="font-semibold mb-5">Crear nueva tarea</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CreationCard kind="task" onClose={() => setShowForm(false)}>
+            <div className={editor.fields}>
               <div>
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Evento *</label>
                 <select
@@ -528,7 +528,7 @@ function TasksPageContent() {
                   Selecciona una medalla desde el buscador para evitar listas demasiado largas.
                 </p>
               </div>
-              <div>
+              <div data-editor="title">
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Título *</label>
                 <input
                   type="text"
@@ -539,7 +539,7 @@ function TasksPageContent() {
                   style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
               </div>
-              <div className="md:col-span-2">
+              <div data-editor="description">
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Descripción</label>
                 <input
                   type="text"
@@ -550,7 +550,7 @@ function TasksPageContent() {
                   style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
               </div>
-              <div className="md:col-span-2">
+              <div data-editor="description">
                 <label className="block text-sm mb-1.5" style={{ color: "var(--text-muted)" }}>Instrucciones para el voluntario</label>
                 <p className="text-xs mb-2 leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   Escribe un paso por línea, o usa{" "}
@@ -670,7 +670,7 @@ function TasksPageContent() {
                 </label>
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
+            <div className={editor.actions}>
               <button
                 onClick={() => {
                   const fd = formData as Record<string, string>;
@@ -714,7 +714,7 @@ function TasksPageContent() {
                 Cancelar
               </button>
             </div>
-          </div>
+          </CreationCard>
         )}
 
         {showBadgePicker && (

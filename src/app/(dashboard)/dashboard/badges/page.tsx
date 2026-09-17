@@ -1,4 +1,5 @@
 "use client";
+import { CreationCard, creationStyles as editor } from "@/shared/ui/CreationCard";
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
@@ -444,8 +445,9 @@ export default function BadgesPage() {
           </>
         }
       >
-        <div className="space-y-5 w-full min-w-0 max-w-full overflow-hidden">
-          <div className="min-w-0">
+        <CreationCard kind="medal" embedded status={editingBadge ? "Editando" : "Borrador"}>
+        <div className={editor.fields}>
+          <div data-editor="title">
             <label className="block text-sm font-medium mb-1">Nombre</label>
             <input
               value={formNombre}
@@ -455,7 +457,7 @@ export default function BadgesPage() {
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
           </div>
-          <div className="min-w-0">
+          <div data-editor="description">
             <label className="block text-sm font-medium mb-1">Descripción</label>
             <textarea
               value={formDesc}
@@ -583,7 +585,7 @@ export default function BadgesPage() {
               style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
           </div>
-          <div className="min-w-0">
+          <div data-editor="block">
             <label className="block text-sm font-medium mb-1.5">Regla y requisitos</label>
             <p className="text-xs mb-2 break-words" style={{ color: "var(--text-muted)" }}>
               Definí cómo se otorga la medalla; el sistema arma la configuración automáticamente.
@@ -599,6 +601,7 @@ export default function BadgesPage() {
           </div>
 
         </div>
+        </CreationCard>
       </Modal>
 
       {loading ? (
