@@ -1,4 +1,5 @@
 "use client";
+import { TaskExplorer } from "@/features/tasks/ui/TaskExplorer";
 import { CreationCard, creationStyles as editor } from "@/shared/ui/CreationCard";
 
 import { Suspense, useState, useEffect } from "react";
@@ -111,6 +112,7 @@ function TaskBoardCard({
           {task.descripcion}
         </p>
       )}
+      {task.estado === "completed" && <div className="mb-3 rounded-xl border border-emerald-500 bg-emerald-500/15 p-3 text-sm font-bold text-emerald-600 dark:text-emerald-300">Tarea completada</div>}
       {task.fecha_vencimiento && (
         <p
           className={`text-xs mb-1 ${vencida ? "text-red-500" : ""}`}
@@ -151,6 +153,7 @@ function TasksPageContent() {
   const { activeOrgId, user } = useAuthStore();
   const { isVolunteerExperience, isOwner } = usePermissions();
   const isVolunteer = isVolunteerExperience;
+  const [boardView, setBoardView] = useState<"cards" | "groups">("cards");
   const qc = useQueryClient();
   const eventoIdFromUrl = searchParams.get("evento_id");
   const taskIdFromUrl = searchParams.get("task_id");
@@ -830,7 +833,11 @@ function TasksPageContent() {
           </div>
         )}
 
-        {isLoading ? (
+        <div role="tablist" aria-label="Vista del tablero" className="flex gap-4 mb-5">
+          <button role="tab" aria-selected={boardView === "cards"} onClick={() => setBoardView("cards")} className="text-sm underline">Tarjetas y participantes</button>
+          <button role="tab" aria-selected={boardView === "groups"} onClick={() => setBoardView("groups")} className="text-sm underline">Por evento y temporada</button>
+        </div>
+        {boardView === "cards" && activeOrgId ? <TaskExplorer key={activeOrgId} orgId={activeOrgId} eventId={eventoIdFromUrl || undefined} /> : isLoading ? (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando tareas...</p>
         ) : (
           <div className="space-y-8">

@@ -247,8 +247,8 @@ export const gamificationApi = {
     return data;
   },
 
-  getRanking: async (organizacionId?: string): Promise<RankingEntry[]> => {
-    const params = organizacionId ? { organizacion_id: organizacionId } : {};
+  getRanking: async (organizacionId?: string, incluirNuevos = false): Promise<RankingEntry[]> => {
+    const params = organizacionId ? { organizacion_id: organizacionId, exigir_actividad_minima: !incluirNuevos } : {};
     const { data } = await apiClient.get<RankingEntry[]>(EP.RANKING, { params });
     return data;
   },

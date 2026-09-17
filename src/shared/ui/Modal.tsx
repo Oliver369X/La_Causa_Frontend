@@ -17,20 +17,24 @@ interface ModalProps {
 }
 
 const SIZE_MAP = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-3xl", "2xl": "max-w-4xl" };
+const openDialogs: string[] = [];
 
 export function Modal({ open, onClose, title, description, children, footer, size = "md", scrollable = false }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const titleId = useId();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => { setMounted(true); }, []);
 
   // Close on Escape
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    openDialogs.push(titleId);
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" && openDialogs.at(-1) === titleId) { e.stopImmediatePropagation(); closeRef.current(); } };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose]);
+    return () => { document.removeEventListener("keydown", handler); const index = openDialogs.indexOf(titleId); if (index >= 0) openDialogs.splice(index, 1); };
+  }, [open, titleId]);
 
   // Prevent body scroll
   useEffect(() => {

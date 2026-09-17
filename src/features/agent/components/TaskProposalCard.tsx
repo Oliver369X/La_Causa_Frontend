@@ -19,8 +19,9 @@ export function TaskProposalCard({ proposal, draft, onEdit, decide, busy, error,
   const end = draft.fecha_vencimiento ? new Date(draft.fecha_vencimiento).getTime() : null;
   const valid = !!event && draft.titulo.trim().length >= 3 && Number.isInteger(draft.vacantes) &&
     (draft.vacantes ?? 0) >= 1 && (draft.vacantes ?? 0) <= 100 &&
-    (start === null || Number.isFinite(start)) && (end === null || Number.isFinite(end)) &&
-    (start === null || end === null || end > start);
+    start !== null && end !== null && Number.isFinite(start) && Number.isFinite(end) &&
+    end > start && start >= new Date(event.fecha_inicio).getTime() &&
+    !!event.fecha_fin && end <= new Date(event.fecha_fin).getTime();
   const done = proposal.status !== "pending";
   return <CreationCard kind="task" label="Propuesta de tarea" status={done ? (proposal.status === "completed" ? "Creada" : proposal.status === "cancelled" ? "Cancelada" : "Vencida") : "Por confirmar"}>
     {done && <h3>{proposal.result?.titulo || draft.titulo || "Propuesta de tarea"}</h3>}
@@ -49,6 +50,11 @@ export function TaskProposalCard({ proposal, draft, onEdit, decide, busy, error,
         <label data-editor="description">Instrucciones
           <textarea className={field} rows={3} maxLength={10000} value={draft.instrucciones || ""} onChange={e => onEdit({ ...draft, instrucciones: e.target.value })} />
         </label>
+        {draft.insignia_id && <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
+          <p>Medalla al completar: <strong>{draft.insignia_nombre || "Medalla seleccionada"}</strong></p>
+          {draft.recomendacion_medalla && <p className="text-[var(--text-muted)]">{draft.recomendacion_medalla}</p>}
+          <button type="button" onClick={() => onEdit({ ...draft, insignia_id: null, insignia_nombre: null, recomendacion_medalla: "" })} className="mt-2 text-[var(--accent)]">Quitar medalla de esta tarea</button>
+        </div>}
         <div className={editor.fields} data-editor="block">
           <label className="block text-sm">Dificultad
             <select className={field} value={draft.dificultad || "media"} onChange={e => onEdit({ ...draft, dificultad: e.target.value as Draft["dificultad"] })}>
@@ -75,7 +81,7 @@ export function TaskProposalCard({ proposal, draft, onEdit, decide, busy, error,
         <div className={editor.actions}>
           <button type="button" disabled={!valid} onClick={() => decide("confirm")} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm text-black disabled:opacity-40">{busy ? "Procesando…" : "Crear tarea"}</button>
           <button type="button" onClick={() => decide("save")} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm">Guardar propuesta</button>
-          <button type="button" onClick={() => decide("cancel")} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm">Cancelar</button>
+          <button type="button" onClick={() => decide("cancel")} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm">Cancelar tarea</button>
         </div>
       </fieldset>
     </>}

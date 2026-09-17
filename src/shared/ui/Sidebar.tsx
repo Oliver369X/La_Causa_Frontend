@@ -1,4 +1,5 @@
 "use client";
+import { UserAvatar } from "@/shared/ui/UserAvatar";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -413,9 +414,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           {theme === "dark" ? "Modo claro" : "Modo oscuro"}
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-            {user?.nombre?.charAt(0).toUpperCase() ?? "U"}
-          </div>
+          <UserAvatar src={user?.avatar_url} name={user?.nombre || "Usuario"} className="w-9 h-9 text-xs" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.nombre ?? "Usuario"}</p>
             <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{user?.email ?? ""}</p>

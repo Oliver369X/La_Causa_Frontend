@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/shared/store/authStore";
 import { volunteersApi, type Member, filterVolunteerMembers } from "@/features/volunteers/api/volunteersApi";
@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { gamificationApi, type Badge, type CompetitiveProfile } from "@/features/gamification/api/gamificationApi";
 import { ProfileBanner } from "@/features/gamification/ui/ProfileBanner";
 import { BadgeGrid } from "@/features/gamification/ui/BadgeGrid";
+import { VolunteerSummaryCard } from "@/features/volunteers/ui/VolunteerSummaryCard";
+import { ListPagination } from "@/shared/ui/ListPagination";
 import { Modal } from "@/shared/ui/Modal";
 
 function roleLabel(member: Member): string {
@@ -25,68 +27,21 @@ function roleLabel(member: Member): string {
   return "Voluntario";
 }
 
-function MemberCard({ member, orgId }: { member: Member; orgId: string }) {
-  const displayName = displayPersonName(member.usuario_nombre, member.usuario_email, "Voluntario");
-  const initials = displayName
-    .split(/\s+/)
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  const joined = new Date(member.fecha_ingreso).toLocaleDateString("es-BO", {
-    year: "numeric", month: "short", day: "numeric",
-  });
-
-  return (
-    <div
-      className="flex items-center gap-4 p-4 rounded-2xl transition-colors hover:opacity-90"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-    >
-      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-        {initials}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{displayName}</p>
-        {member.usuario_email && member.usuario_email !== displayName && (
-          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{member.usuario_email}</p>
-        )}
-        <div className="flex items-center gap-2 mt-0.5">
-          <Calendar className="w-3 h-3 shrink-0" style={{ color: "var(--text-muted)" }} />
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>Ingresó {joined}</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Link
-          href={`/dashboard/perfil/${member.usuario_id}?org=${orgId}`}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium"
-          style={{ background: "var(--accent-soft)", border: "1px solid var(--border)", color: "var(--accent)" }}
-        >
-          <Eye className="w-3 h-3" /> Ver perfil
-        </Link>
-        {member.es_propietario
-          ? <Crown className="w-4 h-4 text-yellow-500" />
-          : <User2 className="w-4 h-4" style={{ color: "var(--text-muted)" }} />}
-        <span
-          className="text-xs px-2 py-0.5 rounded-full"
-          style={{ background: "var(--bg-subtle)", color: "var(--text-muted)" }}
-        >
-          {roleLabel(member)}
-        </span>
-        <span
-          className="text-xs px-2 py-0.5 rounded-full"
-          style={{
-            background: member.estado_membresia === "activo" ? "var(--accent-soft)" : "var(--bg-subtle)",
-            color: member.estado_membresia === "activo" ? "var(--accent)" : "var(--text-muted)",
-          }}
-        >
-          {member.estado_membresia}
-        </span>
-      </div>
-    </div>
-  );
+function MemberCard({ member, orgId, onRequest }: { member: Member; orgId: string; onRequest?: () => void }) {
+  const name = displayPersonName(member.usuario_nombre, member.usuario_email, "Voluntario");
+  return <VolunteerSummaryCard name={name} avatar={member.usuario_avatar_url} email={member.usuario_email}
+    rank={member.rango} xp={member.xp_total} elo={member.elo_score}
+    detail={<>{roleLabel(member)} · {member.estado_membresia} · {member.tareas_completadas ?? 0} tareas completadas</>}>
+    <Link className="text-sm text-[var(--accent)]" href={`/dashboard/perfil/${member.usuario_id}?org=${orgId}`}>Ver perfil</Link>
+    {onRequest && <button className="text-sm text-[var(--accent)]" onClick={onRequest}>Ver solicitud</button>}
+  </VolunteerSummaryCard>;
 }
 
 interface Solicitud {
+  usuario_avatar_url?: string | null;
+  xp_total?: number;
+  elo_score?: number;
+  rango?: string;
   id: string;
   usuario_id: string;
   organizacion_id: string;
@@ -101,6 +56,11 @@ export default function VolunteersPage() {
   const { activeOrgId } = useAuthStore();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [requestPage, setRequestPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [showHistory, setShowHistory] = useState(false);
+  useEffect(() => { setPage(1); setRequestPage(1); setHistoryPage(1); setSelectedSolicitud(null); }, [activeOrgId, search]);
   const [selectedSolicitud, setSelectedSolicitud] = useState<Solicitud | null>(null);
   const [mensajeRespuesta, setMensajeRespuesta] = useState("");
   const [confirmacionEstado, setConfirmacionEstado] = useState<"aprobada" | "rechazada" | null>(null);
@@ -152,6 +112,11 @@ export default function VolunteersPage() {
       (m.usuario_email || "").toLowerCase().includes(q)
     );
   });
+  useEffect(() => {
+    setPage(p => Math.min(p, Math.max(1, Math.ceil(filtered.length / 12))));
+    setRequestPage(p => Math.min(p, Math.max(1, Math.ceil(pendientes.length / 12))));
+    setHistoryPage(p => Math.min(p, Math.max(1, Math.ceil(historialSolicitudes.length / 12))));
+  }, [filtered.length, pendientes.length, historialSolicitudes.length]);
 
   const exportVolunteersCsv = () => {
     downloadCsv(
@@ -183,6 +148,10 @@ export default function VolunteersPage() {
                 ? ` · ${members.length - volunteers.length} en staff`
                 : ""}
             </p>
+            <button type="button" aria-expanded={showHistory} className="mt-3 text-sm text-[var(--accent)]" onClick={() => setShowHistory(v => !v)}>
+              {showHistory ? "Ocultar" : "Ver"} historial de solicitudes ({historialSolicitudes.length})
+            </button>
+
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <button
@@ -208,6 +177,18 @@ export default function VolunteersPage() {
             />
           </div>
         </div>
+
+        {activeOrgId && showHistory && <section className="mb-8">
+          <h3 className="font-semibold mb-4">Historial de solicitudes ({historialSolicitudes.length})</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {historialSolicitudes.slice((historyPage - 1) * 12, historyPage * 12).map(s => <VolunteerSummaryCard key={s.id}
+              name={displayPersonName(s.usuario_nombre, s.usuario_email, "Solicitante")} email={s.usuario_email}
+              avatar={s.usuario_avatar_url} rank={s.rango} xp={s.xp_total} elo={s.elo_score} detail={<>{s.estado} · {s.mensaje || "Sin mensaje"}</>}>
+              <button className="text-sm text-[var(--accent)]" onClick={() => { setSelectedSolicitud(s); setMensajeRespuesta(""); }}>Ver perfil y solicitud</button>
+            </VolunteerSummaryCard>)}
+          </div>
+          <ListPagination page={historyPage} total={historialSolicitudes.length} onChange={setHistoryPage} />
+        </section>}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -253,56 +234,17 @@ export default function VolunteersPage() {
         </div>
 
         {/* Solicitudes pendientes */}
-        {activeOrgId && pendientes.length > 0 && (
-          <div className="mb-8 p-5 rounded-2xl" style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}>
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <UserPlus className="w-4 h-4" /> Solicitudes pendientes ({pendientes.length})
-            </h3>
-            <div className="space-y-3">
-              {pendientes.map((s) => (
-                <div
-                  key={s.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => { setSelectedSolicitud(s); setMensajeRespuesta(""); }}
-                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedSolicitud(s); setMensajeRespuesta(""); } }}
-                  className="flex items-center justify-between gap-4 p-3 rounded-xl cursor-pointer transition-opacity hover:opacity-85"
-                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-                >
-                  <div>
-                    <p className="text-sm font-medium">{displayPersonName(s.usuario_nombre, s.usuario_email, "Solicitante")}</p>
-                    {s.usuario_email && s.usuario_nombre && (
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{s.usuario_email}</p>
-                    )}
-                    {s.mensaje && <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{s.mensaje}</p>}
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      {new Date(s.fecha_solicitud).toLocaleDateString("es-ES")}
-                    </p>
-                  </div>
-                  <Eye className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />
-                </div>
-              ))}
-            </div>
+        {activeOrgId && pendientes.length > 0 && <section className="mb-8">
+          <h3 className="font-semibold mb-4">Solicitudes pendientes ({pendientes.length})</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendientes.slice((requestPage - 1) * 12, requestPage * 12).map(s => <VolunteerSummaryCard key={s.id}
+              name={displayPersonName(s.usuario_nombre, s.usuario_email, "Solicitante")} email={s.usuario_email}
+              avatar={s.usuario_avatar_url} rank={s.rango} xp={s.xp_total} elo={s.elo_score} detail={<>{s.estado} · {s.mensaje || "Sin mensaje"}</>}>
+              <button className="text-sm text-[var(--accent)]" onClick={() => { setSelectedSolicitud(s); setMensajeRespuesta(""); }}>Ver perfil y solicitud</button>
+            </VolunteerSummaryCard>)}
           </div>
-        )}
-
-        {activeOrgId && historialSolicitudes.length > 0 && (
-          <div className="mb-8 p-5 rounded-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <h3 className="font-semibold mb-3">Historial de solicitudes</h3>
-            <div className="space-y-2">
-              {historialSolicitudes.slice(0, 10).map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
-                  <div>
-                    <p className="text-sm font-medium">{displayPersonName(s.usuario_nombre, s.usuario_email, "Solicitante")}</p>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{s.mensaje || "Sin mensaje"}</p>
-                  </div>
-                  <span className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>{s.estado}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
+          <ListPagination page={requestPage} total={pendientes.length} onChange={setRequestPage} />
+        </section>}
         {/* Empty / Loading states */}
         {isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -326,9 +268,13 @@ export default function VolunteersPage() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {filtered.map((m) => <MemberCard key={m.id} member={m} orgId={activeOrgId!} />)}
+          {filtered.slice((page - 1) * 12, page * 12).map((m) => {
+            const request = (solicitudes as Solicitud[]).find(s => s.usuario_id === m.usuario_id);
+            return <MemberCard key={m.id} member={m} orgId={activeOrgId!} onRequest={request ? () => { setSelectedSolicitud(request); setMensajeRespuesta(""); } : undefined} />;
+          })}
         </div>
 
+        <ListPagination page={page} total={filtered.length} onChange={setPage} />
         <Modal
           open={!!selectedSolicitud}
           onClose={() => { setSelectedSolicitud(null); setMensajeRespuesta(""); }}
@@ -336,7 +282,7 @@ export default function VolunteersPage() {
           description="Revisá su experiencia y gamificación antes de aceptar su ingreso a la organización."
           size="xl"
           scrollable
-          footer={selectedSolicitud ? <>
+          footer={selectedSolicitud?.estado === "pendiente" ? <>
             <button onClick={() => setConfirmacionEstado("rechazada")} disabled={reviewMutation.isPending} className="px-4 py-2 rounded-xl text-sm" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>Rechazar</button>
             <button onClick={() => setConfirmacionEstado("aprobada")} disabled={reviewMutation.isPending} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ background: "var(--accent)", color: "white" }}>Aprobar</button>
           </> : undefined}

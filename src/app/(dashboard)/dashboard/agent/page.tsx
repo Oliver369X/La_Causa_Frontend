@@ -2,6 +2,7 @@
 import { EventProposalPanel } from "@/features/agent/components/EventProposalPanel";
 
 import { useState, useRef, useEffect, type MouseEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   agentApi,
@@ -427,6 +428,7 @@ function AgentConversationList({
 }
 
 export default function AgentPage() {
+  const queryClient = useQueryClient();
   const { activeOrgId: selectedOrgId } = useAuthStore();
   const [resolvedAgentOrg, setResolvedAgentOrg] = useState<{ requested: string | null; id: string | null } | null>(null);
   // The backend also supports an implicit organization. Use that same scope for
@@ -751,6 +753,13 @@ export default function AgentPage() {
         confirmationId,
         atts
       );
+      // Chat tools mutate outside React Query mutations. Refresh operational views
+      // before mounting another panel with the same cached query key.
+      const operationalViews = { predicate: (query: { queryKey: readonly unknown[] }) =>
+        ["task-explorer", "candidate-cards", "candidate-profile"].includes(String(query.queryKey[0])) &&
+        (!activeOrgId || query.queryKey[1] === activeOrgId) };
+      await queryClient.cancelQueries(operationalViews);
+      await queryClient.invalidateQueries({ ...operationalViews, refetchType: "all" });
       setSessionId(res.session_id);
       if (typeof window !== "undefined") {
         window.localStorage.setItem(sessionStorageKey, res.session_id);

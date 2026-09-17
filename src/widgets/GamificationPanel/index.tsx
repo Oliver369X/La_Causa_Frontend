@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Trophy, ChevronRight } from "lucide-react";
@@ -18,23 +19,20 @@ type Scope = "org" | "global";
 export function GamificationPanel() {
   const { activeOrgId } = useAuthStore();
   const [scope, setScope] = useState<Scope>(activeOrgId ? "org" : "global");
-  const [ranking, setRanking] = useState<RankingEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const orgId = scope === "org" && activeOrgId ? activeOrgId : undefined;
+  const { data = [], isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["dashboard-ranking", orgId ?? "global"],
+    queryFn: () => gamificationApi.getRanking(orgId, true),
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+  });
+  const ranking = data.slice(0, 5);
 
   useEffect(() => {
     if (activeOrgId) setScope("org");
     else setScope("global");
   }, [activeOrgId]);
 
-  useEffect(() => {
-    setLoading(true);
-    const orgId = scope === "org" && activeOrgId ? activeOrgId : undefined;
-    gamificationApi
-      .getRanking(orgId)
-      .then((r) => setRanking(r.slice(0, 5)))
-      .catch(() => setRanking([]))
-      .finally(() => setLoading(false));
-  }, [scope, activeOrgId]);
 
   const podiumMedals = ["🥇", "🥈", "🥉"];
   const title = scope === "org" && activeOrgId ? "Top de la organización" : "Top global";
@@ -83,7 +81,7 @@ export function GamificationPanel() {
 
       {loading ? (
         <div className="flex justify-center py-6"><Spinner size="sm" /></div>
-      ) : ranking.length === 0 ? (
+      ) : isError ? <button className="text-sm text-[var(--accent)]" onClick={() => void refetch()}>No se pudo cargar el ranking. Reintentar</button> : ranking.length === 0 ? (
         <p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>Sin datos</p>
       ) : (
         <ul className="space-y-2">

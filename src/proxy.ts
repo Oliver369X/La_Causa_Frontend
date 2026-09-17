@@ -14,7 +14,7 @@ const PUBLIC_EXACT_PATHS = [
   "/robots.txt",
   "/sitemap.xml",
 ];
-const PUBLIC_PREFIX_PATHS = ["/org/", "/icons/", "/medals/", "/audio/", "/boder/"];
+const PUBLIC_PREFIX_PATHS = ["/org/", "/icons/", "/medals/", "/test-avatars/", "/audio/", "/boder/"];
 
 // ── JWT HS256 verification using the Edge-compatible Web Crypto API ───────
 
