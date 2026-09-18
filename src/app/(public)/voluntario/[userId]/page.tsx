@@ -131,10 +131,40 @@ export default function VoluntarioPublicoPage() {
     tareas_completadas: currentProfile.tareas_completadas ?? 0,
     horas_totales_voluntario: currentProfile.horas_totales_voluntario ?? 0,
   };
-  const currentBadge = badges.find((badge) =>
-    badge.organizacion_id === selectedOrganizationProfile?.organizationId &&
-    badge.nombre?.toUpperCase().startsWith(`${(displayProfile.rango ?? "").toUpperCase()}-`),
-  ) ?? null;
+  // Seleccionar el badge de rango ELO más alto que el usuario tiene para esta org.
+  // El orden jerárquico del sistema ELO: Aspirante < Bronce < Plata < Oro < Platino < Diamante < Prospecto
+  const ELO_RANK_ORDER = ["ASPIRANTE", "BRONCE", "PLATA", "ORO", "PLATINO", "DIAMANTE", "PROSPECTO"];
+  const orgEloRankBadges = badges.filter(
+    (badge) =>
+      badge.organizacion_id === selectedOrganizationProfile?.organizationId &&
+      (badge.regla_asignacion === "sistema_elo_org" ||
+        ELO_RANK_ORDER.some((r) => badge.nombre?.toUpperCase().startsWith(`${r}-`))),
+  );
+  const currentBadge =
+    orgEloRankBadges.reduce<(typeof badges)[0] | null>((best, badge) => {
+      const rankPrefix = ELO_RANK_ORDER.find((r) => badge.nombre?.toUpperCase().startsWith(`${r}-`));
+      const rankIndex = rankPrefix ? ELO_RANK_ORDER.indexOf(rankPrefix) : -1;
+      if (rankIndex === -1) return best;
+      if (!best) return badge;
+      const bestPrefix = ELO_RANK_ORDER.find((r) => best.nombre?.toUpperCase().startsWith(`${r}-`));
+      const bestIndex = bestPrefix ? ELO_RANK_ORDER.indexOf(bestPrefix) : -1;
+      return rankIndex > bestIndex ? badge : best;
+    }, null) ??
+    badges
+      .filter(
+        (b) =>
+          b.regla_asignacion === "sistema_elo_org" ||
+          ELO_RANK_ORDER.some((r) => b.nombre?.toUpperCase().startsWith(`${r}-`)),
+      )
+      .reduce<(typeof badges)[0] | null>((best, badge) => {
+        const rankPrefix = ELO_RANK_ORDER.find((r) => badge.nombre?.toUpperCase().startsWith(`${r}-`));
+        const rankIndex = rankPrefix ? ELO_RANK_ORDER.indexOf(rankPrefix) : -1;
+        if (rankIndex === -1) return best;
+        if (!best) return badge;
+        const bestPrefix = ELO_RANK_ORDER.find((r) => best.nombre?.toUpperCase().startsWith(`${r}-`));
+        const bestIndex = bestPrefix ? ELO_RANK_ORDER.indexOf(bestPrefix) : -1;
+        return rankIndex > bestIndex ? badge : best;
+      }, null);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>

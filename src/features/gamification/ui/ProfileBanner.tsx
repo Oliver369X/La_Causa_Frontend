@@ -135,7 +135,9 @@ export function ProfileBanner({
                   className="text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide"
                   style={{ background: "var(--g-progreso-soft)", color: "var(--g-progreso)" }}
                 >
-                  {profile.rango}
+                  {currentBadge
+                    ? formatBadgeRankName(currentBadge.nombre, profile.rango).replace(/^Rango\s+/i, "")
+                    : profile.rango}
                 </span>
                 {profile.ultimo_evento && (
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -161,7 +163,7 @@ export function ProfileBanner({
               >
                 <div className="flex items-center gap-1 text-[10px] font-extrabold tracking-wider uppercase" style={{ color: "var(--accent)" }}>
                   <Sparkles className="w-3 h-3 text-amber-400" />
-                  <span>{profile.rango ? `Rango ${profile.rango}` : "Medalla"}</span>
+                  <span>{formatBadgeRankName(currentBadge.nombre, profile.rango)}</span>
                 </div>
                 <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center p-1">
                   <div

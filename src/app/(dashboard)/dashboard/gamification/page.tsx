@@ -131,45 +131,53 @@ function GamificationPageContent() {
   const visibleRanking = rankingScope === "org" && activeOrgId ? rankingOrg : ranking;
   const myRank = visibleRanking.findIndex((e) => e.usuario_id === user?.id) + 1;
 
-  // Resolver la medalla activa para mostrar en la esquina superior derecha del perfil
+  // Resolver la medalla activa para mostrar en la esquina superior derecha del perfil.
+  // Siempre mostramos la medalla del rango ELO más alto que el usuario haya alcanzado.
+  // El orden jerárquico del sistema ELO: Aspirante < Bronce < Plata < Oro < Platino < Diamante < Prospecto
+  const ELO_RANK_ORDER = ["ASPIRANTE", "BRONCE", "PLATA", "ORO", "PLATINO", "DIAMANTE", "PROSPECTO"];
+
+  const _pickHighestEloBadge = (candidateBadges: Badge[]): Badge | null =>
+    candidateBadges.reduce<Badge | null>((best, badge) => {
+      const rankPrefix = ELO_RANK_ORDER.find((r) => badge.nombre?.toUpperCase().startsWith(`${r}-`));
+      const rankIndex = rankPrefix ? ELO_RANK_ORDER.indexOf(rankPrefix) : -1;
+      if (rankIndex === -1) return best;
+      if (!best) return badge;
+      const bestPrefix = ELO_RANK_ORDER.find((r) => best.nombre?.toUpperCase().startsWith(`${r}-`));
+      const bestIndex = bestPrefix ? ELO_RANK_ORDER.indexOf(bestPrefix) : -1;
+      return rankIndex > bestIndex ? badge : best;
+    }, null);
+
   const currentActiveBadge: Badge | null = (() => {
-    // 1. Si hay activeOrgId y rango, buscar medalla de rango de esa organización
-    if (activeOrgId && profile?.rango) {
-      const orgRankBadge = badges.find(
-        (b) =>
-          b.organizacion_id === activeOrgId &&
-          (b.nombre?.toUpperCase().startsWith(`${profile.rango!.toUpperCase()}-`) ||
-           b.nombre?.toUpperCase().includes(profile.rango!.toUpperCase()))
+    // 1. Buscar el badge de rango ELO más alto de la org activa
+    if (activeOrgId) {
+      const orgEloBadges = badges.filter(
+        (b) => b.organizacion_id === activeOrgId &&
+          (b.regla_asignacion === "sistema_elo_org" || ELO_RANK_ORDER.some((r) => b.nombre?.toUpperCase().startsWith(`${r}-`)))
       );
-      if (orgRankBadge) return orgRankBadge;
+      const best = _pickHighestEloBadge(orgEloBadges);
+      if (best) return best;
     }
-    // 2. Buscar medalla que coincida con el rango del perfil en cualquier organización o global
-    if (profile?.rango) {
-      const rankBadge = badges.find(
-        (b) =>
-          b.nombre?.toUpperCase().startsWith(`${profile.rango!.toUpperCase()}-`) ||
-          b.nombre?.toUpperCase() === profile.rango!.toUpperCase() ||
-          b.nombre?.toUpperCase().includes(profile.rango!.toUpperCase())
-      );
-      if (rankBadge) return rankBadge;
-    }
-    // 3. Si hay activeOrgId, la medalla más reciente de esa org
+    // 2. Buscar el badge de rango ELO más alto en cualquier organización
+    const allEloBadges = badges.filter(
+      (b) => b.regla_asignacion === "sistema_elo_org" || ELO_RANK_ORDER.some((r) => b.nombre?.toUpperCase().startsWith(`${r}-`))
+    );
+    const bestAny = _pickHighestEloBadge(allEloBadges);
+    if (bestAny) return bestAny;
+    // 3. Si no hay badges ELO, usar el de mayor rareza de la org activa
     if (activeOrgId) {
       const orgBadge = badges.find((b) => b.organizacion_id === activeOrgId);
       if (orgBadge) return orgBadge;
     }
     // 4. La medalla más reciente del usuario
-    if (badges.length > 0) {
-      return badges[0];
-    }
-    // 5. Fallback si no tiene medallas en BD aún: sintetizar la medalla oficial correspondiente a su rango
+    if (badges.length > 0) return badges[0];
+    // 5. Fallback sintético basado en el rango ELO del perfil
     if (profile?.rango) {
       const rangoClean = profile.rango.toLowerCase();
       const validRanks = ["aspirante", "bronce", "plata", "oro", "platino", "diamante", "prospecto", "centenario"];
-      const medalImg = validRanks.includes(rangoClean) ? `/medals/${rangoClean}.png` : "/medals/bronce.png";
+      const medalImg = validRanks.includes(rangoClean) ? `/medals/${rangoClean}.png` : "/medals/aspirante.png";
       return {
         id: `rango-${profile.rango}` as UUID,
-        nombre: `Medalla de Rango: ${profile.rango}`,
+        nombre: `${profile.rango.charAt(0).toUpperCase()}${profile.rango.slice(1)}-RANGO`,
         descripcion: `Distinción honorífica acreditada por alcanzar el rango ELO ${profile.rango} en La Causa.`,
         imagen_url: medalImg,
         rareza: (rangoClean === "diamante" || rangoClean === "centenario"

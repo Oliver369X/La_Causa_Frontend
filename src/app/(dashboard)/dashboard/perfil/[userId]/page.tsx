@@ -18,11 +18,13 @@ export default function PerfilPublicoPage() {
   const searchParams = useSearchParams();
   const userId = params.userId as string;
   const orgId = searchParams.get("org");
-  const { user } = useAuthStore();
+  const { user, activeOrgId } = useAuthStore();
+
+  const effectiveOrgId = orgId || activeOrgId;
 
   const { data: profile, isLoading, error } = useQuery({
-    queryKey: ["profile", userId],
-    queryFn: () => gamificationApi.getProfile(userId),
+    queryKey: ["profile", userId, effectiveOrgId],
+    queryFn: () => gamificationApi.getProfile(userId, effectiveOrgId ?? undefined),
     enabled: !!userId,
   });
 
@@ -50,6 +52,38 @@ export default function PerfilPublicoPage() {
     imagen_url: (b as { imagen_url?: string }).imagen_url,
     rareza: ((b as { rareza?: string }).rareza ?? "common") as Badge["rareza"],
   }));
+
+  const ELO_RANK_ORDER = ["ASPIRANTE", "BRONCE", "PLATA", "ORO", "PLATINO", "DIAMANTE", "PROSPECTO"];
+
+  const _pickHighestEloBadge = (candidateBadges: Badge[]): Badge | null =>
+    candidateBadges.reduce<Badge | null>((best, badge) => {
+      const rankPrefix = ELO_RANK_ORDER.find((r) => badge.nombre?.toUpperCase().startsWith(`${r}-`));
+      const rankIndex = rankPrefix ? ELO_RANK_ORDER.indexOf(rankPrefix) : -1;
+      if (rankIndex === -1) return best;
+      if (!best) return badge;
+      const bestPrefix = ELO_RANK_ORDER.find((r) => best.nombre?.toUpperCase().startsWith(`${r}-`));
+      const bestIndex = bestPrefix ? ELO_RANK_ORDER.indexOf(bestPrefix) : -1;
+      return rankIndex > bestIndex ? badge : best;
+    }, null);
+
+  const currentBadge = (() => {
+    if (effectiveOrgId) {
+      const orgEloBadges = badges.filter(
+        (b) => b.organizacion_id === effectiveOrgId &&
+          (b.regla_asignacion === "sistema_elo_org" || ELO_RANK_ORDER.some((r) => b.nombre?.toUpperCase().startsWith(`${r}-`)))
+      );
+      const best = _pickHighestEloBadge(orgEloBadges);
+      if (best) return best;
+    }
+    const allEloBadges = badges.filter(
+      (b) => b.regla_asignacion === "sistema_elo_org" || ELO_RANK_ORDER.some((r) => b.nombre?.toUpperCase().startsWith(`${r}-`))
+    );
+    const bestAny = _pickHighestEloBadge(allEloBadges);
+    if (bestAny) return bestAny;
+    return null;
+  })();
+
+  const currentBadgeOrgName = currentBadge?.organizacion_nombre ?? (effectiveOrgId ? "Organización activa" : "La Causa");
 
   if (isLoading || !userId) {
     return (
@@ -106,7 +140,11 @@ export default function PerfilPublicoPage() {
           <ArrowLeft className="w-4 h-4" /> Volver
         </button>
 
-        <ProfileBanner profile={displayProfile} />
+        <ProfileBanner
+          profile={displayProfile}
+          currentBadge={currentBadge}
+          currentBadgeOrgName={currentBadgeOrgName}
+        />
 
         {disponibilidad && (
           <div className="mt-8">

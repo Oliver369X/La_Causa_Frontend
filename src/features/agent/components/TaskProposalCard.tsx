@@ -55,6 +55,10 @@ export function TaskProposalCard({ proposal, draft, onEdit, decide, busy, error,
           {draft.recomendacion_medalla && <p className="text-[var(--text-muted)]">{draft.recomendacion_medalla}</p>}
           <button type="button" onClick={() => onEdit({ ...draft, insignia_id: null, insignia_nombre: null, recomendacion_medalla: "" })} className="mt-2 text-[var(--accent)]">Quitar medalla de esta tarea</button>
         </div>}
+        {draft.voluntario_nombre && <div className="rounded-xl border border-[var(--border)] p-3 text-sm bg-[var(--bg-subtle)]">
+          <p>Voluntario pre-asignado: <strong>{draft.voluntario_nombre}</strong></p>
+          <button type="button" onClick={() => onEdit({ ...draft, voluntario_id: null, voluntario_nombre: null })} className="mt-1 text-xs text-[var(--accent)]">Quitar asignación previa</button>
+        </div>}
         <div className={editor.fields} data-editor="block">
           <label className="block text-sm">Dificultad
             <select className={field} value={draft.dificultad || "media"} onChange={e => onEdit({ ...draft, dificultad: e.target.value as Draft["dificultad"] })}>

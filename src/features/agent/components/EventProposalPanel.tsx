@@ -39,6 +39,7 @@ export type Draft = {
   dificultad?: "baja" | "media" | "alta" | "urgente"; vacantes?: number;
   fecha_vencimiento?: string | null; requiere_evidencia?: boolean; requiere_revision_manual?: boolean;
   insignia_id?: string | null; insignia_nombre?: string | null; recomendacion_medalla?: string;
+  voluntario_id?: string | null; voluntario_nombre?: string | null;
   imagen_url?: string | null; ubicacion_geo?: EventLocation | null;
   url_imagen?: string; rareza?: string; puntos_bonus?: number; mensaje_personalizado?: string; criterio?: string; prompt_imagen?: string;
 };
@@ -222,7 +223,7 @@ export function EventProposalPanel({ sessionId, orgId, traceId, refreshKey, disa
     if (p.status === "review") return <div key={p.id} className="col-span-full space-y-2 border-l-2 border-[var(--border)] pl-4 text-sm">
       <h4 className="font-semibold">{d.titulo || "Propuesta por definir"}</h4>
       <p className="whitespace-pre-line text-[var(--text-muted)]">{d.descripcion || "Falta definir la descripción y el objetivo."}</p>
-      {p.kind === "create_task" && <p>{d.vacantes ?? 1} voluntarios · Dificultad {d.dificultad || "media"}</p>}
+      {p.kind === "create_task" && <p>{d.vacantes ?? 1} voluntarios · Dificultad {d.dificultad || "media"}{d.voluntario_nombre ? ` · Asignar a: ${d.voluntario_nombre}` : ""}</p>}
       {d.instrucciones && <p className="whitespace-pre-line">{d.instrucciones}</p>}
       {d.insignia_id && <p className="text-[var(--accent)]">Medalla: {d.insignia_nombre || "Medalla seleccionada"}. {d.recomendacion_medalla}</p>}
       <p className="text-xs text-[var(--text-muted)]">Horario: {d.fecha_inicio ? new Date(d.fecha_inicio).toLocaleString("es-BO", { timeZone: "America/La_Paz" }) : "inicio por definir"} — {(d.fecha_fin || d.fecha_vencimiento) ? new Date((d.fecha_fin || d.fecha_vencimiento)!).toLocaleString("es-BO", { timeZone: "America/La_Paz" }) : "fin por definir"}</p>
@@ -241,7 +242,7 @@ export function EventProposalPanel({ sessionId, orgId, traceId, refreshKey, disa
       <h3 className="text-base font-semibold break-words">{d.titulo || "Nombre por definir"}</h3>
       {d.insignia_id && <p className="text-sm text-[var(--accent)]">Medalla: {d.insignia_nombre || "Medalla seleccionada"}. {d.recomendacion_medalla}</p>}
       <p className="text-sm text-[var(--text-muted)] whitespace-pre-line">{d.descripcion || "Descripción por definir"}</p>
-      {p.kind === "create_task" && <p className="text-xs">{d.vacantes ?? 1} voluntarios · Dificultad {d.dificultad || "media"}</p>}
+      {p.kind === "create_task" && <p className="text-xs">{d.vacantes ?? 1} voluntarios · Dificultad {d.dificultad || "media"}{d.voluntario_nombre ? ` · Asignar a: ${d.voluntario_nombre}` : ""}</p>}
       <p className="text-xs text-[var(--text-muted)]">Inicio: {d.fecha_inicio ? new Date(d.fecha_inicio).toLocaleString("es-BO", { timeZone: "America/La_Paz" }) : "Por definir"}<br />Fin: {(d.fecha_vencimiento || d.fecha_fin) ? new Date((d.fecha_vencimiento || d.fecha_fin)!).toLocaleString("es-BO", { timeZone: "America/La_Paz" }) : "Por definir"}</p>
       {d.instrucciones && <details className="text-xs"><summary className="cursor-pointer text-[var(--accent)]">Instrucciones y requisitos</summary><p className="whitespace-pre-line mt-2">{d.instrucciones}</p></details>}
       <div className="flex gap-3 text-sm">
