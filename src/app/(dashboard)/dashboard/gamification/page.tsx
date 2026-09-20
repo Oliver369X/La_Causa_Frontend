@@ -83,7 +83,7 @@ function GamificationPageContent() {
     let cancelled = false;
     Promise.all(
       seasons.map(async (season) => {
-        const rows = season.activa ? [] : await gamificationApi.getHistoricalRanking(season.id);
+        const rows = await gamificationApi.getHistoricalRanking(season.id);
         const snapshot = rows.find((row) => row.usuario_id === user.id) ?? null;
         const start = new Date(`${season.fecha_inicio}T00:00:00`).getTime();
         const end = new Date(`${season.fecha_fin}T23:59:59`).getTime();

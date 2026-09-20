@@ -107,7 +107,7 @@ function apiErrorDetail(err: unknown): string {
 }
 
 export default function TemporadasPage() {
-  const { activeOrgId } = useAuthStore();
+  const { activeOrgId, user } = useAuthStore();
   const { can, isSuperAdmin, canManageOrg } = usePermissions();
   const isOrganizer = canManageOrg;
   /** Solo la organización (gestores con create_events o super-admin) puede cerrar temporadas. */
@@ -137,7 +137,13 @@ export default function TemporadasPage() {
     }
     gamificationApi
       .getSeasons(activeOrgId)
-      .then(setSeasons)
+      .then((data) => {
+        setSeasons(data);
+        if (data.length > 0 && !selectedSeasonId) {
+          const active = data.find((s) => s.activa);
+          setSelectedSeasonId(active ? active.id : data[0].id);
+        }
+      })
       .catch(() => {});
   };
 
@@ -151,7 +157,13 @@ export default function TemporadasPage() {
     setLoading(true);
     gamificationApi
       .getSeasons(activeOrgId)
-      .then(setSeasons)
+      .then((data) => {
+        setSeasons(data);
+        if (data.length > 0) {
+          const active = data.find((s) => s.activa);
+          setSelectedSeasonId(active ? active.id : data[0].id);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [activeOrgId]);
@@ -170,6 +182,7 @@ export default function TemporadasPage() {
 
   const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
   const activeSeason = seasons.find((s) => s.activa);
+  const myRankingEntry = user?.id ? historicalRanking.find((entry) => entry.usuario_id === user.id) : null;
 
   const handleCloseSeason = async (seasonId: string) => {
     setClosingId(seasonId);
@@ -426,7 +439,15 @@ export default function TemporadasPage() {
                       {formatDate(activeSeason.fecha_inicio)} – {formatDate(activeSeason.fecha_fin)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      size="sm"
+                      variant={selectedSeasonId === activeSeason.id ? "primary" : "outline"}
+                      onClick={() => setSelectedSeasonId(activeSeason.id)}
+                    >
+                      <Trophy className="w-3.5 h-3.5 mr-1" />
+                      {selectedSeasonId === activeSeason.id ? "Viendo ranking en vivo" : "Ver ranking en vivo"}
+                    </Button>
                     <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
                       <Clock className="w-4 h-4" style={{ color: "var(--g-progreso)" }} />
                       <span className="text-sm font-semibold tabular-nums">
@@ -498,6 +519,10 @@ export default function TemporadasPage() {
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         {formatDate(s.fecha_inicio)} – {formatDate(s.fecha_fin)}
                       </p>
+                      <div className="mt-2 text-xs flex items-center gap-1 font-medium" style={{ color: selectedSeasonId === s.id ? "var(--g-progreso)" : "var(--text-muted)" }}>
+                        <Trophy className="w-3.5 h-3.5" />
+                        {s.activa ? "Ver ranking en vivo →" : "Ver ranking histórico →"}
+                      </div>
                     </button>
                     {s.activa && canManageSeasons && (
                       <Button
@@ -539,7 +564,7 @@ export default function TemporadasPage() {
                       style={{ borderBottom: "1px solid var(--border)" }}
                     >
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span
                             className="p-1.5 rounded-lg flex items-center justify-center"
                             style={{ background: "var(--g-energia-soft)", color: "var(--g-energia)" }}
@@ -547,11 +572,24 @@ export default function TemporadasPage() {
                             <Trophy className="w-5 h-5" />
                           </span>
                           <h3 className="text-lg md:text-xl font-bold" style={{ color: "var(--text)" }}>
-                            Ranking histórico – {selectedSeason?.nombre ?? "Temporada"}
+                            {selectedSeason?.activa ? "Ranking en vivo" : "Ranking histórico"} – {selectedSeason?.nombre ?? "Temporada"}
                           </h3>
+                          {selectedSeason?.activa ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5" style={{ background: "rgba(34, 197, 94, 0.12)", color: "#16a34a", border: "1px solid rgba(34, 197, 94, 0.25)" }}>
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              En vivo
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5" style={{ background: "var(--bg-subtle)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                              <Lock className="w-3 h-3" />
+                              Histórico cerrado
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs md:text-sm" style={{ color: "var(--text-muted)" }}>
-                          Posiciones finales, ELO acumulado y medallas oficiales alcanzadas en la temporada.
+                          {selectedSeason?.activa
+                            ? "Posiciones en tiempo real durante la temporada. El ELO y el ranking se actualizan continuamente con cada tarea evaluada."
+                            : "Posiciones finales, ELO acumulado y medallas oficiales alcanzadas al cierre de la temporada."}
                         </p>
                       </div>
 
@@ -564,9 +602,9 @@ export default function TemporadasPage() {
                             color: "var(--text-muted)",
                           }}
                         >
-                          <span className="w-2 h-2 rounded-full" style={{ background: "var(--g-logro)" }} />
+                          <span className="w-2 h-2 rounded-full" style={{ background: selectedSeason?.activa ? "var(--g-progreso)" : "var(--g-logro)" }} />
                           <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-                            {historicalRanking.length} participantes
+                            {historicalRanking.length} {selectedSeason?.activa ? "voluntarios clasificados" : "participantes"}
                           </span>
                         </div>
                       )}
@@ -576,16 +614,92 @@ export default function TemporadasPage() {
                       <div className="flex flex-col items-center justify-center py-16 gap-3">
                         <Spinner size="lg" />
                         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                          Cargando ranking histórico...
+                          {selectedSeason?.activa ? "Cargando ranking en vivo..." : "Cargando ranking histórico..."}
                         </span>
                       </div>
                     ) : historicalRanking.length === 0 ? (
                       <EmptyState
-                        title="Sin registros de ranking"
-                        description="No hay registros de ranking para esta temporada o aún no se ha cerrado."
+                        title="Sin participantes en el ranking"
+                        description={
+                          selectedSeason?.activa
+                            ? "Aún no hay voluntarios registrados con actividad o puntos en esta temporada activa."
+                            : "No se registraron participantes al cierre de esta temporada."
+                        }
                       />
                     ) : (
                       <div className="space-y-6">
+                        {/* Tarjeta de posición del voluntario autenticado */}
+                        {myRankingEntry && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                            style={{
+                              background: "linear-gradient(90deg, rgba(14, 165, 233, 0.08) 0%, var(--bg-subtle) 100%)",
+                              border: "1px solid rgba(14, 165, 233, 0.28)",
+                              boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
+                            }}
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <div
+                                className="w-11 h-11 rounded-full font-black text-base flex items-center justify-center shadow-sm shrink-0"
+                                style={{ background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#ffffff" }}
+                              >
+                                #{myRankingEntry.posicion_final}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Tu posición en el ranking</span>
+                                  <span
+                                    className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                    style={{ background: "rgba(14, 165, 233, 0.15)", color: "#0284c7" }}
+                                  >
+                                    Tú
+                                  </span>
+                                </div>
+                                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                  {selectedSeason?.activa
+                                    ? "Continúa completando y entregando tareas para seguir escalando posiciones en la tabla clasificatoria."
+                                    : "Posición definitiva oficial alcanzada al cierre de esta temporada."}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 sm:gap-6 self-start sm:self-center pl-14 sm:pl-0">
+                              <div>
+                                <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>
+                                  {selectedSeason?.activa ? "ELO Actual" : "ELO Final"}
+                                </span>
+                                <span className="text-base font-black tabular-nums" style={{ color: "var(--g-energia)" }}>
+                                  {myRankingEntry.elo_final}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>
+                                  XP Acumulada
+                                </span>
+                                <span className="text-base font-black tabular-nums" style={{ color: "var(--g-progreso)" }}>
+                                  {myRankingEntry.xp_acumulada}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>
+                                  Rango
+                                </span>
+                                <span
+                                  className="text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider inline-block mt-0.5"
+                                  style={{
+                                    background: getRankStyle(myRankingEntry.rango_final).bg,
+                                    color: getRankStyle(myRankingEntry.rango_final).text,
+                                    border: `1px solid ${getRankStyle(myRankingEntry.rango_final).border}`,
+                                  }}
+                                >
+                                  {myRankingEntry.rango_final || "Aspirante"}
+                                </span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
                         {/* Top 3 Podium (Esports Style with Theme Backgrounds) */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                           {/* 2nd Place (Desktop: Col 1, Mobile: Order 2) */}
@@ -613,7 +727,7 @@ export default function TemporadasPage() {
                                     color: "var(--text)",
                                   }}
                                 >
-                                  🥈 #2 SUBCAMPEÓN
+                                  {selectedSeason?.activa ? "🥈 #2 SEGUNDO LUGAR" : "🥈 #2 SUBCAMPEÓN"}
                                 </div>
 
                                 <div className="relative my-2">
@@ -665,7 +779,9 @@ export default function TemporadasPage() {
                                   style={{ borderTop: "1px solid var(--border)" }}
                                 >
                                   <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
-                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>ELO</span>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>
+                                      {selectedSeason?.activa ? "ELO Actual" : "ELO Final"}
+                                    </span>
                                     <span className="text-base font-bold tabular-nums" style={{ color: "var(--text)" }}>{entry.elo_final}</span>
                                   </div>
                                   <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
@@ -701,7 +817,7 @@ export default function TemporadasPage() {
                                     color: "#ffffff",
                                   }}
                                 >
-                                  <Crown className="w-4 h-4 fill-white" /> #1 CAMPEÓN
+                                  <Crown className="w-4 h-4 fill-white" /> {selectedSeason?.activa ? "#1 LÍDER ACTUAL" : "#1 CAMPEÓN"}
                                 </div>
 
                                 <div className="relative my-2">
@@ -753,7 +869,9 @@ export default function TemporadasPage() {
                                   style={{ borderTop: "1px solid var(--border)" }}
                                 >
                                   <div className="rounded-xl p-2.5" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
-                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>ELO Final</span>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>
+                                      {selectedSeason?.activa ? "ELO Actual" : "ELO Final"}
+                                    </span>
                                     <span className="text-xl font-black tabular-nums" style={{ color: "var(--g-energia)" }}>{entry.elo_final}</span>
                                   </div>
                                   <div className="rounded-xl p-2.5" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
@@ -842,7 +960,9 @@ export default function TemporadasPage() {
                                   style={{ borderTop: "1px solid var(--border)" }}
                                 >
                                   <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
-                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>ELO</span>
+                                    <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>
+                                      {selectedSeason?.activa ? "ELO Actual" : "ELO Final"}
+                                    </span>
                                     <span className="text-base font-bold tabular-nums" style={{ color: "var(--g-advertencia)" }}>{entry.elo_final}</span>
                                   </div>
                                   <div className="rounded-xl p-2" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
@@ -884,7 +1004,9 @@ export default function TemporadasPage() {
                                 <div className="col-span-1 text-center">#</div>
                                 <div className="col-span-4">Voluntario</div>
                                 <div className="col-span-3">Rango y Medalla</div>
-                                <div className="col-span-2 text-right">ELO Final</div>
+                                <div className="col-span-2 text-right">
+                                  {selectedSeason?.activa ? "ELO Actual" : "ELO Final"}
+                                </div>
                                 <div className="col-span-2 text-right">XP Acumulada</div>
                               </div>
 
@@ -901,6 +1023,8 @@ export default function TemporadasPage() {
                                       className="grid grid-cols-12 gap-2 sm:gap-4 px-4 sm:px-5 py-3.5 items-center transition-colors hover:bg-[var(--bg-subtle)]"
                                       style={{
                                         borderBottom: idx === historicalRanking.length - 4 ? "none" : "1px solid var(--border)",
+                                        background: entry.usuario_id === user?.id ? "rgba(14, 165, 233, 0.08)" : undefined,
+                                        boxShadow: entry.usuario_id === user?.id ? "inset 3px 0 0 var(--accent)" : undefined,
                                       }}
                                     >
                                       {/* Position */}
@@ -935,13 +1059,23 @@ export default function TemporadasPage() {
                                           )}
                                         </div>
                                         <div className="min-w-0">
-                                          <p
-                                            className="font-bold text-sm truncate"
-                                            style={{ color: "var(--text)" }}
-                                            title={entry.nombre || "Voluntario"}
-                                          >
-                                            {entry.nombre || "Voluntario"}
-                                          </p>
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <p
+                                              className="font-bold text-sm truncate"
+                                              style={{ color: "var(--text)" }}
+                                              title={entry.nombre || "Voluntario"}
+                                            >
+                                              {entry.nombre || "Voluntario"}
+                                            </p>
+                                            {entry.usuario_id === user?.id && (
+                                              <span
+                                                className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
+                                                style={{ background: "rgba(14, 165, 233, 0.20)", color: "var(--accent)" }}
+                                              >
+                                                Tú
+                                              </span>
+                                            )}
+                                          </div>
                                           <p className="text-[11px] sm:hidden" style={{ color: "var(--text-muted)" }}>
                                             {entry.rango_final || "Aspirante"}
                                           </p>
