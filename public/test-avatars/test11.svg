@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Avatar test11">
+  <rect width="160" height="160" rx="80" fill="#d97706"/>
+  <circle cx="80" cy="58" r="26" fill="#fff" fill-opacity=".92"/>
+  <path d="M28 142c0-30 23-53 52-53s52 23 52 53" fill="#fff" fill-opacity=".75"/>
+  <rect x="102" y="108" width="50" height="42" rx="18" fill="#111827"/>
+  <text x="127" y="136" text-anchor="middle" font-family="Arial,sans-serif" font-size="23" font-weight="700" fill="#fff">11</text>
+</svg>

@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import { usePermissions } from "@/shared/hooks/usePermissions";
 import { useSidebarLayoutStore } from "@/shared/store/sidebarLayoutStore";
 import { Modal } from "@/shared/ui/Modal";
+import { VolunteerSelector } from "@/features/volunteers/ui/VolunteerSelector";
+import { EvidenceCard } from "@/features/assignments/ui/EvidenceReview";
 
 const dificultadColors: Record<string, { bg: string; color: string }> = {
   baja: { bg: "rgba(34,197,94,.15)", color: "#22c55e" },
@@ -448,219 +450,10 @@ export default function TaskDetailPage() {
         )}
 
         {/* PESTAÑA 2: ASIGNACIÓN DE VOLUNTARIOS (CHECKLIST MULTI + PREMIUN) */}
-        {activeTab === "asignar" && canManage && (
-          <div className="space-y-6 max-w-5xl mx-auto w-full">
-            {/* Banner Premium Horizontal */}
-            <div
-              className="p-5 rounded-2xl relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border"
-              style={{
-                background: "linear-gradient(135deg, rgba(var(--accent-rgb), 0.1) 0%, rgba(var(--accent-rgb), 0.02) 100%)",
-                borderColor: "var(--accent)",
-              }}
-            >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" style={{ color: "var(--accent)" }} />
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
-                    Recomendación Inteligente (Premium)
-                  </span>
-                </div>
-                <h4 className="text-sm font-bold">Motor de Matching por Habilidades</h4>
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  Analiza automáticamente los perfiles de los voluntarios y ordénalos por nivel de habilidades compatibles con esta tarea.
-                </p>
-              </div>
-              <button
-                onClick={() => matchMutation.mutate()}
-                disabled={matchMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:scale-[1.02] shrink-0"
-                style={{ background: "var(--accent)" }}
-              >
-                {matchMutation.isPending ? <Clock className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                {matchMutation.isPending ? "Analizando..." : "Recomendar con IA"}
-              </button>
-            </div>
-
-            {matchResult && (
-              <div
-                className="p-5 rounded-2xl"
-                style={{ background: "rgba(124,58,237,.08)", border: "1px solid rgba(124,58,237,.35)" }}
-              >
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <div>
-                    <h3 className="font-bold">Candidatos recomendados</h3>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      Fase ML {matchResult.fase_usada} · {matchResult.total_candidatos} voluntarios evaluados
-                    </p>
-                  </div>
-                  <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
-                    Selecciona los aptos abajo
-                  </span>
-                </div>
-                {matchResult.advertencias.length > 0 && (
-                  <div className="mb-3 space-y-1 text-xs" style={{ color: "#b45309" }}>
-                    {matchResult.advertencias.map((warning) => <p key={warning}>⚠ {warning}</p>)}
-                  </div>
-                )}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {matchResult.ranking.slice(0, Math.max(task.vacantes ?? 1, 5)).map((candidate, index) => (
-                    <button
-                      key={candidate.voluntario_id}
-                      type="button"
-                      onClick={() => setSelectedUserIds((prev) => prev.includes(candidate.voluntario_id)
-                        ? prev.filter((id) => id !== candidate.voluntario_id)
-                        : [...prev, candidate.voluntario_id])}
-                      className="flex items-center gap-3 rounded-xl border p-3 text-left transition-all hover:scale-[1.01]"
-                      style={{
-                        background: selectedUserIds.includes(candidate.voluntario_id) ? "rgba(124,58,237,.14)" : "var(--bg-card)",
-                        borderColor: selectedUserIds.includes(candidate.voluntario_id) ? "var(--accent)" : "var(--border)",
-                      }}
-                    >
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: "var(--accent)", color: "white" }}>
-                        #{index + 1}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">{candidate.nombre}</span>
-                        <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>
-                          Score {Number(candidate.match_score).toFixed(1)} · Confianza {candidate.confianza}
-                        </span>
-                      </span>
-                      {selectedUserIds.includes(candidate.voluntario_id) && <Check className="h-4 w-4 shrink-0 text-green-500" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Buscador y Checklist de Voluntarios (Ancho completo) */}
-            <div
-              className="p-6 rounded-2xl"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-            >
-              <h3 className="font-bold mb-2">Selección de Voluntarios</h3>
-              <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
-                Selecciona uno o varios voluntarios para asignarlos a esta tarea. Si aún no participan en el evento relacionado, la plataforma los registrará automáticamente.
-              </p>
-
-              {/* Buscador */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 opacity-50" />
-                <input
-                  type="text"
-                  placeholder="Buscar voluntario por nombre o email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border focus:outline-none transition-all"
-                  style={{ background: "var(--bg-subtle)", borderColor: "var(--border)" }}
-                />
-              </div>
-
-              {loadingMembers ? (
-                <p className="text-sm" style={{ color: "var(--text-muted)" }}>Cargando voluntarios…</p>
-              ) : filteredCandidates.length === 0 ? (
-                <p className="text-sm py-4" style={{ color: "var(--text-muted)" }}>
-                  No se encontraron voluntarios candidatos. Prueba con otro filtro.
-                </p>
-              ) : (
-                <div className="space-y-2 mb-6">
-                  {displayCandidates.map((m) => {
-                    const isAssigned = alreadyAssigned.has(m.usuario_id);
-                    const mlCandidate = rankingByVolunteer.get(m.usuario_id)?.candidate;
-                    return (
-                      <label
-                        key={m.usuario_id}
-                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                          isAssigned ? "opacity-75 cursor-not-allowed" : "cursor-pointer hover:bg-black/5"
-                        }`}
-                        style={{
-                          background: isAssigned ? "var(--bg-subtle)" : "var(--bg-card)",
-                          borderColor: "var(--border)",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          disabled={isAssigned}
-                          checked={isAssigned || selectedUserIds.includes(m.usuario_id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedUserIds((prev) => [...prev, m.usuario_id]);
-                            } else {
-                              setSelectedUserIds((prev) => prev.filter((id) => id !== m.usuario_id));
-                            }
-                          }}
-                          className="w-4 h-4 accent-[var(--accent)]"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium flex items-center gap-2">
-                            {m.usuario_nombre || m.usuario_email || "Voluntario"}
-                            {mlCandidate && (
-                              <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>
-                                ML {Number(mlCandidate.match_score).toFixed(1)}
-                              </span>
-                            )}
-                            {isAssigned ? (
-                              <span
-                                className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
-                                style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}
-                              >
-                                Ya asignado
-                              </span>
-                            ) : (
-                              <span
-                                className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
-                                style={{ background: "rgba(59,130,246,.1)", color: "#3b82f6" }}
-                              >
-                                Disponible
-                              </span>
-                            )}
-                          </span>
-                          {!approvedInEvent.has(m.usuario_id) && (
-                            <span className="block text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                              Se matriculará automáticamente en el evento `{event?.nombre}`
-                            </span>
-                          )}
-                        </div>
-                        {m.usuario_email && (
-                          <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
-                            {m.usuario_email}
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Acciones */}
-              <div className="flex gap-2">
-                <button
-                  onClick={handleAssignSelf}
-                  disabled={selfAssigned || assigningMultiple}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-all"
-                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                >
-                  {selfAssigned ? "Ya te la asignaste" : "Autoasignarme tarea operativa"}
-                </button>
-                <button
-                  onClick={handleAssignMultiple}
-                  disabled={selectedUserIds.length === 0 || assigningMultiple}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all flex items-center gap-2"
-                  style={{ background: "var(--accent)" }}
-                >
-                  {assigningMultiple ? "Asignando..." : `Asignar a los (${selectedUserIds.length}) seleccionados`}
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedUserIds([]);
-                    setActiveTab("detalle");
-                  }}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
+        {activeTab === "asignar" && canManage && activeOrgId && (
+          <div className="space-y-5 max-w-6xl mx-auto w-full">
+            <VolunteerSelector key={activeOrgId + taskId} orgId={activeOrgId} eventId={task.evento_id} taskId={taskId} />
+            <button type="button" disabled={selfAssigned || assigningMultiple} onClick={handleAssignSelf} className="text-sm text-[var(--accent)] underline">{selfAssigned ? "Ya te la asignaste" : "Autoasignarme tarea operativa"}</button>
           </div>
         )}
 
@@ -737,6 +530,7 @@ function AssignmentCard({
               delivery={d}
               assignmentId={assignment.id}
               tarea={task}
+              vigente={d.numero_intento === Math.max(...deliveries.map(item => item.numero_intento))}
             />
           ))}
         </div>
@@ -754,197 +548,16 @@ function AssignmentCard({
   );
 }
 
-function DeliveryItem({
-  delivery,
-  assignmentId,
-  tarea,
-}: {
-  delivery: Delivery;
-  assignmentId: string;
-  tarea: Task;
-}) {
-  const [showReview, setShowReview] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const qc = useQueryClient();
-  const showCelebration = useCelebrationStore((s) => s.show);
-  const [rating, setRating] = useState(5);
-  const [feedback, setFeedback] = useState("");
-
-  const reviewMutation = useMutation({
-    mutationFn: (estado: "aprobada" | "rechazada") =>
-      assignmentsApi.reviewDelivery(delivery.id, {
-        estado,
-        feedback,
-        rating: estado === "aprobada" ? rating : undefined,
-      }),
-    onSuccess: (data: DeliveryReviewResponse, estado) => {
-      qc.invalidateQueries({ queryKey: ["deliveries", assignmentId] });
-      qc.invalidateQueries({ queryKey: ["task-assignments"] });
-      setShowReview(false);
-      if (
-        estado === "aprobada" &&
-        (data.delta_xp != null || data.delta_elo != null || data.subio_nivel || (data.nuevas_insignias?.length ?? 0) > 0)
-      ) {
-        showCelebration({
-          tarea_titulo: tarea.titulo,
-          delta_elo: data.delta_elo,
-          delta_xp: data.delta_xp,
-          nuevas_insignias: data.nuevas_insignias,
-          subio_nivel: data.subio_nivel,
-          nivel_actual: data.nivel_actual,
-          xp_en_nivel: data.xp_en_nivel,
-          xp_para_siguiente_nivel: data.xp_para_siguiente_nivel,
-        });
-      }
-    },
-    onError: (err) => {
-      toast.error(extractApiDetail(err, "No se pudo revisar la entrega."));
-    },
-  });
-
-  const needsReview = delivery.estado === "pendiente_revision" || !delivery.fecha_revision;
-
-  return (
-    <>
-    <div className="p-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowDetails(true)} style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs">
-          Intento #{delivery.numero_intento} · {formatDate(delivery.fecha_entrega)}
-        </span>
-        <span
-          className="text-xs px-1.5 py-0.5 rounded"
-          style={{
-            background:
-              delivery.estado === "aprobada"
-                ? "rgba(34,197,94,.15)"
-                : delivery.estado === "rechazada"
-                  ? "rgba(239,68,68,.15)"
-                  : "var(--bg-subtle)",
-            color:
-              delivery.estado === "aprobada"
-                ? "#22c55e"
-                : delivery.estado === "rechazada"
-                  ? "#ef4444"
-                  : "var(--text-muted)",
-          }}
-        >
-          {delivery.estado === "aprobada" && "Aprobada"}
-          {delivery.estado === "rechazada" && "Rechazada"}
-          {delivery.estado === "pendiente_revision" && "Pendiente"}
-        </span>
-      </div>
-      {delivery.evidencia_url && (
-        <a
-          href={delivery.evidencia_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(event) => event.stopPropagation()}
-          className="block mt-2 text-xs underline"
-          style={{ color: "var(--accent)" }}
-        >
-          Ver evidencia
-        </a>
-      )}
-      {delivery.comentario && (
-        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-          &quot;{delivery.comentario}&quot;
-        </p>
-      )}
-      {needsReview && (
-        <div className="mt-2">
-          {!showReview ? (
-            <button
-              onClick={(event) => { event.stopPropagation(); setShowReview(true); }}
-              className="text-xs font-medium"
-              style={{ color: "var(--accent)" }}
-            >
-              Revisar entrega
-            </button>
-          ) : (
-            <div className="mt-2 space-y-2">
-              <div>
-                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>
-                  Rating (1-5)
-                </label>
-                <select
-                  value={rating}
-                  onChange={(e) => setRating(parseInt(e.target.value, 10))}
-                  className="w-full px-2 py-1 rounded text-xs"
-                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                >
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <option key={n} value={n}>{n} ⭐</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>
-                  Feedback
-                </label>
-                <textarea
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  rows={2}
-                  className="w-full px-2 py-1 rounded text-xs resize-none"
-                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={(event) => { event.stopPropagation(); reviewMutation.mutate("aprobada"); }}
-                  disabled={reviewMutation.isPending}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium disabled:opacity-50"
-                  style={{ background: "#22c55e", color: "white" }}
-                >
-                  <Check className="w-3 h-3" /> Aprobar
-                </button>
-                <button
-                  onClick={(event) => { event.stopPropagation(); reviewMutation.mutate("rechazada"); }}
-                  disabled={reviewMutation.isPending}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium disabled:opacity-50"
-                  style={{ background: "#ef4444", color: "white" }}
-                >
-                  <X className="w-3 h-3" /> Rechazar
-                </button>
-                <button
-                  onClick={(event) => { event.stopPropagation(); setShowReview(false); }}
-                  className="px-2 py-1 rounded text-xs"
-                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+function DeliveryItem({ delivery, tarea, vigente }: { delivery: Delivery; assignmentId: string; tarea: Task; vigente: boolean }) {
+  const { activeOrgId } = useAuthStore();
+  if (!activeOrgId) return <p>Selecciona la organización para revisar esta entrega.</p>;
+  return <EvidenceCard orgId={activeOrgId} title={tarea.titulo} delivery={{ ...delivery, nombre: delivery.nombre || "Participante", vigente }}>
+    <div className="rounded-xl border border-[var(--border)] p-4 text-sm">
+      <h4 className="font-semibold mb-2">Costos de la tarea</h4>
+      <p>Estimado: {tarea.costo_estimado != null ? "Bs " + Number(tarea.costo_estimado).toFixed(2) : "No definido"}</p>
+      <p>Real: {tarea.costo_real != null ? "Bs " + Number(tarea.costo_real).toFixed(2) : "Pendiente"}</p>
     </div>
-    <Modal
-      open={showDetails}
-      onClose={() => setShowDetails(false)}
-      title={`Entrega · ${tarea.titulo}`}
-      description={`Intento #${delivery.numero_intento} · ${formatDate(delivery.fecha_entrega)}`}
-      size="xl"
-      scrollable
-    >
-      <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}><span style={{ color: "var(--text-muted)" }}>Estado</span><p className="font-semibold mt-1">{assignStatusLabels[delivery.estado] ?? delivery.estado}</p></div>
-          <div className="p-3 rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}><span style={{ color: "var(--text-muted)" }}>Calificación</span><p className="font-semibold mt-1">{delivery.rating ? `${delivery.rating}/5` : "Sin calificar"}</p></div>
-        </div>
-        <div className="p-4 rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-2 font-semibold mb-3"><CreditCard className="w-4 h-4" style={{ color: "var(--accent)" }} /> Costos de la tarea</div>
-          <div className="grid grid-cols-2 gap-3 text-sm"><div><span style={{ color: "var(--text-muted)" }}>Supuesto / estimado</span><p className="font-bold mt-1">{tarea.costo_estimado != null ? `Bs ${Number(tarea.costo_estimado).toFixed(2)}` : "No definido"}</p></div><div><span style={{ color: "var(--text-muted)" }}>Costo real</span><p className="font-bold mt-1">{tarea.costo_real != null ? `Bs ${Number(tarea.costo_real).toFixed(2)}` : "Pendiente"}</p></div></div>
-        </div>
-        {delivery.evidencia_url && (
-          <div><p className="text-sm font-semibold mb-2">Evidencia</p><a href={delivery.evidencia_url} target="_blank" rel="noopener noreferrer"><img src={delivery.evidencia_url} alt="Evidencia de la entrega" className="w-full max-h-[480px] object-contain rounded-xl" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }} /></a><p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Hacé clic en la imagen para abrirla en tamaño original.</p></div>
-        )}
-        <div><p className="text-sm font-semibold mb-1">Comentario del voluntario</p><p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-muted)" }}>{delivery.comentario || "No dejó comentario."}</p></div>
-        {delivery.feedback && <div><p className="text-sm font-semibold mb-1">Feedback de la organización</p><p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-muted)" }}>{delivery.feedback}</p></div>}
-      </div>
-    </Modal>
-    </>
-  );
+  </EvidenceCard>;
 }
 
 function PlansModal({ onClose }: { onClose: () => void }) {

@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_EXACT_PATHS = ["/", "/login", "/register", "/forgot-password", "/reset-password"];
-const PUBLIC_PREFIX_PATHS = ["/org/"];
+const PUBLIC_EXACT_PATHS = [
+  "/",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/manifest.webmanifest",
+  "/manifest.json",
+  "/sw.js",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+];
+const PUBLIC_PREFIX_PATHS = ["/org/", "/icons/", "/medals/", "/test-avatars/", "/audio/", "/boder/"];
 
 // ── JWT HS256 verification using the Edge-compatible Web Crypto API ───────
 
@@ -50,8 +62,9 @@ export async function proxy(request: NextRequest) {
 
   const isPublicExact = PUBLIC_EXACT_PATHS.includes(pathname);
   const isPublicPrefix = PUBLIC_PREFIX_PATHS.some((prefix) => pathname.startsWith(prefix));
+  const isStaticFile = /\.(?:svg|png|jpg|jpeg|webp|ico|webmanifest|json|js|css)$/i.test(pathname);
 
-  if (isPublicExact || isPublicPrefix) {
+  if (isPublicExact || isPublicPrefix || isStaticFile) {
     return NextResponse.next();
   }
 
@@ -84,5 +97,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|manifest.json|sw.js|icons/|medals/|audio/|boder/|api/).*)",
+  ],
 };

@@ -1,6 +1,8 @@
 "use client";
+import { EventProposalPanel } from "@/features/agent/components/EventProposalPanel";
 
 import { useState, useRef, useEffect, type MouseEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   agentApi,
@@ -13,6 +15,7 @@ import {
 } from "@/features/agent/api/agentApi";
 import { uploadAudio, uploadDocument, uploadImage } from "@/features/uploads/api/uploadApi";
 import { useAuthStore } from "@/shared/store/authStore";
+import { useOrganizationBilling } from "@/features/subscriptions/useOrganizationBilling";
 import { TopBar } from "@/shared/ui/Sidebar";
 import {
   Send,
@@ -33,6 +36,8 @@ import {
   Pencil,
   Menu,
   MessageSquare,
+  Crown,
+  Check,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -423,8 +428,14 @@ function AgentConversationList({
 }
 
 export default function AgentPage() {
-  const { activeOrgId } = useAuthStore();
-  const [access, setAccess] = useState<{ can_use: boolean; reason?: string } | null>(null);
+  const queryClient = useQueryClient();
+  const { activeOrgId: selectedOrgId } = useAuthStore();
+  const [resolvedAgentOrg, setResolvedAgentOrg] = useState<{ requested: string | null; id: string | null } | null>(null);
+  // The backend also supports an implicit organization. Use that same scope for
+  // cards/history instead of silently hiding them when the sidebar is in global mode.
+  const activeOrgId = selectedOrgId ?? (resolvedAgentOrg?.requested === (selectedOrgId ?? null) ? resolvedAgentOrg.id : null);
+  const { data: billing } = useOrganizationBilling(activeOrgId);
+  const [access, setAccess] = useState<{ can_use: boolean; reason?: string; is_enterprise?: boolean; is_paid?: boolean } | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: WELCOME_ASSISTANT },
   ]);
@@ -468,19 +479,22 @@ export default function AgentPage() {
   // Restaurar conversación guardada solo al montar / cambiar org (no al crear sesión tras el primer envío).
   useEffect(() => {
     if (!access?.can_use || !activeOrgId || typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(sessionStorageKey);
+    const saved = window.localStorage.getItem(sessionStorageKey) || window.localStorage.getItem("agent-session:no-org");
     if (!saved) return;
     setSessionId(saved);
     setBootstrapping(true);
     agentApi
       .getConversationMessages(saved, activeOrgId)
       .then((res) => {
+        // Only migrate the legacy unscoped session after the server verifies ownership.
+        window.localStorage.setItem(sessionStorageKey, saved);
         if (res.messages.length > 0) {
           setMessages(
             res.messages.map((m) => ({
               role: m.role as "user" | "assistant",
               content: m.content,
               actions: m.actions,
+              trace_id: m.trace_id,
               quick_replies: m.quick_replies,
             }))
           );
@@ -495,10 +509,16 @@ export default function AgentPage() {
   }, [access?.can_use, activeOrgId, sessionStorageKey]);
 
   useEffect(() => {
-    agentApi.getAccess(activeOrgId ?? null)
-      .then((r) => setAccess({ can_use: r.can_use, reason: r.reason }))
-      .catch(() => setAccess({ can_use: false, reason: "sin_organizacion" }));
-  }, [activeOrgId]);
+    let alive = true;
+    agentApi.getAccess(selectedOrgId ?? null)
+      .then((r) => {
+        if (!alive) return;
+        setResolvedAgentOrg({ requested: selectedOrgId ?? null, id: r.org_id ?? selectedOrgId ?? null });
+        setAccess({ can_use: r.can_use, reason: r.reason, is_enterprise: r.is_enterprise, is_paid: r.is_paid });
+      })
+      .catch(() => { if (alive) setAccess({ can_use: false, reason: "sin_organizacion", is_enterprise: false, is_paid: false }); });
+    return () => { alive = false; };
+  }, [selectedOrgId]);
 
   useEffect(() => {
     if (!access?.can_use || !activeOrgId) return;
@@ -733,6 +753,13 @@ export default function AgentPage() {
         confirmationId,
         atts
       );
+      // Chat tools mutate outside React Query mutations. Refresh operational views
+      // before mounting another panel with the same cached query key.
+      const operationalViews = { predicate: (query: { queryKey: readonly unknown[] }) =>
+        ["task-explorer", "candidate-cards", "candidate-profile"].includes(String(query.queryKey[0])) &&
+        (!activeOrgId || query.queryKey[1] === activeOrgId) };
+      await queryClient.cancelQueries(operationalViews);
+      await queryClient.invalidateQueries({ ...operationalViews, refetchType: "all" });
       setSessionId(res.session_id);
       if (typeof window !== "undefined") {
         window.localStorage.setItem(sessionStorageKey, res.session_id);
@@ -798,6 +825,7 @@ export default function AgentPage() {
               role: m.role as "user" | "assistant",
               content: m.content,
               actions: m.actions,
+              trace_id: m.trace_id,
               quick_replies: m.quick_replies,
             }))
           );
@@ -853,47 +881,122 @@ export default function AgentPage() {
     );
   }
 
-  // Restricción: solo organizadores con plan de pago
+  // Restricción: el Agente IA es exclusivo para el Plan Empresarial
   if (!access.can_use) {
     const isVolunteer =
       access.reason === "voluntario" || access.reason === "sin_permiso_gestion";
-    const needsPlan = access.reason === "sin_plan_pago";
     const noOrg = access.reason === "sin_organizacion";
+    const isProOrg =
+      billing?.plan?.slug === "pro_tier" ||
+      (billing?.plan?.nombre?.toLowerCase().includes("pro") ?? false) ||
+      Boolean(access.is_paid);
+
     return (
       <>
         <TopBar title="Agente IA" />
-        <div className="flex-1 flex flex-col items-center justify-center p-8">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-12 overflow-y-auto">
           <div
-            className="max-w-md p-6 rounded-2xl text-center space-y-4"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            className="max-w-xl w-full p-8 md:p-10 rounded-3xl text-center space-y-6 shadow-xl relative overflow-hidden"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+            }}
           >
-            <AlertTriangle className="w-12 h-12 mx-auto" style={{ color: "var(--accent)" }} />
-            <h2 className="text-lg font-semibold">Acceso restringido</h2>
-            {isVolunteer && (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                El Agente IA es para quien gestiona esta organización (coordinador/admin/organizador) con plan de pago.
-                En esta organización tu rol no tiene acceso.
-              </p>
-            )}
-            {needsPlan && (
-              <>
-                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  Tu organización necesita un plan de pago activo para usar el Agente IA.
+            {/* Glow background accent */}
+            <div
+              className="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl pointer-events-none opacity-20"
+              style={{ background: "linear-gradient(135deg, #f59e0b, #ec4899)" }}
+            />
+
+            {isVolunteer ? (
+              <div className="space-y-4">
+                <AlertTriangle className="w-12 h-12 mx-auto" style={{ color: "var(--accent)" }} />
+                <h2 className="text-xl font-bold">Acceso restringido</h2>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  El Agente IA es para quien gestiona esta organización (coordinador, organizador o administrador) con Plan Empresarial.
+                  En esta organización tu rol actual no cuenta con permisos de gestión.
                 </p>
-                <Link
-                  href="/dashboard/subscriptions"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white"
-                  style={{ background: "var(--accent)" }}
+              </div>
+            ) : noOrg ? (
+              <div className="space-y-4">
+                <AlertTriangle className="w-12 h-12 mx-auto" style={{ color: "var(--accent)" }} />
+                <h2 className="text-xl font-bold">Sin organización seleccionada</h2>
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Selecciona o crea una organización en la barra lateral para acceder al Agente IA.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Badge */}
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-black tracking-wider uppercase bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                  <Crown className="w-3.5 h-3.5" />
+                  Plan Empresarial · Exclusivo
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-extrabold tracking-tight">
+                    Desbloquea el Agente IA con el Plan Empresarial
+                  </h2>
+                  <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    {isProOrg ? (
+                      <>
+                        Tu organización cuenta actualmente con el <strong>Plan Profesional</strong> (que incluye el <strong>Motor de Recomendación Inteligente y Matching por Habilidades</strong>).
+                        El <strong>Asistente Ejecutivo IA multimodal</strong> está disponible exclusivamente en el <strong>Plan Empresarial</strong>.
+                      </>
+                    ) : (
+                      <>
+                        Tu organización se encuentra en el <strong>Plan Semilla</strong>. El <strong>Asistente Ejecutivo IA multimodal</strong> está disponible exclusivamente en el <strong>Plan Empresarial</strong>.
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                {/* Card of features */}
+                <div
+                  className="rounded-2xl p-5 text-left space-y-3"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
                 >
-                  <CreditCard className="w-4 h-4" />
-                  Ver planes y suscribirse
-                </Link>
-              </>
-            )}
-            {noOrg && (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Selecciona o crea una organización para acceder al Agente IA.
-              </p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                    Incluido en el Plan Empresarial (Bs 350/mes):
+                  </p>
+                  <ul className="text-xs space-y-2.5" style={{ color: "var(--text)" }}>
+                    <li className="flex items-start gap-2.5">
+                      <Sparkles className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                      <span><strong>Asistente Ejecutivo Multimodal:</strong> diseña eventos completos, revisa entregas con contexto y coordina voluntarios usando fotos, PDFs o dictado por voz.</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <Check className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
+                      <span><strong>Todo el Plan Profesional:</strong> Motor de IA predictiva, matching por habilidades y dashboards BI.</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <Check className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
+                      <span><strong>Multi-evento y SLA Garantizado:</strong> hasta 100 eventos por mes, voluntarios ilimitados y soporte prioritario.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Call to action buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                  <Link
+                    href="/dashboard/subscriptions"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white transition-all shadow-md hover:scale-[1.02]"
+                    style={{
+                      background: "linear-gradient(135deg, #f59e0b, #ea580c)",
+                    }}
+                  >
+                    <Crown className="w-4 h-4" />
+                    Actualizar a Plan Empresarial (Bs 350/mes)
+                  </Link>
+                  <Link
+                    href="/dashboard/subscriptions"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+                    style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Comparar planes
+                  </Link>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -1061,7 +1164,7 @@ export default function AgentPage() {
                 </div>
                 <div className="min-w-0 space-y-2">
                   <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                    Plan Pro — Agente IA
+                    Plan Empresarial — Agente IA Ejecutivo
                   </p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
                     Puedes adjuntar <strong>imágenes</strong>, <strong>PDF u Office</strong> o <strong>audio</strong>;
@@ -1097,8 +1200,8 @@ export default function AgentPage() {
                 ? parseUserContent(prevUserMsg.content).text || prevUserMsg.content
                 : undefined;
             return (
+              <div key={`${msg.trace_id || "message"}:${i}`} className="space-y-4">
               <Bubble
-                key={i}
                 msg={msg}
                 onConfirm={msg.pending ? handleConfirm : undefined}
                 onQuickReply={(sendText) => sendMessage(sendText, undefined, undefined, { skipAttachments: true })}
@@ -1116,6 +1219,12 @@ export default function AgentPage() {
                 }
                 inferenceInput={msg.role === "assistant" ? prevForFeedback : undefined}
               />
+              {msg.role === "assistant" && msg.trace_id && sessionId && activeOrgId && (
+                <EventProposalPanel sessionId={sessionId} orgId={activeOrgId} traceId={msg.trace_id}
+                  refreshKey={messages.length} disabled={loading}
+                  onAdjust={() => sendMessage("Quiero ajustar la propuesta de este mensaje: " + msg.content, undefined, undefined, { skipAttachments: true })} />
+              )}
+              </div>
             );
           })}
           {loading && (

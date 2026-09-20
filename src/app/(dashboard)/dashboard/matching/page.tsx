@@ -84,7 +84,7 @@ export default function MatchingPage() {
     queryFn: () => agentApi.getAccess(activeOrgId),
     enabled: canView && !!activeOrgId,
   });
-  const hasPaidAccess = access?.can_use === true;
+  const hasPaidAccess = access?.can_use === true || access?.is_paid === true;
 
   const [tipoEvento, setTipoEvento] = useState("workshop");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -228,8 +228,8 @@ export default function MatchingPage() {
     );
   }
 
-  if (access && !access.can_use) {
-    const needsPlan = access.reason === "sin_plan_pago";
+  if (access && !hasPaidAccess) {
+    const needsPlan = access.reason !== "sin_organizacion";
     const noOrg = access.reason === "sin_organizacion";
     return (
       <>
@@ -244,7 +244,7 @@ export default function MatchingPage() {
             {needsPlan && (
               <>
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  Las recomendaciones con IA forman parte del Plan Pro. Actualizá tu suscripción para ordenar a tu equipo según habilidades, disponibilidad y experiencia.
+                  Las recomendaciones con IA forman parte del Plan Profesional. Actualizá tu suscripción para ordenar a tu equipo según habilidades, disponibilidad y experiencia.
                 </p>
                 <Link
                   href="/dashboard/subscriptions"

@@ -16,52 +16,45 @@ export type PublicPlanCard = {
 export const LANDING_PRICING_PLANS: PublicPlanCard[] = [
   {
     name: "Plan Semilla",
-    priceLabel: "Gratis",
-    period: "",
+    priceLabel: "Bs 0",
+    period: "/mes",
     items: [
-      "Funciones básicas",
-      "Hasta 10 voluntarios",
-      "Ideal para probar la plataforma",
+      "Gestión de eventos y asignación manual",
+      "Hasta 20 voluntarios y 2 eventos por mes",
+      "Validación digital básica y gamificación estándar",
     ],
     cta: "Comenzar gratis",
     highlight: false,
   },
   {
-    name: "Plan Pro",
-    priceLabel: "US$ 14",
+    name: "Profesional",
+    priceLabel: "Bs 140",
     period: "/mes",
     items: [
-      "Asignación con IA",
-      "Almacenamiento en la nube (S3)",
-      "Reportes dinámicos",
+      "Todo el Plan Semilla + IA predictiva",
+      "Hasta 200 voluntarios y 30 eventos por mes",
+      "Dashboards BI y manuales operativos",
+      "Soporte prioritario",
     ],
-    cta: "Elegir Pro",
+    cta: "Elegir Profesional",
     highlight: true,
   },
   {
-    name: "Plan Corporativo",
-    priceLabel: "US$ 35",
+    name: "Empresarial",
+    priceLabel: "Bs 350",
     period: "/mes",
     items: [
-      "Para empresas y RSE",
-      "Soporte prioritario",
-      "Integraciones",
+      "Todo el plan Profesional + multi-evento simultáneo",
+      "Voluntarios ilimitados y 100 eventos por mes",
+      "Reportes avanzados y agente especializado",
+      "SLA garantizado",
     ],
     cta: "Contactar ventas",
     highlight: false,
   },
 ];
 
-export function formatUsd(amount: number): string {
-  if (amount <= 0) return "Gratis";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(amount);
+export function formatBob(amount: number): string {
+  return `Bs ${new Intl.NumberFormat("es-BO", { maximumFractionDigits: 2 }).format(amount)}`;
 }
 
-export function usdBillingHint(usd: number): string {
-  if (usd <= 0) return "";
-  return `≈ US$ ${usd}/mes en Stripe`;
-}

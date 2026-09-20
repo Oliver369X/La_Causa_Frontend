@@ -8,6 +8,8 @@ import { Button } from "@/shared/ui/Button";
 import { cn } from "@/shared/utils/utils";
 
 interface BadgeImageFieldProps {
+  label?: string;
+  disabled?: boolean;
   value: string;
   onChange: (url: string) => void;
   uploading: boolean;
@@ -16,6 +18,8 @@ interface BadgeImageFieldProps {
 }
 
 export function BadgeImageField({
+  label = "Imagen de la medalla",
+  disabled = false,
   value,
   onChange,
   uploading,
@@ -28,6 +32,7 @@ export function BadgeImageField({
 
   const processFile = useCallback(
     async (file: File) => {
+      if (disabled || uploading) return;
       if (!file.type.startsWith("image/")) {
         onError("Solo se admiten imágenes (PNG, JPG, WebP, GIF…).");
         return;
@@ -43,7 +48,7 @@ export function BadgeImageField({
         onUploadingChange(false);
       }
     },
-    [onChange, onError, onUploadingChange],
+    [onChange, onError, onUploadingChange, disabled, uploading],
   );
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +74,7 @@ export function BadgeImageField({
 
   return (
     <div className="w-full min-w-0 space-y-3" onPaste={onPaste}>
-      <label className="block text-sm font-medium">Imagen de la medalla</label>
+      <label className="block text-sm font-medium">{label}</label>
       <p className="text-[11px] leading-snug -mt-1" style={{ color: "var(--text-muted)" }}>
         Arrastrá un archivo aquí, hacé clic en el botón, o pegá una imagen desde el portapapeles (Ctrl+V) estando en esta zona.
       </p>
@@ -77,6 +82,7 @@ export function BadgeImageField({
       <input
         ref={inputRef}
         type="file"
+        disabled={disabled || uploading}
         accept="image/*"
         className="sr-only"
         aria-hidden
@@ -85,7 +91,8 @@ export function BadgeImageField({
 
       <div
         role="button"
-        tabIndex={0}
+        aria-disabled={disabled || uploading}
+        tabIndex={disabled || uploading ? -1 : 0}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -160,7 +167,7 @@ export function BadgeImageField({
           </div>
           <div className="min-w-0 text-xs space-y-1">
             <p className="font-medium break-all" style={{ color: "var(--text)" }}>
-              Imagen lista para la medalla
+              Imagen lista para guardar
             </p>
             <p className="break-all opacity-80" style={{ color: "var(--text-muted)" }}>
               {value.length > 80 ? `${value.slice(0, 80)}…` : value}

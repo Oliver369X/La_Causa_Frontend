@@ -1,12 +1,14 @@
 import type { Event } from "@/features/events/api/eventsApi";
 import type { Organization } from "@/features/organizations/api/organizationsApi";
 import type { Task } from "@/features/tasks/api/tasksApi";
+import type { Season } from "@/features/gamification/api/gamificationApi";
 import type { Member } from "@/features/volunteers/api/volunteersApi";
 import type { User } from "@/shared/store/authStore";
 
 export type OrganizerOnboardingStepId =
   | "welcome"
   | "profile"
+  | "season"
   | "team"
   | "event"
   | "task";
@@ -25,6 +27,7 @@ export interface OrganizerOnboardingProgress {
   progressPercent: number;
   isComplete: boolean;
   hasOrganization: boolean;
+  hasSeason: boolean;
   hasEvent: boolean;
   hasTask: boolean;
 }
@@ -55,6 +58,7 @@ export function buildOrganizerOnboardingProgress({
   orgs,
   org,
   members,
+  seasons,
   events,
   tasks,
 }: {
@@ -62,11 +66,13 @@ export function buildOrganizerOnboardingProgress({
   orgs: Organization[];
   org: Organization | null;
   members: Member[];
+  seasons: Season[];
   events: Event[];
   tasks: Task[];
 }): OrganizerOnboardingProgress {
   const state = getOrganizerOnboardingState(user);
   const hasOrganization = orgs.length > 0;
+  const hasSeason = seasons.some((season) => season.activa);
   const hasEvent = events.length > 0;
   const hasTask = tasks.length > 0;
   const hasTeam = members.length > 1;
@@ -83,6 +89,12 @@ export function buildOrganizerOnboardingProgress({
       title: "Perfil de organización",
       description: "Configurar descripción, logo y términos básicos.",
       completed: hasOrgProfileConfigured(org),
+    },
+    {
+      id: "season",
+      title: "Primera temporada",
+      description: "Crea una temporada activa; es obligatoria antes de publicar eventos.",
+      completed: hasSeason,
     },
     {
       id: "team",
@@ -114,6 +126,7 @@ export function buildOrganizerOnboardingProgress({
     progressPercent: Math.round((completedCount / totalSteps) * 100),
     isComplete: completedCount === totalSteps,
     hasOrganization,
+    hasSeason,
     hasEvent,
     hasTask,
   };

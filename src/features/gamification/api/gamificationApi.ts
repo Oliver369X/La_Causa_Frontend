@@ -151,6 +151,20 @@ export interface HistoricalRankingEntry {
   created_at: string;
   usuario_id?: string;
   rango_final?: string | null;
+  nombre?: string | null;
+  avatar_url?: string | null;
+  medalla_url?: string | null;
+}
+
+export interface OrganizationRankingEntry {
+  posicion: number;
+  id: string;
+  nombre: string;
+  slug: string;
+  logo_url?: string | null;
+  sector?: string | null;
+  miembros_activos: number;
+  xp_total: number;
 }
 
 export interface ConfigGamificacionOrg {
@@ -247,8 +261,8 @@ export const gamificationApi = {
     return data;
   },
 
-  getRanking: async (organizacionId?: string): Promise<RankingEntry[]> => {
-    const params = organizacionId ? { organizacion_id: organizacionId } : {};
+  getRanking: async (organizacionId?: string, incluirNuevos = false): Promise<RankingEntry[]> => {
+    const params = organizacionId ? { organizacion_id: organizacionId, exigir_actividad_minima: !incluirNuevos } : {};
     const { data } = await apiClient.get<RankingEntry[]>(EP.RANKING, { params });
     return data;
   },
@@ -256,6 +270,14 @@ export const gamificationApi = {
   /** Ranking histórico por temporada (no por usuario). */
   getHistoricalRanking: async (seasonId: UUID): Promise<HistoricalRankingEntry[]> => {
     const { data } = await apiClient.get<HistoricalRankingEntry[]>(EP.RANKING_HISTORY(seasonId));
+    return data;
+  },
+
+  /** Ranking de organizaciones ordenado por XP acumulada. */
+  getOrganizationsRanking: async (limit?: number): Promise<OrganizationRankingEntry[]> => {
+    const { data } = await apiClient.get<OrganizationRankingEntry[]>("/ranking/organizaciones", {
+      params: limit ? { limit } : undefined,
+    });
     return data;
   },
 

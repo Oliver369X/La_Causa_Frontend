@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { organizationsApi } from "@/features/organizations/api/organizationsApi";
 import { useAuthStore } from "@/shared/store/authStore";
 import { Input, Field } from "@/shared/ui/AuthCard";
-import { Building2 } from "lucide-react";
+import { ArrowLeft, Building2 } from "lucide-react";
 import { VolunteerOnboardingWizard } from "@/features/onboarding/ui/VolunteerOnboardingWizard";
 import { OrganizerOnboardingWizard } from "@/features/onboarding/ui/OrganizerOnboardingWizard";
 import { skillsApi } from "@/features/skills/api/skillsApi";
@@ -23,6 +23,9 @@ import { eventsApi } from "@/features/events/api/eventsApi";
 import { tasksApi } from "@/features/tasks/api/tasksApi";
 import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
 import { toast } from "sonner";
+import { subscriptionsApi } from "@/features/subscriptions/api/subscriptionsApi";
+import { gamificationApi } from "@/features/gamification/api/gamificationApi";
+import { PlanSelectionGrid } from "@/features/subscriptions/ui/PlanSelectionGrid";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -38,6 +41,8 @@ export default function OnboardingPage() {
   } = useAuthStore();
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [organizationSetupStep, setOrganizationSetupStep] = useState<"details" | "plans">("details");
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState(user?.nombre ?? "");
   const [apellido, setApellido] = useState(user?.apellido ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
@@ -51,6 +56,7 @@ export default function OnboardingPage() {
     steps?: {
       welcome_seen?: boolean;
       profile_seen?: boolean;
+      season_seen?: boolean;
       team_seen?: boolean;
       event_seen?: boolean;
       task_seen?: boolean;
@@ -83,7 +89,7 @@ export default function OnboardingPage() {
     mutationFn: organizationsApi.create,
     onSuccess: async (org) => {
       setActiveOrg(org.id);
-      qc.invalidateQueries({ queryKey: ["orgs"] });
+      await qc.invalidateQueries({ queryKey: ["orgs"] });
       if (user?.tipo === "organizador") {
         try {
           await patchOrganizerOnboardingState({ started_at: new Date().toISOString(), steps: { welcome_seen: true } });
@@ -91,9 +97,74 @@ export default function OnboardingPage() {
           // Si falla este patch, no bloqueamos la creación de organización.
         }
       }
-      router.push(user?.tipo === "organizador" ? "/onboarding" : "/dashboard");
+      const plan = availablePlans.find((item) => item.id === selectedPlanId);
+      if (!plan) {
+        toast.error("La organización fue creada, pero no se pudo identificar el plan seleccionado.");
+        router.push("/dashboard/subscriptions");
+        return;
+      }
+      try {
+        if (Number(plan.precio_mensual) <= 0) {
+          await subscriptionsApi.subscribe({ organizacion_id: org.id, plan_id: plan.id });
+          await Promise.all([
+            qc.invalidateQueries({ queryKey: ["orgs"] }),
+            qc.invalidateQueries({ queryKey: ["org-subscription", org.id] }),
+            qc.invalidateQueries({ queryKey: ["org", org.id] }),
+          ]);
+          toast.success("Organización creada con Plan Semilla");
+          router.refresh();
+          return;
+        }
+
+        const origin = window.location.origin;
+        const { checkout_url } = await subscriptionsApi.createCheckoutSession({
+          organizacion_id: org.id,
+          plan_id: plan.id,
+          frecuencia: "mensual",
+          success_url: `${origin}/onboarding?checkout_org_id=${encodeURIComponent(org.id)}&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${origin}/dashboard/subscriptions`,
+        });
+        window.location.href = checkout_url;
+      } catch (error: unknown) {
+        const detail = error && typeof error === "object" && "response" in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : null;
+        toast.error(typeof detail === "string" ? detail : "La organización fue creada, pero no se pudo activar el plan.");
+        router.push("/dashboard/subscriptions");
+      }
     },
   });
+
+  const checkoutSyncStarted = useRef(false);
+  useEffect(() => {
+    if (!user || checkoutSyncStarted.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    const checkoutOrgId = params.get("checkout_org_id");
+    if (!sessionId || !checkoutOrgId) return;
+    checkoutSyncStarted.current = true;
+    void (async () => {
+      try {
+        const result = await subscriptionsApi.syncCheckoutSession({
+          session_id: sessionId,
+          organizacion_id: checkoutOrgId,
+        });
+        setActiveOrg(checkoutOrgId);
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["orgs"] }),
+          qc.invalidateQueries({ queryKey: ["org-subscription", checkoutOrgId] }),
+          qc.invalidateQueries({ queryKey: ["agent-access", checkoutOrgId] }),
+        ]);
+        toast.success(result.mensaje);
+        window.history.replaceState({}, "", "/onboarding");
+      } catch (error: unknown) {
+        const detail = error && typeof error === "object" && "response" in error
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : null;
+        toast.error(typeof detail === "string" ? detail : "No se pudo confirmar el plan pagado.");
+      }
+    })();
+  }, [qc, setActiveOrg, user]);
 
   useEffect(() => {
     if (!user) {
@@ -143,6 +214,12 @@ export default function OnboardingPage() {
     enabled: user?.tipo === "organizador",
   });
 
+  const { data: availablePlans = [], isLoading: plansLoading } = useQuery({
+    queryKey: ["plans"],
+    queryFn: subscriptionsApi.listPlans,
+    enabled: user?.tipo === "organizador" && organizerOrgs.length === 0,
+  });
+
   const organizerActiveOrgId = activeOrgId ?? organizerOrgs[0]?.id ?? null;
 
   const { data: organizerOrg } = useQuery({
@@ -154,6 +231,12 @@ export default function OnboardingPage() {
   const { data: organizerEvents = [] } = useQuery({
     queryKey: ["events", organizerActiveOrgId],
     queryFn: () => eventsApi.list(organizerActiveOrgId!),
+    enabled: user?.tipo === "organizador" && !!organizerActiveOrgId,
+  });
+
+  const { data: organizerSeasons = [] } = useQuery({
+    queryKey: ["seasons", organizerActiveOrgId],
+    queryFn: () => gamificationApi.getSeasons(organizerActiveOrgId!),
     enabled: user?.tipo === "organizador" && !!organizerActiveOrgId,
   });
 
@@ -188,10 +271,11 @@ export default function OnboardingPage() {
         orgs: organizerOrgs,
         org: organizerOrg ?? null,
         members: organizerMembers,
+        seasons: organizerSeasons,
         events: organizerEvents,
         tasks: organizerTasks,
       }),
-    [user, organizerOrgs, organizerOrg, organizerMembers, organizerEvents, organizerTasks]
+    [user, organizerOrgs, organizerOrg, organizerMembers, organizerSeasons, organizerEvents, organizerTasks]
   );
   const organizerShouldShow = useMemo(
     () => shouldShowOrganizerOnboarding(user, organizerOrgs),
@@ -226,6 +310,7 @@ export default function OnboardingPage() {
     const stepPatch: {
       welcome_seen?: boolean;
       profile_seen?: boolean;
+      season_seen?: boolean;
       team_seen?: boolean;
       event_seen?: boolean;
       task_seen?: boolean;
@@ -233,6 +318,7 @@ export default function OnboardingPage() {
     const byId = Object.fromEntries(organizerProgress.steps.map((s) => [s.id, s.completed]));
 
     if (byId.profile && !currentSteps.profile_seen) stepPatch.profile_seen = true;
+    if (byId.season && !currentSteps.season_seen) stepPatch.season_seen = true;
     if (byId.team && !currentSteps.team_seen) stepPatch.team_seen = true;
     if (byId.event && !currentSteps.event_seen) stepPatch.event_seen = true;
     if (byId.task && !currentSteps.task_seen) stepPatch.task_seen = true;
@@ -494,15 +580,21 @@ export default function OnboardingPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45 }}
-        className="w-full max-w-lg"
+        className={organizationSetupStep === "plans" ? "w-full max-w-6xl" : "w-full max-w-lg"}
       >
         <div className="text-center mb-10">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
                style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}>
             <Building2 className="w-8 h-8" style={{ color: "var(--accent)" }} />
           </div>
-          <h1 className="text-3xl font-bold mb-2">Crea tu organización</h1>
-          <p style={{ color: "var(--text-muted)" }}>Es tu espacio de trabajo. Podrás invitar miembros después.</p>
+          <h1 className="text-3xl font-bold mb-2">
+            {organizationSetupStep === "details" ? "Crea tu organización" : "Elige el plan de tu organización"}
+          </h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            {organizationSetupStep === "details"
+              ? "Primero define tu espacio de trabajo; después elegirás el plan."
+              : `${nombre.trim()} comenzará con el plan que selecciones.`}
+          </p>
         </div>
 
         <div className="rounded-3xl p-8 sm:p-10"
@@ -513,37 +605,61 @@ export default function OnboardingPage() {
               No se pudo crear la organización. Inténtalo de nuevo.
             </div>
           )}
-          <div className="space-y-4">
-            <Field label="Nombre de la organización *">
-              <Input
-                data-testid="org-nombre-input"
-                type="text"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                required
-                placeholder="Fundación Esperanza"
-              />
-            </Field>
-            <Field label="Descripción (opcional)">
-              <textarea
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                rows={3}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none transition-colors"
-                style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
-                placeholder="Breve descripción de tu organización..."
-              />
-            </Field>
-            <button
-              data-testid="create-org-btn"
-              onClick={() => createMutation.mutate({ nombre, descripcion })}
-              disabled={!nombre.trim() || createMutation.isPending}
-              className="w-full py-3 rounded-full font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "var(--text)", color: "var(--bg)" }}
-            >
-              {createMutation.isPending ? "Creando…" : "Crear y continuar →"}
-            </button>
-          </div>
+          {organizationSetupStep === "details" ? (
+            <div className="space-y-4">
+              <Field label="Nombre de la organización *">
+                <Input
+                  data-testid="org-nombre-input"
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  required
+                  placeholder="Fundación Esperanza"
+                />
+              </Field>
+              <Field label="Descripción (opcional)">
+                <textarea
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none transition-colors"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  placeholder="Breve descripción de tu organización..."
+                />
+              </Field>
+              <button
+                data-testid="continue-to-plans-btn"
+                onClick={() => setOrganizationSetupStep("plans")}
+                disabled={!nombre.trim()}
+                className="w-full py-3 rounded-full font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "var(--text)", color: "var(--bg)" }}
+              >
+                Ver planes →
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <PlanSelectionGrid plans={availablePlans} selectedPlanId={selectedPlanId} onSelect={setSelectedPlanId} loading={plansLoading} />
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <button type="button" onClick={() => setOrganizationSetupStep("details")} className="inline-flex items-center justify-center gap-2 rounded-full border px-6 py-3 text-sm font-semibold" style={{ borderColor: "var(--border)" }}>
+                  <ArrowLeft className="h-4 w-4" /> Cambiar datos
+                </button>
+                <button
+                  data-testid="create-org-btn"
+                  onClick={() => createMutation.mutate({ nombre: nombre.trim(), descripcion: descripcion.trim() || undefined })}
+                  disabled={!selectedPlanId || createMutation.isPending}
+                  className="rounded-full px-8 py-3 text-sm font-semibold transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ background: "var(--text)", color: "var(--bg)" }}
+                >
+                  {createMutation.isPending ? "Creando organización…" : "Crear organización y continuar →"}
+                </button>
+              </div>
+              <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                Los planes pagados abrirán Stripe. Después continuarás con la creación de tu primera temporada.
+              </p>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

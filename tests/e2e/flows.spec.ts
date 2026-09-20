@@ -8,7 +8,7 @@
  * backend para que las páginas rendericen datos reales de demo.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { installBackendMocks, setAuthenticated } from "./mock-backend";
+import { installBackendMocks, setAuthenticated, MOCK_USER } from "./mock-backend";
 
 async function mockBackendApis(page: Page) {
   await installBackendMocks(page);

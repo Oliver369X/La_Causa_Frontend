@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { authApi } from "@/features/auth/api/authApi";
 import { useAuthStore } from "@/shared/store/authStore";
@@ -12,6 +13,7 @@ import { setAuthSessionCookie } from "@/shared/auth/sessionCookie";
 import { suspend401SessionRedirect } from "@/shared/api/client";
 import { API_BASE_URL } from "@/shared/config/env";
 import { skillsApi } from "@/features/skills/api/skillsApi";
+import { shouldShowOrganizerOnboarding } from "@/features/onboarding/lib/organizerOnboarding";
 import { buildVolunteerOnboardingProgress, shouldAutoStartVolunteerOnboarding } from "@/features/onboarding/lib/volunteerOnboarding";
 
 /** Mensaje usable según fallo HTTP/red (evita “credenciales” cuando el problema es CORS/red/build). */
@@ -27,6 +29,7 @@ function loginErrorMessage(err: unknown, apiMisconfiguredProduction: boolean): s
         return "El login no llegó al API (404). Probablemente NEXT_PUBLIC_API_URL no apunta al backend o la ruta cambió.";
       }
       if (status === 401) return "Credenciales inválidas. Verifica tu email y contraseña.";
+      if (status != null && status >= 500) return "El servidor no pudo completar el inicio de sesión. Intentá nuevamente en unos momentos.";
       if (status === 422 || status === 403) return "No se pudo iniciar sesión con esos datos. Revisá el formulario.";
     if (status === undefined || code === "ERR_NETWORK") {
       return "No hay respuesta del servidor (red, bloqueo o CORS). Si ya verificaste el backend, revisá que el front use la URL correcta del API.";
@@ -37,6 +40,7 @@ function loginErrorMessage(err: unknown, apiMisconfiguredProduction: boolean): s
 
 export default function LoginPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const setAuth = useAuthStore((s) => s.setAuth);
   const volunteerOnboarding = useAuthStore((s) => s.volunteerOnboarding);
   const resetVolunteerOnboarding = useAuthStore((s) => s.resetVolunteerOnboarding);
@@ -53,7 +57,9 @@ export default function LoginPage() {
     if (typeof window === "undefined") return;
     try {
       const cb = new URLSearchParams(window.location.search).get("callbackUrl");
-      if (cb) setCallbackUrl(cb);
+      if (cb && !/\.(?:webmanifest|json|ico|svg|png|jpg|jpeg|webp|js|css)$/i.test(cb) && !cb.includes("manifest")) {
+        setCallbackUrl(cb);
+      }
     } catch {
       // ignore
     }
@@ -86,6 +92,8 @@ export default function LoginPage() {
       // ── 1. Login  ─────────────────────────────────────────────────────────
       // Solo este paso lanza el error de "credenciales inválidas" si falla.
       const { access_token } = await authApi.login({ email: loginEmail, password: loginPassword });
+      queryClient.clear();
+      useAuthStore.getState().setActiveOrg(null);
       setAuthSessionCookie(access_token);
 
       // ── 2. Priming del store con datos básicos para que el interceptor
@@ -112,6 +120,12 @@ export default function LoginPage() {
           useAuthStore.getState().setActiveOrg(orgs[0].id);
         }
 
+        if (resolvedUser?.tipo === "organizador" && !resolvedUser.is_super_admin &&
+            (orgs.length === 0 || shouldShowOrganizerOnboarding(resolvedUser, orgs))) {
+          router.push("/onboarding");
+          return;
+        }
+
         if (resolvedUser?.tipo === "voluntario" && resolvedUser.id) {
           const userSkills = await skillsApi.getUserSkills(resolvedUser.id);
           const misSolicitudes = await organizationsApi.listMySolicitudes();
@@ -132,7 +146,7 @@ export default function LoginPage() {
         // Sin orgs todavía — el dashboard mostrará el prompt de onboarding.
       }
 
-      if (callbackUrl?.startsWith("/")) {
+      if (callbackUrl?.startsWith("/") && !/\.(?:webmanifest|json|ico|svg|png|jpg|jpeg|webp|js|css)$/i.test(callbackUrl) && !callbackUrl.includes("manifest")) {
         router.push(callbackUrl);
         return;
       }

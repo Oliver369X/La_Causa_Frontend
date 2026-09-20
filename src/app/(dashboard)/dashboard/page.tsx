@@ -29,6 +29,7 @@ import { tasksApi } from "@/features/tasks/api/tasksApi";
 import { volunteersApi } from "@/features/volunteers/api/volunteersApi";
 import Link from "next/link";
 import { usePermissions } from "@/shared/hooks/usePermissions";
+import { gamificationApi } from "@/features/gamification/api/gamificationApi";
 
 export default function DashboardPage() {
   const { activeOrgId, user, volunteerOnboarding } = useAuthStore();
@@ -97,6 +98,12 @@ export default function DashboardPage() {
     enabled: isOrganizer && !!activeOrgId,
   });
 
+  const { data: organizerSeasons = [] } = useQuery({
+    queryKey: ["seasons", activeOrgId],
+    queryFn: () => gamificationApi.getSeasons(activeOrgId!),
+    enabled: isOrganizer && !!activeOrgId,
+  });
+
   const { data: organizerMembers = [] } = useQuery({
     queryKey: ["members", activeOrgId],
     queryFn: () => volunteersApi.listMembers(activeOrgId!),
@@ -115,6 +122,7 @@ export default function DashboardPage() {
     orgs: organizerOrgs,
     org: organizerOrg ?? null,
     members: organizerMembers,
+    seasons: organizerSeasons,
     events: organizerEvents,
     tasks: organizerTasks,
   });

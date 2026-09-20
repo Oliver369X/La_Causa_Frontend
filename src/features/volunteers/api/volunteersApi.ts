@@ -13,6 +13,11 @@ mlClient.interceptors.request.use((config) => {
 });
 
 export interface Member {
+  usuario_avatar_url?: string | null;
+  xp_total?: number;
+  elo_score?: number;
+  rango?: string;
+  tareas_completadas?: number;
   id: string;
   usuario_id: string;
   organizacion_id: string;

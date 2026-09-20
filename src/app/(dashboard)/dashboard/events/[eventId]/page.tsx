@@ -513,17 +513,40 @@ export default function EventDetailPage() {
 
         {tab === "retrospectiva" && showRetroTab && (
           <div
-            className="p-6 rounded-2xl"
+            className="p-6 md:p-8 rounded-3xl space-y-5"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
-            <Link
-              href={`/dashboard/events/${eventId}/retrospectiva`}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
-              style={{ background: "var(--accent)", color: "white" }}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Abrir retrospectiva
-            </Link>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageSquare className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                  <h3 className="font-bold text-lg" style={{ color: "var(--text)" }}>
+                    Retrospectiva del Evento
+                  </h3>
+                </div>
+                <p className="text-xs sm:text-sm max-w-xl" style={{ color: "var(--text-muted)" }}>
+                  Revisión colaborativa tipo Scrum (Bien / Mejorar / Acciones) y reflexiones individuales de los voluntarios participantes.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Link
+                  href={`/dashboard/events/${eventId}/retro-voluntario`}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  Mi reflexión
+                </Link>
+                <Link
+                  href={`/dashboard/events/${eventId}/retrospectiva`}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"
+                  style={{ background: "var(--accent)", color: "#ffffff" }}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Abrir tablero de retrospectiva
+                </Link>
+              </div>
+            </div>
           </div>
         )}
 

@@ -45,6 +45,8 @@ export interface UpdateAssignmentData {
 
 export interface Delivery {
   id: UUID;
+  nombre?: string | null;
+  avatar_url?: string | null;
   tarea_asignacion_id: UUID;
   enviado_por: UUID;
   revisado_por: UUID | null;

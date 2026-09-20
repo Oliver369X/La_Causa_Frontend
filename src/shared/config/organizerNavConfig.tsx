@@ -105,7 +105,7 @@ export const ORGANIZER_NAV_SECTIONS: OrganizerNavSection[] = [
       { href: "/dashboard/subscriptions", icon: CreditCard, label: "Suscripción", permissionAction: "managePlans" },
       { href: "/dashboard/role-history", icon: History, label: "Historial de roles", permissionAction: "viewAudit" },
       { href: "/dashboard/audit", icon: ShieldCheck, label: "Auditoría", permissionAction: "viewAudit" },
-      { href: "/dashboard/agent", icon: Sparkles, label: "Agente IA", paidOnly: true },
+      { href: "/dashboard/agent", icon: Sparkles, label: "Agente IA" },
       { href: "/dashboard/settings", icon: Settings, label: "Configuración", permissionAction: "viewEvents" },
     ],
   },

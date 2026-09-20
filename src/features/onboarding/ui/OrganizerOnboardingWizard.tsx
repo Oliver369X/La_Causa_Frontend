@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Settings,
+  History,
   Users,
   Sparkles,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import type {
 const STEP_ORDER: OrganizerOnboardingStepId[] = [
   "welcome",
   "profile",
+  "season",
   "team",
   "event",
   "task",
@@ -40,6 +42,11 @@ const STEP_TARGETS: Record<
     href: "/dashboard/settings",
     label: "Ir a Configuración",
     helper: "Completa logo, descripción o términos para cerrar este paso.",
+  },
+  season: {
+    href: "/dashboard/temporadas",
+    label: "Crear primera temporada",
+    helper: "Una temporada activa es obligatoria: sin ella no podrás crear eventos.",
   },
   team: {
     href: "/dashboard/staff",
@@ -94,9 +101,9 @@ export function OrganizerOnboardingWizard({
             <p className="text-xs uppercase tracking-[0.2em] mb-3" style={{ color: "var(--accent)" }}>
               Modo organizador
             </p>
-            <h2 className="text-3xl font-semibold mb-3">Activa tu operación en 4 pasos</h2>
+            <h2 className="text-3xl font-semibold mb-3">Activa tu operación en 5 pasos</h2>
             <p className="text-sm md:text-base max-w-2xl" style={{ color: "var(--text-muted)" }}>
-              Este flujo te guía para dejar lista tu organización: configuración básica, equipo, primer evento y primera tarea.
+              Este flujo te guía para dejar lista tu organización: configuración básica, temporada activa, equipo, primer evento y primera tarea.
             </p>
           </div>
 
@@ -108,6 +115,11 @@ export function OrganizerOnboardingWizard({
                 description: "Define presentación y normas para dar confianza a tus voluntarios.",
               },
               {
+                icon: History,
+                title: "Crea una temporada",
+                description: "Define el ciclo en el que se medirán eventos, ELO, medallas y resultados.",
+              },
+              {
                 icon: Users,
                 title: "Arma tu equipo",
                 description: "Invita miembros para no gestionar todo tú solo.",
@@ -115,7 +127,7 @@ export function OrganizerOnboardingWizard({
               {
                 icon: Calendar,
                 title: "Publica tu primer evento",
-                description: "Empieza a recibir participación con una convocatoria real.",
+                description: "Con una temporada activa, empieza a recibir participación con una convocatoria real.",
               },
               {
                 icon: ClipboardList,

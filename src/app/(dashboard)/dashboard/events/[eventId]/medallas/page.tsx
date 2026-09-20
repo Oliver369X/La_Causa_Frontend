@@ -1,4 +1,6 @@
 "use client";
+import { CreationCard, creationStyles as editor } from "@/shared/ui/CreationCard";
+import { BadgeImageField } from "@/features/badges/ui/BadgeImageField";
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
@@ -28,7 +30,8 @@ export default function EventMedallasPage() {
 
   const [formNombre, setFormNombre] = useState("");
   const [formDesc, setFormDesc] = useState("");
-  const [formImg, setFormImg] = useState("https://placehold.co/64x64");
+  const [formImg, setFormImg] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [awardUsuarioId, setAwardUsuarioId] = useState("");
   const [awardInsigniaId, setAwardInsigniaId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -58,6 +61,7 @@ export default function EventMedallasPage() {
   }, [eventId]);
 
   const handleCreate = async () => {
+    if (uploadingImage || submitting) return;
     if (!formNombre.trim() || !formDesc.trim()) {
       toast.error("Nombre y descripción requeridos");
       return;
@@ -67,7 +71,7 @@ export default function EventMedallasPage() {
       await eventBadgesApi.create(eventId, {
         nombre: formNombre,
         descripcion: formDesc,
-        url_imagen: formImg || "https://placehold.co/64x64",
+        url_imagen: formImg,
         tipo: "TAREA_ESPECIAL",
         rareza: "COMUN",
         da_xp: true,
@@ -147,10 +151,9 @@ export default function EventMedallasPage() {
         </div>
 
         {showCreate && (
-          <Card>
-            <h3 className="font-semibold mb-4">Nueva medalla</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+          <CreationCard kind="medal" onClose={() => setShowCreate(false)}>
+            <div className={editor.fields}>
+              <div data-editor="title">
                 <label className="block text-sm mb-1">Nombre</label>
                 <input
                   value={formNombre}
@@ -160,17 +163,11 @@ export default function EventMedallasPage() {
                   style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
                 />
               </div>
-              <div>
-                <label className="block text-sm mb-1">URL imagen</label>
-                <input
-                  value={formImg}
-                  onChange={(e) => setFormImg(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 rounded-lg text-sm"
-                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-                />
+              <div data-editor="block">
+                <BadgeImageField value={formImg} onChange={setFormImg} uploading={uploadingImage}
+                  onUploadingChange={setUploadingImage} disabled={submitting} onError={message => toast.error(message)} />
               </div>
-              <div className="md:col-span-2">
+              <div data-editor="description">
                 <label className="block text-sm mb-1">Descripción</label>
                 <textarea
                   value={formDesc}
@@ -182,11 +179,11 @@ export default function EventMedallasPage() {
                 />
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
-              <Button onClick={handleCreate} loading={submitting}>Crear</Button>
+            <div className={editor.actions}>
+              <Button onClick={handleCreate} loading={submitting} disabled={uploadingImage}>Crear</Button>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
             </div>
-          </Card>
+          </CreationCard>
         )}
 
         {showAward && (
