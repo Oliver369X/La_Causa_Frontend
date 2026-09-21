@@ -330,9 +330,9 @@ export async function generateEventReportPdf(
   const categoryTotals = new Map<string, number>();
   for (const expense of expenses.filter((item) => item.estado !== "cancelado")) {
     const key = `${expense.categoria} (${expense.moneda})`;
-    categoryTotals.set(key, (categoryTotals.get(key) ?? 0) + expense.total);
+    categoryTotals.set(key, (categoryTotals.get(key) ?? 0) + Number(expense.total || 0));
   }
-  const categoryRows = [...categoryTotals.entries()].map(([category, total]) => [category, total.toFixed(2)]);
+  const categoryRows = [...categoryTotals.entries()].map(([category, total]) => [category, Number(total).toFixed(2)]);
   const money = (values: Record<string, number>) => Object.entries(values)
     .map(([currency, amount]) => `${Number(amount).toFixed(2)} ${currency}`)
     .join(" · ") || "—";
@@ -415,7 +415,7 @@ export async function generateEventReportPdf(
       expense.descripcion,
       expense.proveedor || "-",
       expense.numero_comprobante || "-",
-      `${expense.total.toFixed(2)} ${expense.moneda}`,
+      `${Number(expense.total || 0).toFixed(2)} ${expense.moneda}`,
       expense.estado,
       expense.comprobante_url ? "Sí" : "No",
     ]) : [["-", "Sin gastos adicionales registrados", "-", "-", "-", "-", "-"]],

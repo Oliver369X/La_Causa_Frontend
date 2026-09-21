@@ -155,7 +155,7 @@ export default function ReportesDinamicosPage() {
     queryFn: () => gamificationApi.getSeasons(activeOrgId!),
     enabled: !!activeOrgId,
   });
-  const { data: eventAnalytics, isLoading: eventAnalyticsLoading } = useQuery({
+  const { data: eventAnalytics, isLoading: eventAnalyticsLoading, refetch: refetchEventAnalytics } = useQuery({
     queryKey: ["event-analytics", selectedEventId],
     queryFn: () => analyticsApi.event(selectedEventId),
     enabled: !!selectedEventId,
@@ -280,7 +280,7 @@ export default function ReportesDinamicosPage() {
     });
     setExpenseForm({ categoria: "Operación", descripcion: "", cantidad: "1", costo_unitario: "", moneda: "BOB", estado: "pagado", proveedor: "", numero_comprobante: "", fecha_gasto: "" });
     setShowExpenseForm(false);
-    await refetchExpenses();
+    await Promise.all([refetchExpenses(), refetchEventAnalytics()]);
   };
 
   return (
@@ -833,7 +833,7 @@ export default function ReportesDinamicosPage() {
                       {Object.entries(eventAnalytics.costos_estimados_por_moneda).map(([currency, total]) => <div key={`estimated-${currency}`} className="flex justify-between p-3 rounded-xl mb-2" style={{ background: "var(--bg-subtle)" }}><span className="text-sm">Presupuesto estimado {currency}</span><span className="font-semibold">{Number(total).toFixed(2)}</span></div>)}
                       {Object.entries(eventAnalytics.gastos_por_moneda).length === 0 ? <p className="text-sm" style={{ color: "var(--text-muted)" }}>Sin gastos registrados.</p> : Object.entries(eventAnalytics.gastos_por_moneda).map(([currency, total]) => <div key={currency} className="flex justify-between p-3 rounded-xl mb-2" style={{ background: "var(--bg-subtle)" }}><span className="text-sm flex items-center gap-2"><Wallet className="w-4 h-4" />Costo real {currency}</span><span className="font-semibold">{Number(total).toFixed(2)}</span></div>)}
                       {Object.entries(eventAnalytics.gastos_pendientes_por_moneda).map(([currency, total]) => <div key={`pending-${currency}`} className="flex justify-between p-3 rounded-xl mb-2" style={{ background: "var(--accent-soft)" }}><span className="text-sm">Pendiente de aprobación {currency}</span><span className="font-semibold">{Number(total).toFixed(2)}</span></div>)}
-                      {expenses.length > 0 && <div className="mt-3 space-y-2">{expenses.map((expense) => <div key={expense.id} className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}><span>{expense.descripcion} · {expense.cantidad} × {expense.costo_unitario}</span><span>{expense.total.toFixed(2)} {expense.moneda}</span></div>)}</div>}
+                      {expenses.length > 0 && <div className="mt-3 space-y-2">{expenses.map((expense) => <div key={expense.id} className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}><span>{expense.descripcion} · {Number(expense.cantidad || 0)} × {Number(expense.costo_unitario || 0).toFixed(2)}</span><span>{Number(expense.total || 0).toFixed(2)} {expense.moneda}</span></div>)}</div>}
                     </div>
                   </div>
                   <div className="mt-5">
