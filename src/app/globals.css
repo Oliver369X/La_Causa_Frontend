@@ -21,18 +21,18 @@
   --border:      rgba(0,0,0,0.08);
   --text:        #111111;
   --text-muted:  #6b7280;
-  --accent:      #7c3aed;
-  --accent-soft: rgba(124,58,237,0.10);
-  --glow-a:      rgba(124,58,237,0.15);
-  --glow-b:      rgba(59,130,246,0.12);
+  --accent:      #0f766e;
+  --accent-soft: rgba(15,118,110,0.10);
+  --glow-a:      rgba(15,118,110,0.12);
+  --glow-b:      rgba(15,23,42,0.08);
 
   /* Gamification tokens */
   --g-energia:     #f59e0b;
   --g-energia-soft: rgba(245,158,11,0.15);
   --g-logro:       #22c55e;
   --g-logro-soft:  rgba(34,197,94,0.12);
-  --g-progreso:    #7c3aed;
-  --g-progreso-soft: rgba(124,58,237,0.12);
+  --g-progreso:    #0f766e;
+  --g-progreso-soft: rgba(15,118,110,0.12);
   --g-streak:      #ef4444;
   --g-streak-soft: rgba(239,68,68,0.15);
   --g-advertencia: #f97316;
@@ -44,8 +44,8 @@
   --g-uncommon-soft: rgba(59,130,246,0.15);
   --g-rare:       #22c55e;
   --g-rare-soft:  rgba(34,197,94,0.15);
-  --g-epic:       #a855f7;
-  --g-epic-soft:  rgba(168,85,247,0.18);
+  --g-epic:       #0e7490;
+  --g-epic-soft:  rgba(14,116,144,0.16);
   --g-legendary:  #f59e0b;
   --g-legendary-soft: rgba(245,158,11,0.2);
   /* Motion */
@@ -66,17 +66,17 @@
   --border:      rgba(255,255,255,0.07);
   --text:        #f0f0f0;
   --text-muted:  #9ca3af;
-  --accent:      #a78bfa;
-  --accent-soft: rgba(167,139,250,0.10);
-  --glow-a:      rgba(124,58,237,0.20);
-  --glow-b:      rgba(59,130,246,0.15);
+  --accent:      #2dd4bf;
+  --accent-soft: rgba(45,212,191,0.12);
+  --glow-a:      rgba(45,212,191,0.16);
+  --glow-b:      rgba(148,163,184,0.10);
 
   --g-energia:     #fbbf24;
   --g-energia-soft: rgba(251,191,36,0.12);
   --g-logro:       #34d399;
   --g-logro-soft:  rgba(52,211,153,0.12);
-  --g-progreso:    #a78bfa;
-  --g-progreso-soft: rgba(167,139,250,0.12);
+  --g-progreso:    #2dd4bf;
+  --g-progreso-soft: rgba(45,212,191,0.12);
   --g-streak:      #f87171;
   --g-streak-soft: rgba(248,113,113,0.15);
   --g-advertencia: #fb923c;
@@ -87,8 +87,8 @@
   --g-uncommon-soft: rgba(96,165,250,0.15);
   --g-rare:       #34d399;
   --g-rare-soft:  rgba(52,211,153,0.15);
-  --g-epic:       #c084fc;
-  --g-epic-soft:  rgba(192,132,252,0.18);
+  --g-epic:       #22d3ee;
+  --g-epic-soft:  rgba(34,211,238,0.16);
   --g-legendary:  #fbbf24;
   --g-legendary-soft: rgba(251,191,36,0.2);
 }
